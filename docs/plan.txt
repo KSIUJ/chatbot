@@ -1,0 +1,33 @@
+must
+- RAG (encoder + baza danych + decoder)
+- dane
+
+should
+- prosta strona
+
+could
+- ładna strona
+- zaawansowane funkcjonalności
+- konta itp.
+- automatyzacja
+
+
+dane -> RAG -> na co zostanie czas
+
+
+Pierwszy sprint:
+- co to RAG (jaki format danych!!!)
+- skąd wziąć dane: (web scraping)
+	-strona wydziału + statut (czy cała?)
+	-strony kół
+	-wikipedia wydziału
+	-usos?
+	-mordor???
+	-discord????? nie
+
+
+Drugi sprint:
+Dane:
+-strony (Sonia + Patrycja)
+-mordor (Mikołaj + Ola)
+-usos (Karol)
