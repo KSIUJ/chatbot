@@ -17,7 +17,7 @@ from usos_api import (
     usos_call_signed,
 )
 
-FAC_ID = "WMI"
+FAC_ID = "UJ.WMI"
 STAFF_INDEX_PAGE_SIZE = 100
 STAFF_OUTPUT_DIR = os.path.join("data", "usos", "staff")
 USER_FIELDS = (
