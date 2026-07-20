@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 M_COOKIE = os.getenv("MORDOR_COOKIE")
 
+print (f"Using cookie: {M_COOKIE}")
+
 session = requests.Session()
 
 if M_COOKIE:
@@ -80,7 +82,7 @@ def scrape_cat(url, cur_folder):
             new_folder = os.path.join(cur_folder, name)
             scrape_cat(full_url, new_folder)
             
-        elif href.lower().endswith(('.jpg', '.jpeg', '.png', '.pdf', '.doc')):
+        elif href.lower().endswith(('.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.txt')):
             direct_download_url = full_url.replace('/file/', '/download/')
             save_img(direct_download_url, cur_folder, name)
 
