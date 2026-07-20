@@ -3,6 +3,7 @@ import os
 import time
 
 import pytest
+from requests_oauthlib import OAuth1
 
 import usos_api
 
@@ -90,3 +91,57 @@ def test_usos_call_anonymous_raises_on_non_200(monkeypatch):
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.body == "bad request"
+
+
+def test_usos_call_signed_raises_without_credentials(monkeypatch):
+    monkeypatch.delenv("USOS_CONSUMER_KEY", raising=False)
+    monkeypatch.delenv("USOS_CONSUMER_SECRET", raising=False)
+
+    with pytest.raises(usos_api.UsosCredentialsError):
+        usos_api.usos_call_signed("services/users/user", {"user_id": "1"})
+
+
+def test_usos_call_signed_sends_oauth1_auth_and_returns_json(monkeypatch):
+    monkeypatch.setenv("USOS_CONSUMER_KEY", "test_key")
+    monkeypatch.setenv("USOS_CONSUMER_SECRET", "test_secret")
+    monkeypatch.setattr(usos_api, "_respect_rate_limit", lambda: None)
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"id": 1}
+
+    captured = {}
+
+    def fake_get(url, params=None, auth=None, timeout=None):
+        captured["url"] = url
+        captured["params"] = params
+        captured["auth"] = auth
+        return FakeResponse()
+
+    monkeypatch.setattr(usos_api.requests, "get", fake_get)
+
+    result = usos_api.usos_call_signed("services/users/user", {"user_id": "1"})
+
+    assert result == {"id": 1}
+    assert captured["url"] == "https://apps.usos.uj.edu.pl/services/users/user"
+    assert captured["params"] == {"user_id": "1"}
+    assert isinstance(captured["auth"], OAuth1)
+
+
+def test_usos_call_signed_raises_on_non_200(monkeypatch):
+    monkeypatch.setenv("USOS_CONSUMER_KEY", "test_key")
+    monkeypatch.setenv("USOS_CONSUMER_SECRET", "test_secret")
+    monkeypatch.setattr(usos_api, "_respect_rate_limit", lambda: None)
+
+    class FakeResponse:
+        status_code = 403
+        text = "forbidden"
+
+    monkeypatch.setattr(usos_api.requests, "get", lambda *a, **kw: FakeResponse())
+
+    with pytest.raises(usos_api.UsosApiError) as exc_info:
+        usos_api.usos_call_signed("services/users/user", {"user_id": "1"})
+
+    assert exc_info.value.status_code == 403
