@@ -13,6 +13,7 @@ dataset/
 *.docx
 *.txt
 !requirements.txt
+!requirements-dev.txt
 
 # other
 *.log
@@ -21,3 +22,4 @@ __pycache__/
 Thumbs.db
 src/data/mordor/check_progress.py
 src/data/usos/.last_request_time
+.superpowers/
