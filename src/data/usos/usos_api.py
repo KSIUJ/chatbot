@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 import requests
 from dotenv import load_dotenv
+from requests_oauthlib import OAuth1
 
 load_dotenv()
 
@@ -29,6 +30,10 @@ class UsosApiError(Exception):
         self.status_code = status_code
         self.body = body
         super().__init__(f"USOS API error {status_code}: {body}")
+
+
+class UsosCredentialsError(RuntimeError):
+    """Podniesiony, gdy brakuje USOS_CONSUMER_KEY/USOS_CONSUMER_SECRET w .env."""
 
 
 def _respect_rate_limit() -> None:
@@ -84,6 +89,37 @@ def usos_call_anonymous(method_path: str, params: dict[str, str] | None = None) 
 
     print(f"[request] GET {url} params={params or {}}")
     response = requests.get(url, params=params or {}, timeout=30)
+
+    if response.status_code != 200:
+        raise UsosApiError(response.status_code, response.text)
+
+    return response.json()
+
+
+def usos_call_signed(method_path: str, params: dict[str, str] | None = None) -> dict:
+    """Wykonuje zapytanie GET podpisane kluczem consumer (2-legged OAuth1).
+
+    To NIE jest pelny 3-legged flow - nie loguje zadnego uzytkownika, tylko
+    podpisuje zapytanie kluczem consumer/secret zarejestrowanej aplikacji.
+    Wymaga USOS_CONSUMER_KEY i USOS_CONSUMER_SECRET w .env (patrz
+    .env.example).
+    """
+    consumer_key = os.getenv("USOS_CONSUMER_KEY")
+    consumer_secret = os.getenv("USOS_CONSUMER_SECRET")
+    if not consumer_key or not consumer_secret:
+        raise UsosCredentialsError(
+            "Brak USOS_CONSUMER_KEY/USOS_CONSUMER_SECRET w .env. Zarejestruj "
+            "aplikacje na https://apps.usos.uj.edu.pl/developers/ i uzupelnij "
+            ".env na podstawie .env.example."
+        )
+
+    _respect_rate_limit()
+
+    url = BASE_URL.rstrip("/") + "/" + method_path.lstrip("/")
+    auth = OAuth1(consumer_key, consumer_secret)
+
+    print(f"[request][signed] GET {url} params={params or {}}")
+    response = requests.get(url, params=params or {}, auth=auth, timeout=30)
 
     if response.status_code != 200:
         raise UsosApiError(response.status_code, response.text)
