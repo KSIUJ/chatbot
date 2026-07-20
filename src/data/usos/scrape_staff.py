@@ -6,6 +6,7 @@ pozniejszego wykorzystania w RAG.
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 
 from usos_api import (
@@ -68,6 +69,40 @@ def save_staff_dataset(fac_id: str, employees: list[dict]) -> str:
         json.dump(employees, f, ensure_ascii=False, indent=2)
 
     return filepath
+
+
+def run_scrape(fac_id: str = FAC_ID) -> dict:
+    """Uruchamia pelny scraping: dyskonta ID, fetch kazdego, zapis datasetu.
+
+    Bledy pojedynczych pracownikow sa logowane na stderr i pomijane - reszta
+    scrapingu jest kontynuowana. Zwraca podsumowanie przebiegu.
+    """
+    staff_ids = fetch_all_staff_ids(fac_id)
+
+    employees = []
+    skipped_ids = []
+
+    for user_id in staff_ids:
+        try:
+            raw = fetch_employee_detail(user_id)
+        except UsosApiError as e:
+            print(
+                f"[error] Pomijam pracownika {user_id}: status {e.status_code}\n{e.body}",
+                file=sys.stderr,
+            )
+            skipped_ids.append(user_id)
+            continue
+
+        employees.append(normalize_employee(raw))
+
+    output_path = save_staff_dataset(fac_id, employees)
+
+    return {
+        "total_found": len(staff_ids),
+        "total_fetched": len(employees),
+        "skipped_ids": skipped_ids,
+        "output_path": output_path,
+    }
 
 
 def flatten_langdict(langdict: dict | None, preferred_lang: str = "pl") -> tuple[dict, str]:
