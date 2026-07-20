@@ -132,3 +132,20 @@ def test_fetch_employee_detail_calls_signed_with_correct_fields(monkeypatch):
     assert calls == [
         ("services/users/user", {"user_id": "42", "fields": scrape_staff.USER_FIELDS})
     ]
+
+
+import json
+import os
+
+
+def test_save_staff_dataset_writes_file_with_expected_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(scrape_staff, "STAFF_OUTPUT_DIR", str(tmp_path))
+
+    employees = [{"id": 1, "first_name": "Ola"}]
+    path = scrape_staff.save_staff_dataset("WMI", employees)
+
+    assert os.path.exists(path)
+    assert os.path.basename(path).startswith("staff_WMI_")
+    assert os.path.basename(path).endswith(".json")
+    with open(path, encoding="utf-8") as f:
+        assert json.load(f) == employees
