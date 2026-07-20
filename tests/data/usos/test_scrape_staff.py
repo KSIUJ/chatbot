@@ -72,3 +72,45 @@ def test_normalize_employee_handles_missing_optional_fields():
     assert result["employment_positions"] == []
     assert result["office_hours"] == {}
     assert result["office_hours_text"] == ""
+
+
+def test_fetch_all_staff_ids_paginates_until_next_page_false(monkeypatch):
+    responses = [
+        {"users": [{"id": 1}, {"id": 2}], "next_page": True, "total": 3},
+        {"users": [{"id": 3}], "next_page": False, "total": 3},
+    ]
+    calls = []
+
+    def fake_signed(method_path, params):
+        calls.append((method_path, dict(params)))
+        return responses[len(calls) - 1]
+
+    monkeypatch.setattr(scrape_staff, "usos_call_signed", fake_signed)
+    monkeypatch.setattr(scrape_staff, "save_response", lambda *a, **kw: "irrelevant")
+
+    result = scrape_staff.fetch_all_staff_ids("WMI")
+
+    assert result == [1, 2, 3]
+    assert calls[0] == (
+        "services/users/staff_index",
+        {
+            "fac_ids": "WMI",
+            "fields": "users[id]|next_page|total",
+            "num": "100",
+            "start": "0",
+        },
+    )
+    assert calls[1][1]["start"] == "100"
+
+
+def test_fetch_all_staff_ids_single_page(monkeypatch):
+    monkeypatch.setattr(
+        scrape_staff,
+        "usos_call_signed",
+        lambda method_path, params: {"users": [{"id": 7}], "next_page": False, "total": 1},
+    )
+    monkeypatch.setattr(scrape_staff, "save_response", lambda *a, **kw: "irrelevant")
+
+    result = scrape_staff.fetch_all_staff_ids("WMI")
+
+    assert result == [7]
