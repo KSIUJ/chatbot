@@ -3,18 +3,10 @@
 
 # data
 dataset/
-src/data/mordor/data/
-# *.pdf
-# *.jpg
-# *.jpeg
-# *.png
-# *.doc
-# *.docx
-# *.txt
+data/mordor/
 
 # other
 *.log
 __pycache__/
 .DS_Store
 Thumbs.db
-src/data/mordor/check_progress.py
