@@ -3,6 +3,7 @@
 
 # data
 data/mordor
+data/usos
 dataset/
 *.pdf
 *.jpg
@@ -11,6 +12,7 @@ dataset/
 *.doc
 *.docx
 *.txt
+!requirements.txt
 
 # other
 *.log
@@ -18,3 +20,4 @@ __pycache__/
 .DS_Store
 Thumbs.db
 src/data/mordor/check_progress.py
+src/data/usos/.last_request_time
