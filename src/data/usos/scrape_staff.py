@@ -19,6 +19,30 @@ USER_FIELDS = (
 )
 
 
+def fetch_all_staff_ids(fac_id: str) -> list[int]:
+    """Pobiera wszystkie ID pracownikow danego wydzialu, paginujac wyniki."""
+    ids: list[int] = []
+    start = 0
+
+    while True:
+        params = {
+            "fac_ids": fac_id,
+            "fields": "users[id]|next_page|total",
+            "num": str(STAFF_INDEX_PAGE_SIZE),
+            "start": str(start),
+        }
+        payload = usos_call_signed("services/users/staff_index", params)
+        save_response("services/users/staff_index", payload, RAW_DATA_DIR)
+
+        ids.extend(user["id"] for user in payload.get("users", []))
+
+        if not payload.get("next_page"):
+            break
+        start += STAFF_INDEX_PAGE_SIZE
+
+    return ids
+
+
 def flatten_langdict(langdict: dict | None, preferred_lang: str = "pl") -> tuple[dict, str]:
     """Splaszcza pole typu LangDict do (oryginalny slownik, najlepszy tekst).
 
