@@ -197,4 +197,4 @@ def test_run_scrape_defaults_to_wmi(monkeypatch):
 
     scrape_staff.run_scrape()
 
-    assert seen_fac_ids == ["WMI"]
+    assert seen_fac_ids == ["UJ.WMI"]
