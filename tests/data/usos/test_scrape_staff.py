@@ -1,4 +1,5 @@
 import scrape_staff
+import usos_api
 
 
 def test_flatten_langdict_returns_empty_for_none():
@@ -149,3 +150,51 @@ def test_save_staff_dataset_writes_file_with_expected_name(monkeypatch, tmp_path
     assert os.path.basename(path).endswith(".json")
     with open(path, encoding="utf-8") as f:
         assert json.load(f) == employees
+
+
+def test_run_scrape_skips_failed_employees_and_continues(monkeypatch, capsys):
+    monkeypatch.setattr(scrape_staff, "fetch_all_staff_ids", lambda fac_id: [1, 2, 3])
+
+    def fake_fetch_detail(user_id):
+        if user_id == 2:
+            raise usos_api.UsosApiError(500, "server error")
+        return {"id": user_id, "first_name": f"User{user_id}", "last_name": "X"}
+
+    monkeypatch.setattr(scrape_staff, "fetch_employee_detail", fake_fetch_detail)
+
+    saved = {}
+
+    def fake_save(fac_id, employees):
+        saved["fac_id"] = fac_id
+        saved["employees"] = employees
+        return "data/usos/staff/staff_WMI_fake.json"
+
+    monkeypatch.setattr(scrape_staff, "save_staff_dataset", fake_save)
+
+    summary = scrape_staff.run_scrape("WMI")
+
+    assert summary["total_found"] == 3
+    assert summary["total_fetched"] == 2
+    assert summary["skipped_ids"] == [2]
+    assert summary["output_path"] == "data/usos/staff/staff_WMI_fake.json"
+    assert saved["fac_id"] == "WMI"
+    assert [e["id"] for e in saved["employees"]] == [1, 3]
+
+    captured = capsys.readouterr()
+    assert "2" in captured.err
+    assert "500" in captured.err
+    assert "server error" in captured.err
+
+
+def test_run_scrape_defaults_to_wmi(monkeypatch):
+    seen_fac_ids = []
+    monkeypatch.setattr(
+        scrape_staff,
+        "fetch_all_staff_ids",
+        lambda fac_id: seen_fac_ids.append(fac_id) or [],
+    )
+    monkeypatch.setattr(scrape_staff, "save_staff_dataset", lambda fac_id, employees: "path")
+
+    scrape_staff.run_scrape()
+
+    assert seen_fac_ids == ["WMI"]
