@@ -1,0 +1,8 @@
+requests
+beautifulsoup4
+python-dotenv
+langchain
+langchain-community
+unstructured[all-docs]
+chromadb
+pymupdf4llm
