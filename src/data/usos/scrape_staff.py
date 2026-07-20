@@ -4,6 +4,10 @@ Wlasciwy scraper danych pracownikow WMI z USOS API UJ: kontakt i dyzury
 pozniejszego wykorzystania w RAG.
 """
 
+import json
+import os
+from datetime import datetime, timezone
+
 from usos_api import (
     RAW_DATA_DIR,
     UsosApiError,
@@ -13,6 +17,7 @@ from usos_api import (
 
 FAC_ID = "WMI"
 STAFF_INDEX_PAGE_SIZE = 100
+STAFF_OUTPUT_DIR = os.path.join("data", "usos", "staff")
 USER_FIELDS = (
     "id|first_name|last_name|titles|email|phone_numbers|office_hours|"
     "room|profile_url|homepage_url|interests|employment_positions"
@@ -49,6 +54,20 @@ def fetch_employee_detail(user_id: int) -> dict:
     payload = usos_call_signed("services/users/user", params)
     save_response("services/users/user", payload, RAW_DATA_DIR)
     return payload
+
+
+def save_staff_dataset(fac_id: str, employees: list[dict]) -> str:
+    """Zapisuje znormalizowana liste pracownikow do jednego pliku JSON."""
+    os.makedirs(STAFF_OUTPUT_DIR, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    filename = f"staff_{fac_id}_{timestamp}.json"
+    filepath = os.path.join(STAFF_OUTPUT_DIR, filename)
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(employees, f, ensure_ascii=False, indent=2)
+
+    return filepath
 
 
 def flatten_langdict(langdict: dict | None, preferred_lang: str = "pl") -> tuple[dict, str]:
