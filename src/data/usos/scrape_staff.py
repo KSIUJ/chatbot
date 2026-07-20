@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from usos_api import (
     RAW_DATA_DIR,
     UsosApiError,
+    UsosCredentialsError,
     save_response,
     usos_call_signed,
 )
@@ -147,3 +148,27 @@ def normalize_employee(raw: dict) -> dict:
         "interests_text": interests_text,
         "employment_positions": raw.get("employment_positions") or [],
     }
+
+
+def main() -> None:
+    try:
+        summary = run_scrape()
+    except UsosCredentialsError as e:
+        print(f"[error] {e}", file=sys.stderr)
+        sys.exit(1)
+    except UsosApiError as e:
+        print(
+            f"[error] Nie udalo sie pobrac listy pracownikow: status {e.status_code}\n{e.body}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print(f"Znaleziono pracownikow: {summary['total_found']}")
+    print(f"Pobrano poprawnie: {summary['total_fetched']}")
+    if summary["skipped_ids"]:
+        print(f"Pominieto (bledy): {summary['skipped_ids']}")
+    print(f"Zapisano dataset: {summary['output_path']}")
+
+
+if __name__ == "__main__":
+    main()
