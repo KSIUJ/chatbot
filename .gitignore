@@ -2,15 +2,15 @@
 .env
 
 # data
-data/mordor
 dataset/
-*.pdf
-*.jpg
-*.jpeg
-*.png
-*.doc
-*.docx
-*.txt
+src/data/mordor/data/
+# *.pdf
+# *.jpg
+# *.jpeg
+# *.png
+# *.doc
+# *.docx
+# *.txt
 
 # other
 *.log
