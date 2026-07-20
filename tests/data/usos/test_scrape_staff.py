@@ -114,3 +114,21 @@ def test_fetch_all_staff_ids_single_page(monkeypatch):
     result = scrape_staff.fetch_all_staff_ids("WMI")
 
     assert result == [7]
+
+
+def test_fetch_employee_detail_calls_signed_with_correct_fields(monkeypatch):
+    calls = []
+
+    def fake_signed(method_path, params):
+        calls.append((method_path, dict(params)))
+        return {"id": 42, "first_name": "Ola"}
+
+    monkeypatch.setattr(scrape_staff, "usos_call_signed", fake_signed)
+    monkeypatch.setattr(scrape_staff, "save_response", lambda *a, **kw: "irrelevant")
+
+    result = scrape_staff.fetch_employee_detail(42)
+
+    assert result == {"id": 42, "first_name": "Ola"}
+    assert calls == [
+        ("services/users/user", {"user_id": "42", "fields": scrape_staff.USER_FIELDS})
+    ]

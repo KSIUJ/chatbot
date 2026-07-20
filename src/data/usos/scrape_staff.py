@@ -43,6 +43,14 @@ def fetch_all_staff_ids(fac_id: str) -> list[int]:
     return ids
 
 
+def fetch_employee_detail(user_id: int) -> dict:
+    """Pobiera pelne dane jednego pracownika (services/users/user, signed)."""
+    params = {"user_id": str(user_id), "fields": USER_FIELDS}
+    payload = usos_call_signed("services/users/user", params)
+    save_response("services/users/user", payload, RAW_DATA_DIR)
+    return payload
+
+
 def flatten_langdict(langdict: dict | None, preferred_lang: str = "pl") -> tuple[dict, str]:
     """Splaszcza pole typu LangDict do (oryginalny slownik, najlepszy tekst).
 
