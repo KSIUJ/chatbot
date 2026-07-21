@@ -16,7 +16,10 @@ ktory trzeba wpisac w tym skrypcie.
 
 from urllib.parse import parse_qs
 
-from usos_api import BASE_URL
+import requests
+from requests_oauthlib import OAuth1
+
+from usos_api import BASE_URL, UsosApiError, _get_consumer_credentials, _respect_rate_limit
 
 SCOPES = "other_emails|offline_access"
 
@@ -52,3 +55,74 @@ def update_env_file(path: str, updates: dict[str, str]) -> None:
 
     with open(path, "w", encoding="utf-8") as f:
         f.writelines(lines)
+
+
+def get_request_token() -> tuple[str, str]:
+    """Pobiera niezautoryzowany request token, podpisany kluczem consumer."""
+    consumer_key, consumer_secret = _get_consumer_credentials()
+    auth = OAuth1(consumer_key, consumer_secret, callback_uri="oob")
+
+    _respect_rate_limit()
+
+    url = BASE_URL.rstrip("/") + "/services/oauth/request_token"
+    response = requests.get(
+        url, params={"oauth_callback": "oob", "scopes": SCOPES}, auth=auth, timeout=30
+    )
+
+    if response.status_code != 200:
+        raise UsosApiError(response.status_code, response.text)
+
+    parsed = parse_oauth_response(response.text)
+    return parsed["oauth_token"], parsed["oauth_token_secret"]
+
+
+def exchange_for_access_token(
+    oauth_token: str, oauth_token_secret: str, oauth_verifier: str
+) -> tuple[str, str]:
+    """Wymienia autoryzowany request token + PIN na docelowy access token."""
+    consumer_key, consumer_secret = _get_consumer_credentials()
+    auth = OAuth1(
+        consumer_key,
+        consumer_secret,
+        resource_owner_key=oauth_token,
+        resource_owner_secret=oauth_token_secret,
+        verifier=oauth_verifier,
+    )
+
+    _respect_rate_limit()
+
+    url = BASE_URL.rstrip("/") + "/services/oauth/access_token"
+    response = requests.get(url, auth=auth, timeout=30)
+
+    if response.status_code != 200:
+        raise UsosApiError(response.status_code, response.text)
+
+    parsed = parse_oauth_response(response.text)
+    return parsed["oauth_token"], parsed["oauth_token_secret"]
+
+
+def main() -> None:
+    oauth_token, oauth_token_secret = get_request_token()
+
+    print("Otworz ten URL w przegladarce, zaloguj sie do USOS i zaakceptuj dostep:")
+    print(build_authorize_url(oauth_token))
+    print()
+    oauth_verifier = input("Wklej tutaj PIN pokazany przez USOS: ").strip()
+
+    access_token, access_token_secret = exchange_for_access_token(
+        oauth_token, oauth_token_secret, oauth_verifier
+    )
+
+    update_env_file(
+        ".env",
+        {
+            "USOS_ACCESS_TOKEN": access_token,
+            "USOS_ACCESS_TOKEN_SECRET": access_token_secret,
+        },
+    )
+
+    print("\n[ok] Zapisano USOS_ACCESS_TOKEN i USOS_ACCESS_TOKEN_SECRET do .env.")
+
+
+if __name__ == "__main__":
+    main()
