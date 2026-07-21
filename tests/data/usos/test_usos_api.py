@@ -162,3 +162,92 @@ def test_get_consumer_credentials_raises_without_env(monkeypatch):
 
     with pytest.raises(usos_api.UsosCredentialsError):
         usos_api._get_consumer_credentials()
+
+
+def test_get_access_token_credentials_returns_tuple(monkeypatch):
+    monkeypatch.setenv("USOS_ACCESS_TOKEN", "test_token")
+    monkeypatch.setenv("USOS_ACCESS_TOKEN_SECRET", "test_token_secret")
+
+    result = usos_api._get_access_token_credentials()
+
+    assert result == ("test_token", "test_token_secret")
+
+
+def test_get_access_token_credentials_raises_without_env(monkeypatch):
+    monkeypatch.delenv("USOS_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("USOS_ACCESS_TOKEN_SECRET", raising=False)
+
+    with pytest.raises(usos_api.UsosCredentialsError):
+        usos_api._get_access_token_credentials()
+
+
+def test_usos_call_authenticated_raises_without_consumer_credentials(monkeypatch):
+    monkeypatch.delenv("USOS_CONSUMER_KEY", raising=False)
+    monkeypatch.delenv("USOS_CONSUMER_SECRET", raising=False)
+    monkeypatch.setenv("USOS_ACCESS_TOKEN", "test_token")
+    monkeypatch.setenv("USOS_ACCESS_TOKEN_SECRET", "test_token_secret")
+
+    with pytest.raises(usos_api.UsosCredentialsError):
+        usos_api.usos_call_authenticated("services/users/user", {"user_id": "1"})
+
+
+def test_usos_call_authenticated_raises_without_access_token(monkeypatch):
+    monkeypatch.setenv("USOS_CONSUMER_KEY", "test_key")
+    monkeypatch.setenv("USOS_CONSUMER_SECRET", "test_secret")
+    monkeypatch.delenv("USOS_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("USOS_ACCESS_TOKEN_SECRET", raising=False)
+
+    with pytest.raises(usos_api.UsosCredentialsError):
+        usos_api.usos_call_authenticated("services/users/user", {"user_id": "1"})
+
+
+def test_usos_call_authenticated_sends_oauth1_auth_with_token_and_returns_json(monkeypatch):
+    monkeypatch.setenv("USOS_CONSUMER_KEY", "test_key")
+    monkeypatch.setenv("USOS_CONSUMER_SECRET", "test_secret")
+    monkeypatch.setenv("USOS_ACCESS_TOKEN", "test_token")
+    monkeypatch.setenv("USOS_ACCESS_TOKEN_SECRET", "test_token_secret")
+    monkeypatch.setattr(usos_api, "_respect_rate_limit", lambda: None)
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"id": 1, "email": "jan.kowalski@uj.edu.pl"}
+
+    captured = {}
+
+    def fake_get(url, params=None, auth=None, timeout=None):
+        captured["url"] = url
+        captured["params"] = params
+        captured["auth"] = auth
+        return FakeResponse()
+
+    monkeypatch.setattr(usos_api.requests, "get", fake_get)
+
+    result = usos_api.usos_call_authenticated("services/users/user", {"user_id": "1"})
+
+    assert result == {"id": 1, "email": "jan.kowalski@uj.edu.pl"}
+    assert captured["url"] == "https://apps.usos.uj.edu.pl/services/users/user"
+    assert captured["params"] == {"user_id": "1"}
+    assert isinstance(captured["auth"], OAuth1)
+    assert captured["auth"].client.resource_owner_key == "test_token"
+    assert captured["auth"].client.resource_owner_secret == "test_token_secret"
+
+
+def test_usos_call_authenticated_raises_on_non_200(monkeypatch):
+    monkeypatch.setenv("USOS_CONSUMER_KEY", "test_key")
+    monkeypatch.setenv("USOS_CONSUMER_SECRET", "test_secret")
+    monkeypatch.setenv("USOS_ACCESS_TOKEN", "test_token")
+    monkeypatch.setenv("USOS_ACCESS_TOKEN_SECRET", "test_token_secret")
+    monkeypatch.setattr(usos_api, "_respect_rate_limit", lambda: None)
+
+    class FakeResponse:
+        status_code = 401
+        text = "invalid or expired token"
+
+    monkeypatch.setattr(usos_api.requests, "get", lambda *a, **kw: FakeResponse())
+
+    with pytest.raises(usos_api.UsosApiError) as exc_info:
+        usos_api.usos_call_authenticated("services/users/user", {"user_id": "1"})
+
+    assert exc_info.value.status_code == 401

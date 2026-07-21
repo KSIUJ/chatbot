@@ -112,6 +112,24 @@ def _get_consumer_credentials() -> tuple[str, str]:
     return consumer_key, consumer_secret
 
 
+def _get_access_token_credentials() -> tuple[str, str]:
+    """Zwraca (access_token, access_token_secret) z .env.
+
+    Podnosi UsosCredentialsError, jesli ktorykolwiek brakuje. Te wartosci sa
+    zapisywane automatycznie przez src/data/usos/usos_login.py po przejsciu
+    logowania (3-legged OAuth1).
+    """
+    access_token = os.getenv("USOS_ACCESS_TOKEN")
+    access_token_secret = os.getenv("USOS_ACCESS_TOKEN_SECRET")
+    if not access_token or not access_token_secret:
+        raise UsosCredentialsError(
+            "Brak USOS_ACCESS_TOKEN/USOS_ACCESS_TOKEN_SECRET w .env. Uruchom "
+            "najpierw src/data/usos/usos_login.py, zeby zalogowac sie do USOS "
+            "i uzyskac access token."
+        )
+    return access_token, access_token_secret
+
+
 def usos_call_signed(method_path: str, params: dict[str, str] | None = None) -> dict:
     """Wykonuje zapytanie GET podpisane kluczem consumer (2-legged OAuth1).
 
@@ -137,30 +155,32 @@ def usos_call_signed(method_path: str, params: dict[str, str] | None = None) -> 
 
 
 def usos_call_authenticated(method_path: str, params: dict[str, str] | None = None) -> dict:
-    """STUB - wywolanie USOS API w trybie uwierzytelnionym (3-legged OAuth 1.0a).
+    """Wykonuje zapytanie GET podpisane pelnym 3-legged OAuth1.
 
-    NIEZAIMPLEMENTOWANE. Do zrobienia zanim ta funkcja bedzie uzywalna:
-
-    1. Zarejestrowac aplikacje na https://apps.usos.uj.edu.pl/developers/
-       i uzyskac USOS_CONSUMER_KEY / USOS_CONSUMER_SECRET (patrz .env.example).
-    2. Pobrac tymczasowy "request token" z endpointu
-       services/oauth/request_token (podpisany kluczem consumer key/secret,
-       np. przez requests_oauthlib.OAuth1).
-    3. Przekierowac uzytkownika do services/oauth/authorize z request tokenem,
-       zeby zalogowal sie w USOS i zaakceptowal dostep aplikacji.
-    4. Odebrac "oauth_verifier" (redirect callback lub recznie wpisany PIN).
-    5. Wymienic request token + verifier na "access token" przez
-       services/oauth/access_token.
-    6. Zapisac access token + access token secret (np. lokalnie, NIE w repo).
-    7. Kazde kolejne zapytanie podpisywac pelnym zestawem
-       consumer key/secret + access token/secret (OAuth1 w requests_oauthlib).
-
-    Nie jest potrzebne dla scrapera pracownikow WMI - services/users/user i
-    services/users/staff_index wymagaja tylko podpisu kluczem consumer
-    (patrz usos_call_signed), bez pelnego logowania uzytkownika.
+    Podpisuje kluczem consumer ORAZ access tokenem konkretnego zalogowanego
+    uzytkownika USOS - to jedyny tryb, ktory odblokowuje pola wymagajace
+    scope'ow przypisanych do usera (np. email pod scope'em other_emails).
+    Wymaga USOS_CONSUMER_KEY/USOS_CONSUMER_SECRET oraz USOS_ACCESS_TOKEN/
+    USOS_ACCESS_TOKEN_SECRET w .env - ten drugi para zapisywana jest
+    automatycznie przez src/data/usos/usos_login.py.
     """
-    raise NotImplementedError(
-        "usos_call_authenticated nie jest jeszcze zaimplementowane - "
-        "na razie uzywaj usos_call_anonymous() lub usos_call_signed(). "
-        "Zobacz docstring tej funkcji po liste krokow do zrobienia (3-legged OAuth)."
+    consumer_key, consumer_secret = _get_consumer_credentials()
+    access_token, access_token_secret = _get_access_token_credentials()
+
+    _respect_rate_limit()
+
+    url = BASE_URL.rstrip("/") + "/" + method_path.lstrip("/")
+    auth = OAuth1(
+        consumer_key,
+        consumer_secret,
+        resource_owner_key=access_token,
+        resource_owner_secret=access_token_secret,
     )
+
+    print(f"[request][authenticated] GET {url} params={params or {}}")
+    response = requests.get(url, params=params or {}, auth=auth, timeout=30)
+
+    if response.status_code != 200:
+        raise UsosApiError(response.status_code, response.text)
+
+    return response.json()
