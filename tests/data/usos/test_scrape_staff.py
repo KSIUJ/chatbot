@@ -198,3 +198,76 @@ def test_run_scrape_defaults_to_wmi(monkeypatch):
     scrape_staff.run_scrape()
 
     assert seen_fac_ids == ["UJ.WMI"]
+
+
+def test_fetch_employee_detail_uses_signed_by_default(monkeypatch):
+    calls = {"signed": 0, "authenticated": 0}
+
+    monkeypatch.setattr(
+        scrape_staff, "usos_call_signed", lambda *a, **kw: calls.__setitem__("signed", calls["signed"] + 1) or {"id": 1}
+    )
+    monkeypatch.setattr(
+        scrape_staff,
+        "usos_call_authenticated",
+        lambda *a, **kw: (_ for _ in ()).throw(AssertionError("should not call authenticated by default")),
+    )
+    monkeypatch.setattr(scrape_staff, "save_response", lambda *a, **kw: "irrelevant")
+
+    result = scrape_staff.fetch_employee_detail(1)
+
+    assert result == {"id": 1}
+    assert calls["signed"] == 1
+
+
+def test_fetch_employee_detail_uses_authenticated_when_requested(monkeypatch):
+    calls = []
+
+    def fake_authenticated(method_path, params):
+        calls.append((method_path, dict(params)))
+        return {"id": 1, "email": "jan.kowalski@uj.edu.pl"}
+
+    def fail_signed(*a, **kw):
+        raise AssertionError("should not call signed when authenticated=True")
+
+    monkeypatch.setattr(scrape_staff, "usos_call_authenticated", fake_authenticated)
+    monkeypatch.setattr(scrape_staff, "usos_call_signed", fail_signed)
+    monkeypatch.setattr(scrape_staff, "save_response", lambda *a, **kw: "irrelevant")
+
+    result = scrape_staff.fetch_employee_detail(1, authenticated=True)
+
+    assert result == {"id": 1, "email": "jan.kowalski@uj.edu.pl"}
+    assert calls == [("services/users/user", {"user_id": "1", "fields": scrape_staff.USER_FIELDS})]
+
+
+def test_run_scrape_threads_with_email_to_fetch_employee_detail(monkeypatch):
+    monkeypatch.setattr(scrape_staff, "fetch_all_staff_ids", lambda fac_id: [1, 2])
+
+    calls = []
+
+    def fake_fetch_detail(user_id, authenticated=False):
+        calls.append((user_id, authenticated))
+        return {"id": user_id, "first_name": "X", "last_name": "Y"}
+
+    monkeypatch.setattr(scrape_staff, "fetch_employee_detail", fake_fetch_detail)
+    monkeypatch.setattr(scrape_staff, "save_staff_dataset", lambda fac_id, employees: "path")
+
+    scrape_staff.run_scrape("WMI", with_email=True)
+
+    assert calls == [(1, True), (2, True)]
+
+
+def test_run_scrape_defaults_with_email_to_false(monkeypatch):
+    monkeypatch.setattr(scrape_staff, "fetch_all_staff_ids", lambda fac_id: [1])
+
+    calls = []
+
+    def fake_fetch_detail(user_id, authenticated=False):
+        calls.append(authenticated)
+        return {"id": user_id, "first_name": "X", "last_name": "Y"}
+
+    monkeypatch.setattr(scrape_staff, "fetch_employee_detail", fake_fetch_detail)
+    monkeypatch.setattr(scrape_staff, "save_staff_dataset", lambda fac_id, employees: "path")
+
+    scrape_staff.run_scrape("WMI")
+
+    assert calls == [False]
