@@ -96,13 +96,10 @@ def usos_call_anonymous(method_path: str, params: dict[str, str] | None = None) 
     return response.json()
 
 
-def usos_call_signed(method_path: str, params: dict[str, str] | None = None) -> dict:
-    """Wykonuje zapytanie GET podpisane kluczem consumer (2-legged OAuth1).
+def _get_consumer_credentials() -> tuple[str, str]:
+    """Zwraca (consumer_key, consumer_secret) z .env.
 
-    To NIE jest pelny 3-legged flow - nie loguje zadnego uzytkownika, tylko
-    podpisuje zapytanie kluczem consumer/secret zarejestrowanej aplikacji.
-    Wymaga USOS_CONSUMER_KEY i USOS_CONSUMER_SECRET w .env (patrz
-    .env.example).
+    Podnosi UsosCredentialsError, jesli ktorykolwiek brakuje.
     """
     consumer_key = os.getenv("USOS_CONSUMER_KEY")
     consumer_secret = os.getenv("USOS_CONSUMER_SECRET")
@@ -112,6 +109,18 @@ def usos_call_signed(method_path: str, params: dict[str, str] | None = None) -> 
             "aplikacje na https://apps.usos.uj.edu.pl/developers/ i uzupelnij "
             ".env na podstawie .env.example."
         )
+    return consumer_key, consumer_secret
+
+
+def usos_call_signed(method_path: str, params: dict[str, str] | None = None) -> dict:
+    """Wykonuje zapytanie GET podpisane kluczem consumer (2-legged OAuth1).
+
+    To NIE jest pelny 3-legged flow - nie loguje zadnego uzytkownika, tylko
+    podpisuje zapytanie kluczem consumer/secret zarejestrowanej aplikacji.
+    Wymaga USOS_CONSUMER_KEY i USOS_CONSUMER_SECRET w .env (patrz
+    .env.example).
+    """
+    consumer_key, consumer_secret = _get_consumer_credentials()
 
     _respect_rate_limit()
 
