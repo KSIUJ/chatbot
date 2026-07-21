@@ -145,3 +145,20 @@ def test_usos_call_signed_raises_on_non_200(monkeypatch):
         usos_api.usos_call_signed("services/users/user", {"user_id": "1"})
 
     assert exc_info.value.status_code == 403
+
+
+def test_get_consumer_credentials_returns_tuple(monkeypatch):
+    monkeypatch.setenv("USOS_CONSUMER_KEY", "test_key")
+    monkeypatch.setenv("USOS_CONSUMER_SECRET", "test_secret")
+
+    result = usos_api._get_consumer_credentials()
+
+    assert result == ("test_key", "test_secret")
+
+
+def test_get_consumer_credentials_raises_without_env(monkeypatch):
+    monkeypatch.delenv("USOS_CONSUMER_KEY", raising=False)
+    monkeypatch.delenv("USOS_CONSUMER_SECRET", raising=False)
+
+    with pytest.raises(usos_api.UsosCredentialsError):
+        usos_api._get_consumer_credentials()
