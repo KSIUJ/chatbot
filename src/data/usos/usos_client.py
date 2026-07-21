@@ -21,6 +21,7 @@ from usos_api import (
     UsosCredentialsError,
     save_response,
     usos_call_anonymous,
+    usos_call_authenticated,
     usos_call_signed,
 )
 
@@ -53,10 +54,17 @@ def main() -> None:
         metavar="KEY=VALUE",
         help="Opcjonalne parametry GET, np. --params fac_id=WMI lang=en",
     )
-    parser.add_argument(
+    auth_group = parser.add_mutually_exclusive_group()
+    auth_group.add_argument(
         "--signed",
         action="store_true",
         help="Podpisz zapytanie kluczem consumer (2-legged OAuth1), wymaga .env",
+    )
+    auth_group.add_argument(
+        "--authenticated",
+        action="store_true",
+        help="Podpisz zapytanie pelnym 3-legged OAuth1 (consumer + access token), "
+        "wymaga uruchomienia usos_login.py wczesniej",
     )
     args = parser.parse_args()
 
@@ -67,7 +75,9 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        if args.signed:
+        if args.authenticated:
+            payload = usos_call_authenticated(args.method_path, params)
+        elif args.signed:
             payload = usos_call_signed(args.method_path, params)
         else:
             payload = usos_call_anonymous(args.method_path, params)
