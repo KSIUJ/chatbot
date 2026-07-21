@@ -4,6 +4,7 @@
 # data
 dataset/
 data/mordor/
+data/strony/
 
 # other
 *.log
