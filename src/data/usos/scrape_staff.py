@@ -4,6 +4,7 @@ Wlasciwy scraper danych pracownikow WMI z USOS API UJ: kontakt i dyzury
 pozniejszego wykorzystania w RAG.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -14,6 +15,7 @@ from usos_api import (
     UsosApiError,
     UsosCredentialsError,
     save_response,
+    usos_call_authenticated,
     usos_call_signed,
 )
 
@@ -50,10 +52,18 @@ def fetch_all_staff_ids(fac_id: str) -> list[int]:
     return ids
 
 
-def fetch_employee_detail(user_id: int) -> dict:
-    """Pobiera pelne dane jednego pracownika (services/users/user, signed)."""
+def fetch_employee_detail(user_id: int, authenticated: bool = False) -> dict:
+    """Pobiera pelne dane jednego pracownika (services/users/user).
+
+    Domyslnie uzywa 2-legged (usos_call_signed). Gdy authenticated=True,
+    uzywa pelnego 3-legged OAuth1 (usos_call_authenticated) - jedyny tryb, w
+    ktorym pole 'email' (juz obecne w USER_FIELDS) faktycznie sie wypelnia.
+    """
     params = {"user_id": str(user_id), "fields": USER_FIELDS}
-    payload = usos_call_signed("services/users/user", params)
+    if authenticated:
+        payload = usos_call_authenticated("services/users/user", params)
+    else:
+        payload = usos_call_signed("services/users/user", params)
     save_response("services/users/user", payload, RAW_DATA_DIR)
     return payload
 
@@ -72,11 +82,15 @@ def save_staff_dataset(fac_id: str, employees: list[dict]) -> str:
     return filepath
 
 
-def run_scrape(fac_id: str = FAC_ID) -> dict:
+def run_scrape(fac_id: str = FAC_ID, with_email: bool = False) -> dict:
     """Uruchamia pelny scraping: dyskonta ID, fetch kazdego, zapis datasetu.
 
     Bledy pojedynczych pracownikow sa logowane na stderr i pomijane - reszta
-    scrapingu jest kontynuowana. Zwraca podsumowanie przebiegu.
+    scrapingu jest kontynuowana. with_email=True dolacza email (wymaga
+    wczesniejszego logowania przez usos_login.py) - jesli brak access
+    tokena, blad podnosi sie na pierwszym pracowniku i przerywa caly
+    przebieg (to blad konfiguracji, nie pojedynczego rekordu). Zwraca
+    podsumowanie przebiegu.
     """
     staff_ids = fetch_all_staff_ids(fac_id)
 
@@ -85,7 +99,10 @@ def run_scrape(fac_id: str = FAC_ID) -> dict:
 
     for user_id in staff_ids:
         try:
-            raw = fetch_employee_detail(user_id)
+            if with_email:
+                raw = fetch_employee_detail(user_id, authenticated=True)
+            else:
+                raw = fetch_employee_detail(user_id)
         except UsosApiError as e:
             print(
                 f"[error] Pomijam pracownika {user_id}: status {e.status_code}\n{e.body}",
@@ -151,8 +168,19 @@ def normalize_employee(raw: dict) -> dict:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Scraper danych pracownikow WMI z USOS API UJ."
+    )
+    parser.add_argument(
+        "--with-email",
+        action="store_true",
+        help="Pobierz tez email (wymaga wczesniejszego logowania przez "
+        "usos_login.py) - domyslnie WYLACZONE",
+    )
+    args = parser.parse_args()
+
     try:
-        summary = run_scrape()
+        summary = run_scrape(with_email=args.with_email)
     except UsosCredentialsError as e:
         print(f"[error] {e}", file=sys.stderr)
         sys.exit(1)
