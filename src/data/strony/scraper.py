@@ -6,12 +6,16 @@ from collections import deque
 from pathlib import Path
 
 
-START_URL = "https://matinf.uj.edu.pl/"
-DOMAIN = urlparse(START_URL).netloc  # matinf.uj.edu.pl
+START_URLS = [
+    "https://matinf.uj.edu.pl/",
+    "https://kmsuj.matinf.uj.edu.pl/",
+    "https://nkr.si/",
+]
+ALLOWED_DOMAINS = {urlparse(u).netloc for u in START_URLS}
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_FILE = REPO_ROOT / "data" / "strony" / "webiste_data.txt"
-DELAY = 0.5
-MAX_PAGES = 300
+DELAY = 0.2
+MAX_PAGES = 1000
 
 WIKIPEDIA_URLS = [
     "https://pl.wikipedia.org/wiki/Wydzia%C5%82_Matematyki_i_Informatyki_Uniwersytetu_Jagiello%C5%84skiego",
@@ -26,7 +30,7 @@ FALLBACK_USED = []
 
 
 def is_same_domain(url: str) -> bool:
-    return urlparse(url).netloc == DOMAIN
+    return urlparse(url).netloc in ALLOWED_DOMAINS
 
 
 def clean_url(url: str) -> str:
@@ -61,11 +65,19 @@ def extract_text(soup: BeautifulSoup):
         tag.decompose()
 
     # zostaw tylko main content strony
-    content = soup.find(id="main-content")
+    content = (
+        soup.find(id="main-content")   # dla matinf.uj.edu.pl
+        or soup.find("main")
+        or soup.find("article")
+        or soup.find("body")
+    )
 
     if content is None:
         # jak nie ma main-content pomijamy strone
         return None
+    
+    for tag in content(["nav", "header", "footer"]):
+        tag.decompose()
 
     text = content.get_text(separator="\n")
     lines = [line.strip() for line in text.splitlines()]
@@ -139,7 +151,7 @@ def scrape_wikipedia(f):
 
 def crawl():
     visited = set()
-    queue = deque([START_URL])
+    queue = deque(START_URLS)
     count = 0
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
