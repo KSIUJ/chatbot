@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from collections import deque
 from pathlib import Path
+import re
 
 
 START_URLS = [
@@ -34,13 +35,13 @@ def is_same_domain(url: str) -> bool:
 
 
 def clean_url(url: str) -> str:
-    # usuwa smieci z linka
     parsed = urlparse(url)
-    return parsed._replace(fragment="", query="").geturl()
+    parsed = parsed._replace(scheme="https", fragment="", query="")
+    return parsed.geturl()
 
 
 
-LANGUAGE_PREFIXES = ("/pl/", "/pl_pl/", "/en/", "/en_gb/")
+LOCALE_PATTERN = re.compile(r"^/[a-z]{2}(_[a-z]{2})?/", re.IGNORECASE)
 
 SKIP_PATTERNS = ("/c/portal/login", "/c/portal/logout")
 
@@ -48,12 +49,14 @@ SKIP_PATTERNS = ("/c/portal/login", "/c/portal/logout")
 def should_skip(url: str) -> bool:
     path = urlparse(url).path.lower()
 
-    # pomin linki logowania/wylogowania
     if any(pattern in path for pattern in SKIP_PATTERNS):
         return True
 
-    # pomin wersje z prefiksem jezykowym
-    if path.startswith(LANGUAGE_PREFIXES):
+    if LOCALE_PATTERN.match(path):
+        return True
+
+    # powtarzajacy sie segment journal_content (linkuje do siebie w kolo)
+    if path.count("/journal_content/") > 1:
         return True
 
     return False
