@@ -1,10 +1,22 @@
 import time
+import io
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, unquote
 from collections import deque, Counter
 from pathlib import Path
 import re
+
+# wymagane dodatkowe biblioteki do obslugi plikow: pip install pypdf python-docx
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None
+
+try:
+    from docx import Document
+except ImportError:
+    Document = None
 
 
 START_URLS = [
@@ -29,6 +41,8 @@ HEADERS = {
 }
 
 FALLBACK_USED = []
+FALLBACK_FILES_USED = []  # pliki (pdf/docx/txt) ktorych nie dalo sie odczytac
+SCRAPED_FILES = []  # pliki (pdf/docx/txt) ktore udalo sie zescrapowac
 
 # klasy do pominiecia
 NOISE_SELECTORS = [
@@ -72,7 +86,69 @@ MENU_ITEM_MIN_PAGES = 3
 # od ilu slow linia liczy sie jako tresc
 DEDUPE_MIN_WORDS = 8
 
-MIN_CONTENT_WORDS = 15
+MIN_CONTENT_WORDS = 25
+MIN_CONTENT_WORDS_FILES = 40
+
+# rozszerzenia plikow ktore probujemy scrapowac jako dokumenty (nie html)
+FILE_EXTENSIONS = {".pdf", ".docx", ".txt"}
+
+# mapowanie Content-Type -> rozszerzenie, przydatne gdy url nie ma rozszerzenia
+# (systemy typu Liferay czesto serwuja pliki pod adresami bez .pdf/.docx w sciezce)
+CONTENT_TYPE_EXTENSIONS = {
+    "application/pdf": ".pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "text/plain": ".txt",
+}
+
+# pliki dopuszczone do scrapowania - tylko te ktore pasuja do ponizszych slow kluczowych
+WHITELIST_FILE_KEYWORDS = [
+    "poradnik_pierwszaka", "poradnik pierwszaka",
+    "reg-dypl",
+    "regulamin+dypl", "regulamin_dypl",
+    "minima-smp",
+    "zagadnien",
+    "egz-lic",
+    "egz-mgr", "egz_mgr",
+    "egzamin-licencjacki",
+    "egzamin-magisterski",
+    "programy-studiow",
+    "harmonogram_czynnosci",
+    "harmonogram-czynnosci",
+    "wniosek",
+    "formularz",
+    "podanie",
+    "urlop",
+    "wpis+warunkowy", "wpis_warunkowy",
+    "wpis+po+urlopie", "wpis_po_urlopie",
+    "powtarzanie",
+    "rezygnacja",
+    "przepisanie",
+    "uznanie_przedmiotow", "uznanie przedmiotow",
+    "dopisanie",
+    "duplikat",
+    "dolaczenie", "usuniecie",
+    "zaliczenie",
+    "rozszerzenie+programu", "rozszerzenie_programu",
+    "awans_wpis",
+    "stypendium",
+    "stypendia",
+    "kalendarz",
+]
+
+WHITELIST_EXCLUDE_OVERRIDE = [
+    "lista", "laureat", "rankingow", "wynik", "stypendysci", "stypendyści",
+    "minigrant", "tutoring", "konferenc", "wyjazd", "wyjazdy",
+    "dofinansowanie", "nagrody_za_grant", "nagroda_za_grant",
+    "research support", "research_support", "doktorant",
+    "bieg", "charytatyw", "archiwizacj", "kalendarz_2026_web", "kalendarz-2026-web",
+]
+
+
+def is_whitelisted_file(url: str) -> bool:
+    decoded = unquote(url).lower()
+    if any(bad in decoded for bad in WHITELIST_EXCLUDE_OVERRIDE):
+        return False
+    return any(good in decoded for good in WHITELIST_FILE_KEYWORDS)
 
 
 def is_same_domain(url: str) -> bool:
@@ -103,17 +179,73 @@ def should_skip(url: str) -> bool:
         return True
     return False
 
+
+def detect_file_ext(url: str, content_type: str):
+    # rozpoznajemy typ pliku najpierw po Content-Type (bardziej niezawodne niz url),
+    # bo systemy typu Liferay czesto serwuja pliki pod adresami bez rozszerzenia
+    content_type = content_type.split(";")[0].strip().lower()
+    if content_type in CONTENT_TYPE_EXTENSIONS:
+        return CONTENT_TYPE_EXTENSIONS[content_type]
+    # fallback - rozszerzenie na koncu sciezki url
+    path = urlparse(url).path.lower()
+    for ext in FILE_EXTENSIONS:
+        if path.endswith(ext):
+            return ext
+    return None
+
+
+def is_file_link(url: str) -> bool:
+    # rozpoznaje link do pliku (pdf/docx/txt) po rozszerzeniu w ścieżce URL
+    path = urlparse(url).path.lower()
+    segments = path.split("/")
+    return any(seg.endswith(ext) for seg in segments for ext in FILE_EXTENSIONS)
+
+
 # elementy blokowe (do tworzenia spojnych akapitow)
 BLOCK_TAGS = ["p", "li", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th", "caption", "dd", "dt", "blockquote", "figcaption"]
 
 
+DOT_LEADER_PATTERN = re.compile(r"[.…]{3,}")  # kropki-wypelniacze z formularzy (np. "..................")
+
 def _clean_spacing(text: str) -> str:
+    text = DOT_LEADER_PATTERN.sub(" ", text)
     text = " ".join(text.split())
     text = re.sub(r"\s+([.,;:!?])", r"\1", text)
     text = re.sub(r"([„«])\s+", r"\1", text)
     text = re.sub(r"\s+([”»])", r"\1", text)
     return text
 
+def extract_tables_as_sentences(content):
+    lines = []
+    for table in content.find_all("table"):
+        rows = table.find_all("tr")
+        if not rows:
+            continue
+
+        # ustal naglowki: albo z <th> w pierwszym wierszu, albo z pierwszego wiersza <td>
+        header_cells = rows[0].find_all(["th", "td"])
+        headers = [_clean_spacing(c.get_text(separator=" ", strip=True)) for c in header_cells]
+        has_header = bool(rows[0].find_all("th")) or all(h and not h.replace(",", "").replace(".", "").isdigit() for h in headers if h)
+
+        data_rows = rows[1:] if has_header else rows
+
+        for row in data_rows:
+            cells = row.find_all(["td", "th"])
+            values = [_clean_spacing(c.get_text(separator=" ", strip=True)) for c in cells]
+            if not any(values):
+                continue
+
+            if has_header and len(headers) == len(values):
+                parts = [f"{h}: {v}" for h, v in zip(headers, values) if v]
+            else:
+                parts = [v for v in values if v]
+
+            if parts:
+                lines.append(", ".join(parts))
+
+        table.decompose()  # usuwamy z drzewa, zeby generic get_block_text nie zdublowal komorek
+
+    return lines
 
 def get_block_text(content):
     # wyciaga tekst blok po bloku (p/li/h*) zeby link w srodku zdania go nie rozrywal
@@ -175,10 +307,11 @@ def extract_text(soup: BeautifulSoup):
 
     content = strip_noise(content)
 
+    table_lines = extract_tables_as_sentences(content)   # <-- nowe, PRZED get_block_text
     lines = get_block_text(content)
+    lines = table_lines + lines                          # albo wstaw w odpowiednim miejscu, jesli zalezy Ci na kolejnosci
 
     lines = [line for line in lines if line.lower() not in LINE_STOPLIST]
-
     lines = dedupe_repeated_blocks(lines)
 
     deduped = []
@@ -209,6 +342,97 @@ def extract_wikipedia_text(soup: BeautifulSoup):
 
     lines = get_block_text(content)
     return "\n".join(lines)
+
+
+def extract_pdf_bytes(content: bytes):
+    # wyciaga tekst z pliku pdf strona po stronie
+    if PdfReader is None:
+        print("[BŁĄD - brak biblioteki pypdf, pomijam pliki PDF]")
+        return None
+    try:
+        reader = PdfReader(io.BytesIO(content))
+        pages_text = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            text = _clean_spacing(text)
+            if text:
+                pages_text.append(text)
+        return "\n".join(pages_text) if pages_text else None
+    except Exception as e:
+        print(f"[BŁĄD - odczyt PDF] {e}")
+        return None
+
+
+def extract_docx_bytes(content: bytes):
+    # wyciaga tekst z akapitow oraz tabel pliku docx
+    if Document is None:
+        print("[BŁĄD - brak biblioteki python-docx, pomijam pliki DOCX]")
+        return None
+    try:
+        doc = Document(io.BytesIO(content))
+        lines = []
+        for para in doc.paragraphs:
+            text = _clean_spacing(para.text)
+            if text:
+                lines.append(text)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    text = _clean_spacing(cell.text)
+                    if text:
+                        lines.append(text)
+        return "\n".join(lines) if lines else None
+    except Exception as e:
+        print(f"[BŁĄD - odczyt DOCX] {e}")
+        return None
+
+
+def extract_txt_bytes(content: bytes):
+    # probuje kilku kodowan, bo stare pliki uczelniane bywaja w cp1250
+    text = None
+    for encoding in ("utf-8", "cp1250", "iso-8859-2"):
+        try:
+            text = content.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        text = content.decode("utf-8", errors="ignore")
+
+    lines = [_clean_spacing(l) for l in text.splitlines() if l.strip()]
+    return "\n".join(lines) if lines else None
+
+
+def scrape_file(url: str):
+    # pobiera i wyciaga tresc z pliku (pdf/docx/txt), tylko jesli jest na whiteliscie
+    if not is_whitelisted_file(url):
+        return None
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception as e:
+        print(f"[BŁĄD - plik] {url} -> {e}")
+        return None
+
+    ext = detect_file_ext(url, resp.headers.get("Content-Type", ""))
+    if ext == ".pdf":
+        text = extract_pdf_bytes(resp.content)
+    elif ext == ".docx":
+        text = extract_docx_bytes(resp.content)
+    elif ext == ".txt":
+        text = extract_txt_bytes(resp.content)
+    else:
+        text = None
+
+    if text is None:
+        FALLBACK_FILES_USED.append(url)
+        print(f"[POMINIĘTO - brak treści pliku] {url}")
+        return None
+
+    SCRAPED_FILES.append(url)
+    print(f"[PLIK] pobrano: {url}")
+    return text
 
 
 def remove_boilerplate(pages):
@@ -273,11 +497,11 @@ def dedupe_content_across_pages(pages):
 
 
 def drop_thin_hub_pages(pages):
-    # strony z bardzo mala iloscia slow nie sa zapisywane (glownie strony z samymi linkami)
     kept, dropped = [], []
     for url, text in pages:
         word_count = len(text.split())
-        if word_count < MIN_CONTENT_WORDS:
+        threshold = MIN_CONTENT_WORDS_FILES if is_file_link(url) else MIN_CONTENT_WORDS
+        if word_count < threshold:
             dropped.append((url, word_count))
         else:
             kept.append((url, text))
@@ -309,6 +533,7 @@ def scrape_wikipedia():
 
 def crawl():
     visited = set()
+    visited_files = set()  # osobny zbior, zeby nie pobierac tego samego pliku dwa razy
     queue = deque(START_URLS)
     count = 0
     pages = []
@@ -334,7 +559,23 @@ def crawl():
             continue
 
         content_type = resp.headers.get("Content-Type", "")
+
         if "text/html" not in content_type:
+            ext = detect_file_ext(url, content_type)
+            if ext and is_whitelisted_file(url):
+                text_extractors = {
+                    ".pdf": extract_pdf_bytes,
+                    ".docx": extract_docx_bytes,
+                    ".txt": extract_txt_bytes,
+                }
+                file_text = text_extractors[ext](resp.content)
+                if file_text is not None:
+                    pages.append((url, file_text))
+                    count += 1
+                    SCRAPED_FILES.append(url)
+                    print(f"[{count}] plik (bez rozszerzenia w URL): {url}")
+                else:
+                    FALLBACK_FILES_USED.append(url)
             continue
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -351,7 +592,22 @@ def crawl():
         for a in soup.find_all("a", href=True):
             link = urljoin(url, a["href"])
             link = clean_url(link)
-            if is_same_domain(link) and link not in visited and not should_skip(link):
+            if not is_same_domain(link) or link in visited or should_skip(link):
+                continue
+
+            if is_file_link(link):
+                # pliki (pdf/docx/txt) nie trafiaja do kolejki do crawlowania,
+                # tylko sa od razu probowane do pobrania (jesli sa na whiteliscie)
+                if link in visited_files:
+                    continue
+                visited_files.add(link)
+                file_text = scrape_file(link)
+                if file_text is not None:
+                    pages.append((link, file_text))
+                    count += 1
+                    print(f"[{count}] plik: {link}")
+                time.sleep(DELAY)
+            else:
                 queue.append(link)
 
         time.sleep(DELAY)
@@ -370,12 +626,18 @@ def crawl():
             if not text.strip():
                 continue
             # oddzielanie stron
-            #f.write(f"\n\n{'='*80}\nURL: {url}\n{'='*80}\n\n")
+            f.write(f"\n\nURL: {url}\n\n")
             f.write(text)
 
     print(f"\nZapisano {len(pages)} stron do pliku: {OUTPUT_FILE}")
+    print(f"Zescrapowano {len(SCRAPED_FILES)} plików (pdf/docx/txt):")
+    for u in SCRAPED_FILES:
+        print(f"  - {u}")
     print(f"Pominięto (brak main-content) {len(FALLBACK_USED)} stron:")
     for u in FALLBACK_USED:
+        print(f"  - {u}")
+    print(f"Pominięto (brak treści) {len(FALLBACK_FILES_USED)} plików:")
+    for u in FALLBACK_FILES_USED:
         print(f"  - {u}")
     print(f"Pominięto jako puste huby/listingi po deduplikacji ({len(dropped_hubs)}):")
     for u, wc in dropped_hubs:
