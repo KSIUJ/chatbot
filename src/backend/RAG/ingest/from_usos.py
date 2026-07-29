@@ -1,32 +1,42 @@
 """
 Konwersja danych z src/data/usos/scrape_staff.py do wspolnego schematu Document.
 
-ZALOZENIA (do zweryfikowania, patrz PR):
+ZALOZENIA (zweryfikowane na realnym przebiegu scrape_staff.py z 2026-07-29,
+208 pracownikow WMI - patrz PR):
 - scrape_staff.py zapisuje jeden plik JSON na uruchomienie:
   data/usos/staff/staff_{fac_id}_{znacznik_czasu}.json - lista rekordow
-  pracownikow w ksztalcie zwracanym przez normalize_employee() (id,
-  first_name, last_name, titles, email, phone_numbers, room, profile_url,
-  homepage_url, office_hours/office_hours_text, interests/interests_text,
-  employment_positions). Poniewaz kazde uruchomienie tworzy NOWY plik z
-  wlasnym znacznikiem czasu, domyslnie bierzemy NAJNOWSZY plik pasujacy do
-  wzorca (sortowanie po nazwie dziala, bo znacznik czasu jest w formacie
-  ISO-podobnym %Y%m%dT%H%M%SZ) - nie laczymy danych z wielu przebiegow.
+  pracownikow w ksztalcie zwracanym przez normalize_employee(). Poniewaz
+  kazde uruchomienie tworzy NOWY plik z wlasnym znacznikiem czasu, domyslnie
+  bierzemy NAJNOWSZY plik pasujacy do wzorca (sortowanie po nazwie dziala,
+  bo znacznik czasu jest w formacie ISO-podobnym %Y%m%dT%H%M%SZ) - nie
+  laczymy danych z wielu przebiegow.
 - Jeden pracownik = jeden Document (rekordy sa krotkie, nie wymagaja
   dzielenia na chunki jak dokumenty tekstowe z mordoru/stron).
-- Brak przykladowych danych w repo (tylko data/usos/.gitkeep) w momencie
-  pisania tego modulu - powyzsze zalozenia oparte sa wylacznie na kodzie
-  scrape_staff.py, nie na realnym pliku wyjsciowym. Do zweryfikowania po
-  pierwszym realnym uruchomieniu scrapera.
+- `titles` to NIE plaski string/lista, tylko dict {"before": "dr hab.",
+  "after": "prof. UJ"} (oba pola bywaja null) - formatujemy jako
+  "before after" pomijajac puste.
+- `room` to NIE string, tylko dict {"number": ..., "building_name": {"pl":
+  ..., "en": ...}, ...} albo null (u ~połowy pracownikow) - bierzemy numer +
+  polska nazwa budynku.
+- `employment_positions` to lista dictow {"position": {"name": {"pl": ...}},
+  "faculty": {"name": {"pl": ...}}} (czasem >1 wpis - pracownik na kilku
+  etatach/jednostkach) - formatujemy kazdy jako "stanowisko (jednostka)".
+- `office_hours_text` bywa surowym HTML-em (np. "<b>Dyzur w sesji
+  letniej</b>") - usuwamy tagi przed wrzuceniem do embed_text, zeby nie
+  zaburzaly wyszukiwania/promptu.
 """
 
 import glob
 import json
 import os
+import re
 
 from ..ingest.schema import Document, make_id
 
 STAFF_DIR = os.path.join("data", "usos", "staff")
 STAFF_FILE_GLOB = "staff_*.json"
+
+HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
 def _latest_staff_file(staff_dir: str) -> str | None:
@@ -34,27 +44,50 @@ def _latest_staff_file(staff_dir: str) -> str | None:
     return matches[-1] if matches else None
 
 
-def _stringify(value) -> str:
-    if value is None:
+def _strip_html(text: str) -> str:
+    text = HTML_TAG_PATTERN.sub(" ", text)
+    return " ".join(text.split())
+
+
+def _format_titles(titles: dict | None) -> str:
+    if not titles:
         return ""
-    if isinstance(value, str):
-        return value
-    if isinstance(value, (list, tuple)):
-        return ", ".join(_stringify(v) for v in value if v)
-    if isinstance(value, dict):
-        return ", ".join(str(v) for v in value.values() if v)
-    return str(value)
+    parts = [titles.get("before"), titles.get("after")]
+    return " ".join(p for p in parts if p)
+
+
+def _format_room(room: dict | None) -> str:
+    if not room:
+        return ""
+    number = room.get("number")
+    building = (room.get("building_name") or {}).get("pl")
+    parts = [f"pokój {number}" if number else None, building]
+    return ", ".join(p for p in parts if p)
+
+
+def _format_positions(positions: list | None) -> str:
+    if not positions:
+        return ""
+    formatted = []
+    for entry in positions:
+        position_name = ((entry.get("position") or {}).get("name") or {}).get("pl")
+        faculty_name = ((entry.get("faculty") or {}).get("name") or {}).get("pl")
+        if position_name and faculty_name:
+            formatted.append(f"{position_name} ({faculty_name})")
+        elif position_name:
+            formatted.append(position_name)
+    return "; ".join(formatted)
 
 
 def _employee_to_document(employee: dict) -> Document:
     full_name = " ".join(
         part for part in (employee.get("first_name"), employee.get("last_name")) if part
     )
-    titles = _stringify(employee.get("titles"))
-    room = employee.get("room") or ""
-    office_hours_text = employee.get("office_hours_text") or ""
-    interests_text = employee.get("interests_text") or ""
-    positions = _stringify(employee.get("employment_positions"))
+    titles = _format_titles(employee.get("titles"))
+    room = _format_room(employee.get("room"))
+    office_hours_text = _strip_html(employee.get("office_hours_text") or "")
+    interests_text = _strip_html(employee.get("interests_text") or "")
+    positions = _format_positions(employee.get("employment_positions"))
     email = employee.get("email") or ""
 
     lines = [f"{titles} {full_name}".strip()]
