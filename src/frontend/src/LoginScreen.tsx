@@ -1,6 +1,10 @@
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 
-export default function LoginScreen() {
+interface LoginScreenProps {
+  onLogin: () => void;
+}
+
+export default function LoginScreen({ onLogin }: LoginScreenProps) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
       
@@ -28,19 +32,22 @@ export default function LoginScreen() {
           </p>
         </div>
 
-        {/* Form */}
-        <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+        {/* Form - ZMIANA B ZOSTAŁA WPROWADZONA PONIŻEJ */}
+        <form className="space-y-6" onSubmit={(e) => {
+          e.preventDefault(); // Zatrzymuje przeładowanie strony
+          onLogin(); // Uruchamia funkcję logowania z App.tsx
+        }}>
           
           <div className="space-y-3">
-            <label className="text-sm font-semibold text-slate-700 tracking-wide">Adres Email</label>
+            <label className="text-sm font-semibold text-slate-700 tracking-wide">Login</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-400">
                 <Mail className="h-6 w-6" />
               </div>
               <input
-                type="email"
+                type="login"
                 className="w-full pl-14 pr-5 py-4 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 text-slate-900 placeholder-slate-400 outline-none transition-all"
-                placeholder="student@uj.edu.pl"
+                placeholder="@student.uj.edu.pl"
               />
             </div>
           </div>
