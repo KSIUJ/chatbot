@@ -2,6 +2,18 @@
 .env
 
 # data
+data/mordor
+data/usos
+dataset/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.doc
+*.docx
+*.txt
+!requirements.txt
+!requirements-dev.txt
 dataset/
 data/mordor/
 
@@ -10,3 +22,6 @@ data/mordor/
 __pycache__/
 .DS_Store
 Thumbs.db
+src/data/mordor/check_progress.py
+src/data/usos/.last_request_time
+.superpowers/
