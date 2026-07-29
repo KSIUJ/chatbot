@@ -3,10 +3,7 @@ import LoginScreen from './LoginScreen';
 import ChatScreen from './ChatScreen';
 
 export default function App() {
-  // Zmienna stanu, która pamięta, czy użytkownik jest zalogowany
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  // Funkcja, która zmienia stan na "zalogowany"
   const handleLogin = () => {
     setIsLoggedIn(true);
   };
