@@ -16,6 +16,7 @@ dataset/
 !requirements-dev.txt
 dataset/
 data/mordor/
+data/strony/
 
 # other
 *.log
