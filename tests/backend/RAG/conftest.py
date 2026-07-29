@@ -1,6 +1,8 @@
 import os
 import sys
 
+import pytest
+
 # src/backend/RAG jest prawdziwym pakietem Pythona (ma __init__.py na kazdym
 # poziomie), w odroznieniu od modulow w src/data/usos/, ktore sa plaskimi
 # plikami importowanymi bez pakietu. Dodajemy wiec katalog nadrzedny wobec
@@ -43,3 +45,14 @@ class FakeEncoder:
         if norm > 0:
             vector = [v / norm for v in vector]
         return vector
+
+
+@pytest.fixture
+def fake_encoder():
+    """Fixture zamiast bezposredniego 'from conftest import FakeEncoder' -
+    ten drugi wzorzec psuje sie, gdy pytest zbiera testy z wielu katalogow
+    naraz (tests/data/usos/conftest.py i ten plik maja ta sama nazwe modulu
+    "conftest" bez __init__.py po drodze, wiec importy kolidują w
+    sys.modules). Fixture jest rozwiazywana przez mechanizm DI pytest, nie
+    przez zwykly import, wiec nie ma tego problemu."""
+    return FakeEncoder()
