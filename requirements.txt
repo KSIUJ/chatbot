@@ -2,3 +2,8 @@ requests
 python-dotenv
 requests_oauthlib
 pytest
+
+# RAG retrieval (src/backend/RAG/)
+sentence-transformers
+chromadb
+langchain-text-splitters
