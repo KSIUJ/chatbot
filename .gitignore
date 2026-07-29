@@ -6,8 +6,21 @@
 .env.production.local
 
 # data
+data/mordor
+data/usos
+dataset/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.doc
+*.docx
+*.txt
+!requirements.txt
+!requirements-dev.txt
 dataset/
 data/mordor/
+data/strony/
 
 # other
 *.log
@@ -52,3 +65,6 @@ coverage/
 .eslintcache
 .stylelintcache
 
+src/data/mordor/check_progress.py
+src/data/usos/.last_request_time
+.superpowers/
