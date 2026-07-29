@@ -1,23 +1,20 @@
 """
-Testy retriever.py - sklejenie Encoder + VectorStore. Uzywa FakeEncoder,
-zeby nie pobierac realnego modelu.
+Testy retriever.py - sklejenie Encoder + VectorStore. Uzywa FakeEncoder
+(fixture fake_encoder, patrz conftest.py), zeby nie pobierac realnego modelu.
 """
-
-from conftest import FakeEncoder
 
 from RAG.ingest.schema import Document
 from RAG.retriever import Retriever
 from RAG.vectorstore import VectorStore
 
 
-def _make_retriever(tmp_path):
-    encoder = FakeEncoder()
+def _make_retriever(tmp_path, encoder):
     vectorstore = VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=encoder)
     return Retriever(encoder=encoder, vectorstore=vectorstore)
 
 
-def test_retrieve_delegates_to_vectorstore_search(tmp_path):
-    retriever = _make_retriever(tmp_path)
+def test_retrieve_delegates_to_vectorstore_search(tmp_path, fake_encoder):
+    retriever = _make_retriever(tmp_path, fake_encoder)
     retriever.vectorstore.add_documents(
         [
             Document(
@@ -38,8 +35,8 @@ def test_retrieve_delegates_to_vectorstore_search(tmp_path):
     assert hits[0]["value"] == "Dziekanat czynny pon-pt 8-15."
 
 
-def test_retrieve_respects_top_k(tmp_path):
-    retriever = _make_retriever(tmp_path)
+def test_retrieve_respects_top_k(tmp_path, fake_encoder):
+    retriever = _make_retriever(tmp_path, fake_encoder)
     documents = [
         Document(
             id=f"usos_{i}",
@@ -58,8 +55,8 @@ def test_retrieve_respects_top_k(tmp_path):
     assert len(hits) == 2
 
 
-def test_retrieve_returns_empty_list_when_store_empty(tmp_path):
-    retriever = _make_retriever(tmp_path)
+def test_retrieve_returns_empty_list_when_store_empty(tmp_path, fake_encoder):
+    retriever = _make_retriever(tmp_path, fake_encoder)
 
     hits = retriever.retrieve("cokolwiek", top_k=5)
 

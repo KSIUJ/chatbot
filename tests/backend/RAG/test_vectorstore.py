@@ -1,20 +1,19 @@
 """
-Testy vectorstore.py. Uzywa FakeEncoder (patrz conftest.py) - realna ChromaDB,
-ale bez pobierania modelu embeddingowego - oraz tymczasowego katalogu na dane.
+Testy vectorstore.py. Uzywa FakeEncoder (fixture fake_encoder, patrz
+conftest.py) - realna ChromaDB, ale bez pobierania modelu embeddingowego -
+oraz tymczasowego katalogu na dane.
 """
-
-from conftest import FakeEncoder
 
 from RAG.ingest.schema import Document
 from RAG.vectorstore import VectorStore
 
 
-def _make_store(tmp_path):
-    return VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=FakeEncoder())
+def _make_store(tmp_path, encoder):
+    return VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=encoder)
 
 
-def test_add_and_search_returns_matching_document(tmp_path):
-    store = _make_store(tmp_path)
+def test_add_and_search_returns_matching_document(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
     documents = [
         Document(
             id="mordor_1",
@@ -46,14 +45,14 @@ def test_add_and_search_returns_matching_document(tmp_path):
     assert hits[0]["metadata"]["source_file"] == "regulamin.pdf"
 
 
-def test_add_documents_with_empty_list_is_noop(tmp_path):
-    store = _make_store(tmp_path)
+def test_add_documents_with_empty_list_is_noop(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
     store.add_documents([])
     assert store.count() == 0
 
 
-def test_upsert_overwrites_existing_id(tmp_path):
-    store = _make_store(tmp_path)
+def test_upsert_overwrites_existing_id(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
     doc_v1 = Document(
         id="strony_1", source="strony", embed_text="stara tresc",
         content_type="text", value="stara tresc", metadata={"url": "https://a"},
@@ -71,8 +70,8 @@ def test_upsert_overwrites_existing_id(tmp_path):
     assert hits[0]["value"] == "nowa tresc"
 
 
-def test_search_includes_image_content_type(tmp_path):
-    store = _make_store(tmp_path)
+def test_search_includes_image_content_type(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
     image_doc = Document(
         id="mordor_img_1",
         source="mordor",
