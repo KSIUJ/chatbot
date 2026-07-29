@@ -1,0 +1,202 @@
+"""
+Wlasciwy scraper danych pracownikow WMI z USOS API UJ: kontakt i dyzury
+("office_hours"), zapisywane jako znormalizowany dataset JSON pod katem
+pozniejszego wykorzystania w RAG.
+"""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+from usos_api import (
+    RAW_DATA_DIR,
+    UsosApiError,
+    UsosCredentialsError,
+    save_response,
+    usos_call_authenticated,
+    usos_call_signed,
+)
+
+FAC_ID = "UJ.WMI"
+STAFF_INDEX_PAGE_SIZE = 100
+STAFF_OUTPUT_DIR = os.path.join("data", "usos", "staff")
+USER_FIELDS = (
+    "id|first_name|last_name|titles|email|phone_numbers|office_hours|"
+    "room|profile_url|homepage_url|interests|employment_positions"
+)
+
+
+def fetch_all_staff_ids(fac_id: str) -> list[int]:
+    """Pobiera wszystkie ID pracownikow danego wydzialu, paginujac wyniki."""
+    ids: list[int] = []
+    start = 0
+
+    while True:
+        params = {
+            "fac_ids": fac_id,
+            "fields": "users[id]|next_page|total",
+            "num": str(STAFF_INDEX_PAGE_SIZE),
+            "start": str(start),
+        }
+        payload = usos_call_signed("services/users/staff_index", params)
+        save_response("services/users/staff_index", payload, RAW_DATA_DIR)
+
+        ids.extend(user["id"] for user in payload.get("users", []))
+
+        if not payload.get("next_page"):
+            break
+        start += STAFF_INDEX_PAGE_SIZE
+
+    return ids
+
+
+def fetch_employee_detail(user_id: int, authenticated: bool = False) -> dict:
+    """Pobiera pelne dane jednego pracownika (services/users/user).
+
+    Domyslnie uzywa 2-legged (usos_call_signed). Gdy authenticated=True,
+    uzywa pelnego 3-legged OAuth1 (usos_call_authenticated) - jedyny tryb, w
+    ktorym pole 'email' (juz obecne w USER_FIELDS) faktycznie sie wypelnia.
+    """
+    params = {"user_id": str(user_id), "fields": USER_FIELDS}
+    if authenticated:
+        payload = usos_call_authenticated("services/users/user", params)
+    else:
+        payload = usos_call_signed("services/users/user", params)
+    save_response("services/users/user", payload, RAW_DATA_DIR)
+    return payload
+
+
+def save_staff_dataset(fac_id: str, employees: list[dict]) -> str:
+    """Zapisuje znormalizowana liste pracownikow do jednego pliku JSON."""
+    os.makedirs(STAFF_OUTPUT_DIR, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    filename = f"staff_{fac_id}_{timestamp}.json"
+    filepath = os.path.join(STAFF_OUTPUT_DIR, filename)
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(employees, f, ensure_ascii=False, indent=2)
+
+    return filepath
+
+
+def run_scrape(fac_id: str = FAC_ID, with_email: bool = False) -> dict:
+    """Uruchamia pelny scraping: dyskonta ID, fetch kazdego, zapis datasetu.
+
+    Bledy pojedynczych pracownikow sa logowane na stderr i pomijane - reszta
+    scrapingu jest kontynuowana. with_email=True dolacza email (wymaga
+    wczesniejszego logowania przez usos_login.py) - jesli brak access
+    tokena, blad podnosi sie na pierwszym pracowniku i przerywa caly
+    przebieg (to blad konfiguracji, nie pojedynczego rekordu). Zwraca
+    podsumowanie przebiegu.
+    """
+    staff_ids = fetch_all_staff_ids(fac_id)
+
+    employees = []
+    skipped_ids = []
+
+    for user_id in staff_ids:
+        try:
+            if with_email:
+                raw = fetch_employee_detail(user_id, authenticated=True)
+            else:
+                raw = fetch_employee_detail(user_id)
+        except UsosApiError as e:
+            print(
+                f"[error] Pomijam pracownika {user_id}: status {e.status_code}\n{e.body}",
+                file=sys.stderr,
+            )
+            skipped_ids.append(user_id)
+            continue
+
+        employees.append(normalize_employee(raw))
+
+    output_path = save_staff_dataset(fac_id, employees)
+
+    return {
+        "total_found": len(staff_ids),
+        "total_fetched": len(employees),
+        "skipped_ids": skipped_ids,
+        "output_path": output_path,
+    }
+
+
+def flatten_langdict(langdict: dict | None, preferred_lang: str = "pl") -> tuple[dict, str]:
+    """Splaszcza pole typu LangDict do (oryginalny slownik, najlepszy tekst).
+
+    Preferuje jezyk `preferred_lang`; jesli go brak lub jest pusty, bierze
+    pierwsza niepusta wartosc z dostepnych jezykow. Zwraca ({}, "") dla
+    pustego/brakujacego LangDict.
+    """
+    if not langdict:
+        return {}, ""
+
+    preferred_text = langdict.get(preferred_lang)
+    if preferred_text:
+        return dict(langdict), preferred_text
+
+    for value in langdict.values():
+        if value:
+            return dict(langdict), value
+
+    return dict(langdict), ""
+
+
+def normalize_employee(raw: dict) -> dict:
+    """Normalizuje surowa odpowiedz services/users/user do plaskiego rekordu."""
+    office_hours, office_hours_text = flatten_langdict(raw.get("office_hours"))
+    interests, interests_text = flatten_langdict(raw.get("interests"))
+
+    return {
+        "id": raw.get("id"),
+        "first_name": raw.get("first_name"),
+        "last_name": raw.get("last_name"),
+        "titles": raw.get("titles"),
+        "email": raw.get("email"),
+        "phone_numbers": raw.get("phone_numbers") or [],
+        "room": raw.get("room"),
+        "profile_url": raw.get("profile_url"),
+        "homepage_url": raw.get("homepage_url"),
+        "office_hours": office_hours,
+        "office_hours_text": office_hours_text,
+        "interests": interests,
+        "interests_text": interests_text,
+        "employment_positions": raw.get("employment_positions") or [],
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Scraper danych pracownikow WMI z USOS API UJ."
+    )
+    parser.add_argument(
+        "--with-email",
+        action="store_true",
+        help="Pobierz tez email (wymaga wczesniejszego logowania przez "
+        "usos_login.py) - domyslnie WYLACZONE",
+    )
+    args = parser.parse_args()
+
+    try:
+        summary = run_scrape(with_email=args.with_email)
+    except UsosCredentialsError as e:
+        print(f"[error] {e}", file=sys.stderr)
+        sys.exit(1)
+    except UsosApiError as e:
+        print(
+            f"[error] Nie udalo sie pobrac listy pracownikow: status {e.status_code}\n{e.body}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print(f"Znaleziono pracownikow: {summary['total_found']}")
+    print(f"Pobrano poprawnie: {summary['total_fetched']}")
+    if summary["skipped_ids"]:
+        print(f"Pominieto (bledy): {summary['skipped_ids']}")
+    print(f"Zapisano dataset: {summary['output_path']}")
+
+
+if __name__ == "__main__":
+    main()
