@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy, ThumbsUp, ThumbsDown, Sliders, LogOut } from 'lucide-react';
 import mojeLogo from './assets/logo-ksi-IBUoeAwm.svg'; 
 
 // themes, only 4 for now - may add more later
@@ -77,10 +77,12 @@ const translations = {
     chat3: "Kontakt do dziekanatu",
     language: "Język",
     theme: "Motyw",
+    ragContexts: "Konteksty RAG",
     settings: "Ustawienia",
     account: "Konto",
+    logout: "Wyloguj się",
     botGreeting: "Cześć! Jestem wirtualnym asystentem Wydziału Matematyki i Informatyki. W czym mogę Ci dzisiaj pomóc?",
-    botReply: "Jestem na razie wersją testową. Niedługo zyskam prawdziwą inteligencję! 🤖 (Oto długa wiadomość testowa, żebyś mogła sprawdzić, jak działa przypięty na górze przycisk kopiowania podczas przewijania ekranu w dół, a także drugi przycisk pojawiający się na samym końcu. Spróbuj dodać więcej takich wiadomości, by strona zrobiła się naprawdę bardzo długa!)", // test reply
+    botReply: "testowa odp", // test reply
     inputPlaceholder: "Zapytaj Chatbota",
     disclaimer: "Chatbot to AI i może popełniać błędy. Zweryfikuj ważne informacje na stronie wydziału.",
     copy: "Kopiuj",
@@ -101,10 +103,12 @@ const translations = {
     chat3: "Dean's office contact",
     language: "Language",
     theme: "Theme",
+    ragContexts: "RAG Contexts",
     settings: "Settings",
     account: "Account",
+    logout: "Log out",
     botGreeting: "Hello! I am the virtual assistant of the Faculty of Mathematics and Computer Science. How can I help you today?",
-    botReply: "I am a test version for now. I will gain real intelligence soon! 🤖 (Here is a long test message so you can check how the sticky copy button works when scrolling down the screen, and the second one appearing at the very end. Try adding more messages like this to make the page really long!)", // test reply
+    botReply: "test reply", // test reply
     inputPlaceholder: "Ask Chatbot",
     disclaimer: "Chatbot is an AI and may make mistakes. Verify important information on the faculty website.",
     copy: "Copy",
@@ -129,15 +133,19 @@ type Message = {
   files?: File[];
 };
 
-export default function ChatScreen() {
+interface ChatScreenProps {
+  onLogout?: () => void;
+}
+
+export default function ChatScreen({ onLogout }: ChatScreenProps) {
   
   // states
   
   // setting menu either shown(true) or not(false)
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   
-  // track in which submenu user is currently in
-  const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme'>('main');
+  // track in which submenu user is currently in ('main' | 'language' | 'theme' | 'rag')
+  const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme' | 'rag'>('main');
   
   // remembers choosen language, try to get from localStorage first
   const [selectedLanguage, setSelectedLanguage] = useState<LangKey>(() => {
@@ -149,6 +157,12 @@ export default function ChatScreen() {
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(() => {
     const saved = localStorage.getItem('chatTheme');
     return (saved as ThemeKey) || 'jasny';
+  });
+
+  // remembers rag contexts count, default 5, try to get from localStorage first
+  const [ragCount, setRagCount] = useState<number>(() => {
+    const saved = localStorage.getItem('chatRagCount');
+    return saved ? parseInt(saved, 10) : 5;
   });
 
   // chat states
@@ -193,6 +207,10 @@ export default function ChatScreen() {
   useEffect(() => {
     localStorage.setItem('chatTheme', selectedTheme);
   }, [selectedTheme]);
+
+  useEffect(() => {
+    localStorage.setItem('chatRagCount', ragCount.toString());
+  }, [ragCount]);
 
   useEffect(() => {
     // we map messages to remove actual File objects before saving to localStorage
@@ -249,6 +267,16 @@ export default function ChatScreen() {
   const toggleSettings = () => {
     setShowSettingsMenu(!showSettingsMenu);
     setSettingsView('main'); // always reset to main view on click
+  };
+
+  // handle logout action
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    if (onLogout) {
+      onLogout();
+    } else {
+      window.location.reload(); // awaryjne odświeżenie, jeśli stan trzymany jest wyżej bez przekazanej funkcji
+    }
   };
 
   // new chat - resets messages array and staged files
@@ -417,6 +445,17 @@ export default function ChatScreen() {
                     </div>
                     <ChevronRight size={16} className={t.textMuted} />
                   </button>
+
+                  <button 
+                    onClick={() => setSettingsView('rag')}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Sliders size={18} className={t.textMuted} />
+                      <span>{lang.ragContexts}</span>
+                    </div>
+                    <ChevronRight size={16} className={t.textMuted} />
+                  </button>
                 </>
               )}
 
@@ -464,6 +503,38 @@ export default function ChatScreen() {
                 </div>
               )}
 
+              {/* RAG contexts options */}
+              {settingsView === 'rag' && (
+                <div className="flex flex-col">
+                  <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.sidebar.includes('border') ? t.sidebar.split(' ')[1] : 'border-neutral-200'}`}>
+                    <button onClick={() => setSettingsView('main')} className={`p-1 ${t.hover} rounded-full transition-colors`}>
+                      <ArrowLeft size={16} className={t.textMuted} />
+                    </button>
+                    <span className="text-sm font-medium">{lang.ragContexts}</span>
+                  </div>
+                  
+                  <div className="px-4 py-3 flex flex-col gap-2">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span>Liczba kontekstów:</span>
+                      <span className="font-bold">{ragCount}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="1" 
+                      max="15" 
+                      value={ragCount}
+                      onChange={(e) => setRagCount(parseInt(e.target.value, 10))}
+                      className="w-full accent-neutral-500 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] opacity-60">
+                      <span>1</span>
+                      <span>5 (default)</span>
+                      <span>15</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
 
@@ -481,6 +552,15 @@ export default function ChatScreen() {
           <button className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium ${t.text} ${t.hover}`}>
               <UserCircle size={15} />
               <span>{lang.account}</span>
+          </button>
+
+          {/* logout button */}
+          <button 
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium text-red-500 hover:bg-red-500/10`}
+          >
+              <LogOut size={15} />
+              <span>{lang.logout}</span>
           </button>
         </div>
         
@@ -549,7 +629,7 @@ export default function ChatScreen() {
                     </div>
                   )}
 
-                  {/* thumbs up/down with fill color on click */}
+                  {/* thumbs up/down */}
                   {msg.sender === 'bot' && (
                     <div className="flex items-center gap-2 px-1 mt-0.5">
                       <button 
@@ -557,7 +637,7 @@ export default function ChatScreen() {
                         className={`transition-colors p-1 rounded-md ${
                           currentReaction === 'up' ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
                         }`}
-                        title="To jest okej"
+                        title="To mi pomogło"
                       >
                         <ThumbsUp size={15} fill={currentReaction === 'up' ? "currentColor" : "none"} />
                       </button>
@@ -567,7 +647,7 @@ export default function ChatScreen() {
                         className={`transition-colors p-1 rounded-md ${
                           currentReaction === 'down' ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
                         }`}
-                        title="To nie jest okej"
+                        title="To mi nie pomogło"
                       >
                         <ThumbsDown size={15} fill={currentReaction === 'down' ? "currentColor" : "none"} />
                       </button>
