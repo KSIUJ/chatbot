@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check } from 'lucide-react';
+import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText } from 'lucide-react';
 import mojeLogo from './assets/logo-ksi-IBUoeAwm.svg'; 
 
 // themes, only 4 for now - may add more later
@@ -13,6 +13,7 @@ const themeStyles = {
     active: "bg-neutral-200",
     botIcon: "bg-neutral-600",
     msgBox: "bg-white border-neutral-200 text-neutral-800",
+    userMsgBox: "bg-neutral-800 text-white", // for user messages
     inputBox: "bg-white border-neutral-200 text-neutral-900 focus:ring-neutral-500/50",
     sendBtn: "bg-neutral-800 hover:bg-neutral-900 text-white",
     popover: "bg-white border-neutral-200 shadow-xl",
@@ -26,6 +27,7 @@ const themeStyles = {
     active: "bg-neutral-700",
     botIcon: "bg-neutral-500",
     msgBox: "bg-[#1e1e1e] border-neutral-800 text-neutral-200",
+    userMsgBox: "bg-blue-600 text-white", 
     inputBox: "bg-[#1e1e1e] border-neutral-800 text-neutral-200 focus:ring-neutral-600/50",
     sendBtn: "bg-neutral-700 hover:bg-neutral-600 text-white",
     popover: "bg-[#2c2c2c] border-neutral-800 shadow-xl",
@@ -39,6 +41,7 @@ const themeStyles = {
     active: "bg-slate-700",
     botIcon: "bg-blue-600",
     msgBox: "bg-slate-800 border-slate-700 text-slate-200",
+    userMsgBox: "bg-blue-600 text-white",
     inputBox: "bg-slate-800 border-slate-700 text-slate-200 focus:ring-blue-500/50",
     sendBtn: "bg-blue-600 hover:bg-blue-500 text-white",
     popover: "bg-slate-800 border-slate-700 shadow-xl",
@@ -52,6 +55,7 @@ const themeStyles = {
     active: "bg-pink-300",
     botIcon: "bg-pink-500",
     msgBox: "bg-white border-pink-200 text-pink-900",
+    userMsgBox: "bg-pink-600 text-white",
     inputBox: "bg-white border-pink-200 text-pink-900 focus:ring-pink-400/50",
     sendBtn: "bg-pink-600 hover:bg-pink-500 text-white",
     popover: "bg-pink-50 border-pink-200 shadow-xl",
@@ -72,6 +76,7 @@ const translations = {
     settings: "Ustawienia",
     account: "Konto",
     botGreeting: "Cześć! Jestem wirtualnym asystentem Wydziału Matematyki i Informatyki. W czym mogę Ci dzisiaj pomóc?",
+    botReply: "Jestem na razie wersją testową. Niedługo zyskam prawdziwą inteligencję! 🤖", // test reply
     inputPlaceholder: "Zapytaj Chatbota",
     disclaimer: "Chatbot to AI i może popełniać błędy. Zweryfikuj ważne informacje na stronie wydziału.",
     themeNames: {
@@ -93,6 +98,7 @@ const translations = {
     settings: "Settings",
     account: "Account",
     botGreeting: "Hello! I am the virtual assistant of the Faculty of Mathematics and Computer Science. How can I help you today?",
+    botReply: "I am a test version for now. I will gain real intelligence soon! 🤖", // test reply
     inputPlaceholder: "Ask Chatbot",
     disclaimer: "Chatbot is an AI and may make mistakes. Verify important information on the faculty website.",
     themeNames: {
@@ -107,9 +113,17 @@ const translations = {
 type ThemeKey = keyof typeof themeStyles;
 type LangKey = keyof typeof translations;
 
+// single message type with optional files array
+type Message = {
+  id: string;
+  sender: 'user' | 'bot';
+  text: string;
+  files?: File[];
+};
+
 export default function ChatScreen() {
   
-  // STATES
+  // states
   
   // setting menu either shown(true) or not(false)
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
@@ -117,16 +131,38 @@ export default function ChatScreen() {
   // track in which submenu user is currently in
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme'>('main');
   
-  // remembers choosen language, default: Polish - change to english??
+  // remembers choosen language, default: Polish
   const [selectedLanguage, setSelectedLanguage] = useState<LangKey>('polski');
   
   // remembers choosen theme, default: light
   const [selectedTheme, setSelectedTheme] = useState<ThemeKey>('jasny');
 
-  // REFS
-  const menuRef = useRef<HTMLDivElement>(null);
+  // chat states
+  
+  // input state
+  const [inputText, setInputText] = useState('');
+  
+  // array of files waiting to be sent (preview area)
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  
+  // array of messages
+  const [messages, setMessages] = useState<Message[]>([
+    { id: '1', sender: 'bot', text: translations['polski'].botGreeting }
+  ]);
 
-  // EFFECTS
+  // refs
+  const menuRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // for auto-scrolling
+
+  // effects
+  
+  // update initial bot greeting if user changes language and no other messages exist
+  useEffect(() => {
+    if (messages.length === 1 && messages[0].id === '1') {
+      setMessages([{ id: '1', sender: 'bot', text: translations[selectedLanguage].botGreeting }]);
+    }
+  }, [selectedLanguage]);
+
   // when the menuRef is shown and the user clicks outside if it, it automatically closes
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -137,27 +173,90 @@ export default function ChatScreen() {
       }
     }
     
-    // only if the menu is shown, we check for mouse clicks outside of it
+    // add listener to the whole document if menu is open
     if (showSettingsMenu) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     
-    // when the menu closes
+    // cleanup function to remove listener
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showSettingsMenu]); 
 
+  // auto-scroll to the bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+
+  // helpers
+  
+  // toggle setting menu
   const toggleSettings = () => {
-    setShowSettingsMenu(!showSettingsMenu); 
-    setSettingsView('main'); // resets to main view
+    setShowSettingsMenu(!showSettingsMenu);
+    setSettingsView('main'); // always reset to main view on click
   };
 
-  // set correct theme and language
+  // new chat - resets messages array and staged files
+  const handleNewChat = () => {
+    setMessages([
+      { id: '1', sender: 'bot', text: translations[selectedLanguage].botGreeting }
+    ]);
+    setInputText('');
+    setStagedFiles([]);
+  };
+
+  // handle file input change
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setStagedFiles(prev => [...prev, ...filesArray]);
+    }
+    e.target.value = ''; // reset input so same file can be selected again
+  };
+
+  // remove a file from staging area
+  const removeStagedFile = (index: number) => {
+    setStagedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // handle sending message
+  const handleSendMessage = () => {
+    if (!inputText.trim() && stagedFiles.length === 0) return; // do not send empty messages
+
+    // add user message
+    const newUserMsg: Message = { 
+      id: Date.now().toString(), 
+      sender: 'user', 
+      text: inputText.trim(),
+      files: stagedFiles.length > 0 ? stagedFiles : undefined
+    };
+    
+    setMessages(prev => [...prev, newUserMsg]);
+    setInputText('');
+    setStagedFiles([]); // clear staging area
+
+    // fake bot reply after 1 second
+    setTimeout(() => {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        sender: 'bot',
+        text: translations[selectedLanguage].botReply
+      }]);
+    }, 1000);
+  };
+
+  // allow sending with Enter key
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleSendMessage();
+  };
+
+  // get styles and texts based on states
   const t = themeStyles[selectedTheme];
   const lang = translations[selectedLanguage];
   
-  // helper function to check if dark theme is choosen - if yes, then KSI logo is shown on a white circle, otherwise it wont be visible
+  // check if theme is dark to add white bg to logo
   const isDarkTheme = selectedTheme === 'ciemny' || selectedTheme === 'granatowy';
 
   return (
@@ -168,15 +267,27 @@ export default function ChatScreen() {
         
         {/* logo + new chat button */}
         <div className="p-4 space-y-4">
-          <div className="flex items-center gap-2.5">
+          
+          {/* clickable logo wrapper - TODO*/}
+          <a 
+            href="KSI_LINK" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+            title="Przejdź na stronę koła"
+          >
             <div className={`flex items-center justify-center shrink-0 transition-colors duration-300 ${isDarkTheme ? 'bg-white rounded-full p-1 shadow-sm' : ''}`}>
               <img src={mojeLogo} alt="Logo KSI" className="h-8 w-8 object-contain" />
             </div>
             
             <span className={`font-medium ${t.text} text-base tracking-tight transition-colors`}>{lang.appTitle}</span>
-          </div>
+          </a>
           
-          <button className={`w-full flex items-center gap-2 ${t.text} ${t.hover} transition-colors font-medium py-1.5 px-2 rounded-md`}>
+          {/* new chat button with onClick */}
+          <button 
+            onClick={handleNewChat}
+            className={`w-full flex items-center gap-2 ${t.text} ${t.hover} transition-colors font-medium py-1.5 px-2 rounded-md`}
+          >
             <Plus size={16} />
             {lang.newChat}
           </button>
@@ -308,28 +419,88 @@ export default function ChatScreen() {
       </div>
 
       {/* main chat view */}
-      <div className="flex-1 flex flex-col h-screen relative">
+      <div className="flex-1 flex flex-col h-screen relative overflow-hidden">
         
-        <main className="flex-1 p-4 pt-8 overflow-y-auto space-y-6">
-          <div className="flex gap-4 max-w-4xl mx-auto w-full">
-            {/* bot icon - TODO change for a different one, either sth simple or draw by hand, each theme has a different bot icon */}
-            <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5 transition-colors duration-300`}>
-              <Bot size={22} />
+        <main className="flex-1 p-4 pt-8 overflow-y-auto space-y-6 scroll-smooth">
+          {/* map messages */}
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
+              
+              {/* bot icon - TODO change for a different one, either sth simple or draw by hand, each theme has a different bot icon */}
+              {msg.sender === 'bot' && (
+                <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5 transition-colors duration-300`}>
+                  <Bot size={22} />
+                </div>
+              )}
+
+              {/* message wrapper for text and files */}
+              <div className="flex flex-col gap-2 max-w-[70%]">
+                
+                {/* render files if any */}
+                {msg.files && msg.files.length > 0 && (
+                  <div className={`flex flex-wrap gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.files.map((file, i) => {
+                      const fileUrl = URL.createObjectURL(file);
+                      return file.type.startsWith('image/') ? (
+                        <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer hover:opacity-80 transition-opacity">
+                          <img src={fileUrl} alt="attachment" className="max-w-[200px] max-h-[200px] object-cover rounded-xl border border-neutral-200/20 shadow-sm" />
+                        </a>
+                      ) : (
+                        <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" download={file.name} className={`flex items-center gap-2 p-3 rounded-xl shadow-sm cursor-pointer hover:opacity-80 transition-opacity ${msg.sender === 'user' ? t.userMsgBox : t.msgBox}`}>
+                          <FileText size={18} />
+                          <span className="text-sm font-medium truncate max-w-[150px]">{file.name}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* render text if not empty */}
+                {msg.text && (
+                  <div className={`p-5 rounded-2xl border shadow-sm text-[15px] leading-relaxed transition-colors duration-300 
+                    ${msg.sender === 'user' ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}`
+                  }>
+                    {msg.text}
+                  </div>
+                )}
+              </div>
+
             </div>
-            {/* messages icon */}
-            <div className={`p-5 rounded-2xl rounded-tl-sm border shadow-sm text-[15px] leading-relaxed max-w-[60%] transition-colors duration-300 ${t.msgBox}`}>
-              {lang.botGreeting}
-            </div>
-          </div>
+          ))}
+          {/* empty div for auto-scroll */}
+          <div ref={messagesEndRef} />
         </main>
         
         <footer className="px-4 pb-8 bg-transparent">
           <div className="max-w-2xl mx-auto relative mb-4">
+            
+            {/* staged files preview above input */}
+            {stagedFiles.length > 0 && (
+              <div className="absolute bottom-full left-0 mb-3 flex flex-wrap gap-2 z-10 w-full">
+                {stagedFiles.map((file, i) => (
+                  <div key={i} className={`flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full border shadow-sm text-xs font-medium ${t.msgBox}`}>
+                    {file.type.startsWith('image/') ? (
+                      <div className="h-5 w-5 rounded overflow-hidden shrink-0">
+                        <img src={URL.createObjectURL(file)} alt="preview" className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <FileText size={14} className="shrink-0" />
+                    )}
+                    <span className="truncate max-w-[120px]">{file.name}</span>
+                    <button onClick={() => removeStagedFile(i)} className={`p-1 rounded-full ${t.hover} transition-colors`}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <input 
               type="file" 
               id="file-upload" 
               className="hidden" 
               multiple 
+              onChange={handleFileChange}
             />
 
             <label 
@@ -343,12 +514,18 @@ export default function ChatScreen() {
             {/* input */}
             <input 
               type="text" 
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder={lang.inputPlaceholder}
               className={`w-full pl-12 pr-14 py-4 border shadow-md rounded-full focus:ring-2 outline-none transition-all duration-300 ${t.inputBox}`}
             />
             
             {/* send button */}
-            <button className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-colors shadow-sm active:scale-95 z-10 ${t.sendBtn}`}>
+            <button 
+              onClick={handleSendMessage}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-colors shadow-sm active:scale-95 z-10 ${t.sendBtn}`}
+            >
               <Send size={18} className="-translate-x-px translate-y-px" />
             </button>
             
