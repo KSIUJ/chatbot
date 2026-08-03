@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText } from 'lucide-react';
+import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy } from 'lucide-react';
 import mojeLogo from './assets/logo-ksi-IBUoeAwm.svg'; 
 
 // themes, only 4 for now - may add more later
@@ -17,6 +17,7 @@ const themeStyles = {
     inputBox: "bg-white border-neutral-200 text-neutral-900 focus:ring-neutral-500/50",
     sendBtn: "bg-neutral-800 hover:bg-neutral-900 text-white",
     popover: "bg-white border-neutral-200 shadow-xl",
+    copiedIcon: "text-neutral-800", // color for copied icon
   },
   ciemny: {
     app: "bg-[#121212]",
@@ -26,11 +27,12 @@ const themeStyles = {
     hover: "hover:bg-neutral-800",
     active: "bg-neutral-700",
     botIcon: "bg-neutral-500",
-    msgBox: "bg-[#1e1e1e] border-neutral-800 text-neutral-200",
-    userMsgBox: "bg-blue-600 text-white", 
+    msgBox: "bg-[#252525] border-0 text-neutral-100 shadow-md",
+    userMsgBox: "bg-[#333333] border-0 text-neutral-100 shadow-md", 
     inputBox: "bg-[#1e1e1e] border-neutral-800 text-neutral-200 focus:ring-neutral-600/50",
     sendBtn: "bg-neutral-700 hover:bg-neutral-600 text-white",
     popover: "bg-[#2c2c2c] border-neutral-800 shadow-xl",
+    copiedIcon: "text-blue-500", 
   },
   granatowy: {
     app: "bg-slate-900",
@@ -40,11 +42,12 @@ const themeStyles = {
     hover: "hover:bg-slate-800",
     active: "bg-slate-700",
     botIcon: "bg-blue-600",
-    msgBox: "bg-slate-800 border-slate-700 text-slate-200",
-    userMsgBox: "bg-blue-600 text-white",
+    msgBox: "bg-slate-800 border-0 text-slate-200",
+    userMsgBox: "bg-blue-600 border-0 text-white",
     inputBox: "bg-slate-800 border-slate-700 text-slate-200 focus:ring-blue-500/50",
     sendBtn: "bg-blue-600 hover:bg-blue-500 text-white",
     popover: "bg-slate-800 border-slate-700 shadow-xl",
+    copiedIcon: "text-blue-400", 
   },
   różowy: {
     app: "bg-pink-50",
@@ -59,6 +62,7 @@ const themeStyles = {
     inputBox: "bg-white border-pink-200 text-pink-900 focus:ring-pink-400/50",
     sendBtn: "bg-pink-600 hover:bg-pink-500 text-white",
     popover: "bg-pink-50 border-pink-200 shadow-xl",
+    copiedIcon: "text-pink-500", 
   }
 };
 
@@ -76,9 +80,11 @@ const translations = {
     settings: "Ustawienia",
     account: "Konto",
     botGreeting: "Cześć! Jestem wirtualnym asystentem Wydziału Matematyki i Informatyki. W czym mogę Ci dzisiaj pomóc?",
-    botReply: "Jestem na razie wersją testową. Niedługo zyskam prawdziwą inteligencję! 🤖", // test reply
+    botReply: "Jestem na razie wersją testową. Niedługo zyskam prawdziwą inteligencję! 🤖 (Oto długa wiadomość testowa, żebyś mogła sprawdzić, jak działa przypięty na górze przycisk kopiowania podczas przewijania ekranu w dół, a także drugi przycisk pojawiający się na samym końcu. Spróbuj dodać więcej takich wiadomości, by strona zrobiła się naprawdę bardzo długa!)", // test reply
     inputPlaceholder: "Zapytaj Chatbota",
     disclaimer: "Chatbot to AI i może popełniać błędy. Zweryfikuj ważne informacje na stronie wydziału.",
+    copy: "Kopiuj",
+    copied: "Skopiowano",
     themeNames: {
       jasny: "jasny",
       ciemny: "ciemny",
@@ -98,9 +104,11 @@ const translations = {
     settings: "Settings",
     account: "Account",
     botGreeting: "Hello! I am the virtual assistant of the Faculty of Mathematics and Computer Science. How can I help you today?",
-    botReply: "I am a test version for now. I will gain real intelligence soon! 🤖", // test reply
+    botReply: "I am a test version for now. I will gain real intelligence soon! 🤖 (Here is a long test message so you can check how the sticky copy button works when scrolling down the screen, and the second one appearing at the very end. Try adding more messages like this to make the page really long!)", // test reply
     inputPlaceholder: "Ask Chatbot",
     disclaimer: "Chatbot is an AI and may make mistakes. Verify important information on the faculty website.",
+    copy: "Copy",
+    copied: "Copied",
     themeNames: {
       jasny: "light",
       ciemny: "dark",
@@ -131,11 +139,17 @@ export default function ChatScreen() {
   // track in which submenu user is currently in
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme'>('main');
   
-  // remembers choosen language, default: Polish
-  const [selectedLanguage, setSelectedLanguage] = useState<LangKey>('polski');
+  // remembers choosen language, try to get from localStorage first
+  const [selectedLanguage, setSelectedLanguage] = useState<LangKey>(() => {
+    const saved = localStorage.getItem('chatLanguage');
+    return (saved as LangKey) || 'polski';
+  });
   
-  // remembers choosen theme, default: light
-  const [selectedTheme, setSelectedTheme] = useState<ThemeKey>('jasny');
+  // remembers choosen theme, try to get from localStorage first
+  const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(() => {
+    const saved = localStorage.getItem('chatTheme');
+    return (saved as ThemeKey) || 'jasny';
+  });
 
   // chat states
   
@@ -145,16 +159,52 @@ export default function ChatScreen() {
   // array of files waiting to be sent (preview area)
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   
-  // array of messages
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', sender: 'bot', text: translations['polski'].botGreeting }
-  ]);
+  // array of messages - load from localStorage if exists!
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const saved = localStorage.getItem('chatMessages');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Could not load messages", e);
+      }
+    }
+    // fallback if nothing is saved
+    const lang = (localStorage.getItem('chatLanguage') as LangKey) || 'polski';
+    return [{ id: '1', sender: 'bot', text: translations[lang].botGreeting }];
+  });
+  
+  // array to track ALL messages that have been copied
+  const [copiedIds, setCopiedIds] = useState<string[]>([]);
 
   // refs
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null); // for auto-scrolling
 
-  // effects
+  // local storage
+  
+  useEffect(() => {
+    localStorage.setItem('chatLanguage', selectedLanguage);
+  }, [selectedLanguage]);
+
+  useEffect(() => {
+    localStorage.setItem('chatTheme', selectedTheme);
+  }, [selectedTheme]);
+
+  useEffect(() => {
+    // we map messages to remove actual File objects before saving to localStorage
+    // (browsers can't easily stringify File objects)
+    const messagesToSave = messages.map(msg => ({
+      id: msg.id,
+      sender: msg.sender,
+      text: msg.text
+      // skipping 'files' to avoid JSON errors
+    }));
+    localStorage.setItem('chatMessages', JSON.stringify(messagesToSave));
+  }, [messages]);
+
+
+  // other effects
   
   // update initial bot greeting if user changes language and no other messages exist
   useEffect(() => {
@@ -201,10 +251,19 @@ export default function ChatScreen() {
   // new chat - resets messages array and staged files
   const handleNewChat = () => {
     setMessages([
-      { id: '1', sender: 'bot', text: translations[selectedLanguage].botGreeting }
+      { id: Date.now().toString(), sender: 'bot', text: translations[selectedLanguage].botGreeting }
     ]);
     setInputText('');
     setStagedFiles([]);
+    setCopiedIds([]); // clear copied states on new chat
+  };
+
+  // copy text to clipboard and permanently save its ID
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    if (!copiedIds.includes(id)) {
+      setCopiedIds(prev => [...prev, id]);
+    }
   };
 
   // handle file input change
@@ -268,9 +327,9 @@ export default function ChatScreen() {
         {/* logo + new chat button */}
         <div className="p-4 space-y-4">
           
-          {/* clickable logo wrapper - TODO*/}
+          {/* clickable logo wrapper */}
           <a 
-            href="KSI_LINK" 
+            href="KSI_LOGO" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
@@ -423,50 +482,83 @@ export default function ChatScreen() {
         
         <main className="flex-1 p-4 pt-8 overflow-y-auto space-y-6 scroll-smooth">
           {/* map messages */}
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-              
-              {/* bot icon - TODO change for a different one, either sth simple or draw by hand, each theme has a different bot icon */}
-              {msg.sender === 'bot' && (
-                <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5 transition-colors duration-300`}>
-                  <Bot size={22} />
-                </div>
-              )}
-
-              {/* message wrapper for text and files */}
-              <div className="flex flex-col gap-2 max-w-[70%]">
+          {messages.map((msg) => {
+            const isCopied = copiedIds.includes(msg.id);
+            
+            return (
+              <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                 
-                {/* render files if any */}
-                {msg.files && msg.files.length > 0 && (
-                  <div className={`flex flex-wrap gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {msg.files.map((file, i) => {
-                      const fileUrl = URL.createObjectURL(file);
-                      return file.type.startsWith('image/') ? (
-                        <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer hover:opacity-80 transition-opacity">
-                          <img src={fileUrl} alt="attachment" className="max-w-[200px] max-h-[200px] object-cover rounded-xl border border-neutral-200/20 shadow-sm" />
-                        </a>
-                      ) : (
-                        <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" download={file.name} className={`flex items-center gap-2 p-3 rounded-xl shadow-sm cursor-pointer hover:opacity-80 transition-opacity ${msg.sender === 'user' ? t.userMsgBox : t.msgBox}`}>
-                          <FileText size={18} />
-                          <span className="text-sm font-medium truncate max-w-[150px]">{file.name}</span>
-                        </a>
-                      );
-                    })}
+                {/* bot icon */}
+                {msg.sender === 'bot' && (
+                  <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5 transition-colors duration-300`}>
+                    <Bot size={22} />
                   </div>
                 )}
 
-                {/* render text if not empty */}
-                {msg.text && (
-                  <div className={`p-5 rounded-2xl border shadow-sm text-[15px] leading-relaxed transition-colors duration-300 
-                    ${msg.sender === 'user' ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}`
-                  }>
-                    {msg.text}
-                  </div>
-                )}
+                {/* message wrapper for text, files and top action bar */}
+                <div className="flex flex-col gap-2 max-w-[70%]">
+                  
+                  {/* render files if any */}
+                  {msg.files && msg.files.length > 0 && (
+                    <div className={`flex flex-wrap gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      {msg.files.map((file, i) => {
+                        const fileUrl = URL.createObjectURL(file);
+                        return file.type.startsWith('image/') ? (
+                          <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer hover:opacity-80 transition-opacity">
+                            <img src={fileUrl} alt="attachment" className="max-w-[200px] max-h-[200px] object-cover rounded-xl border border-neutral-200/20 shadow-sm" />
+                          </a>
+                        ) : (
+                          <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" download={file.name} className={`flex items-center gap-2 p-3 rounded-xl shadow-sm cursor-pointer hover:opacity-80 transition-opacity ${msg.sender === 'user' ? t.userMsgBox : t.msgBox}`}>
+                            <FileText size={18} />
+                            <span className="text-sm font-medium truncate max-w-[150px]">{file.name}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* render text and sticky/absolute copy button inside message box */}
+                  {msg.text && (
+                    <div className={`p-5 pr-14 relative rounded-2xl border shadow-sm text-[15px] leading-relaxed transition-colors duration-300 
+                      ${msg.sender === 'user' ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}`
+                    }>
+                      {msg.text}
+
+                      {/* copy button fixed to top-right inside bot message box */}
+                      {msg.sender === 'bot' && (
+                        <button 
+                          onClick={() => handleCopy(msg.text, msg.id)}
+                          className={`absolute top-3 right-3 transition-colors p-1.5 rounded-md ${
+                            isCopied ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
+                          }`}
+                          title={isCopied ? lang.copied : lang.copy}
+                        >
+                          {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* BOTTOM copy button - ONLY rendered if message is longer than 300 characters */}
+                  {msg.sender === 'bot' && msg.text && msg.text.length > 300 && (
+                    <div className="flex justify-end px-1 mt-1">
+                      <button 
+                        onClick={() => handleCopy(msg.text, msg.id)}
+                        className={`transition-colors p-1.5 rounded-md ${
+                          isCopied ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
+                        }`}
+                        title={isCopied ? lang.copied : lang.copy}
+                      >
+                        {isCopied ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                    </div>
+                  )}
+                  
+                </div>
+
               </div>
-
-            </div>
-          ))}
+            );
+          })}
           {/* empty div for auto-scroll */}
           <div ref={messagesEndRef} />
         </main>
@@ -474,7 +566,7 @@ export default function ChatScreen() {
         <footer className="px-4 pb-8 bg-transparent">
           <div className="max-w-2xl mx-auto relative mb-4">
             
-            {/* staged files preview above input */}
+            {/* STAGED FILES PREVIEW (above input) */}
             {stagedFiles.length > 0 && (
               <div className="absolute bottom-full left-0 mb-3 flex flex-wrap gap-2 z-10 w-full">
                 {stagedFiles.map((file, i) => (
