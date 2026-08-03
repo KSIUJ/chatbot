@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy } from 'lucide-react';
+import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy, ThumbsUp, ThumbsDown } from 'lucide-react';
 import mojeLogo from './assets/logo-ksi-IBUoeAwm.svg'; 
 
 // themes, only 4 for now - may add more later
@@ -159,7 +159,7 @@ export default function ChatScreen() {
   // array of files waiting to be sent (preview area)
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   
-  // array of messages - load from localStorage if exists!
+  // array of messages - load from localStorage if exists
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('chatMessages');
     if (saved) {
@@ -174,8 +174,11 @@ export default function ChatScreen() {
     return [{ id: '1', sender: 'bot', text: translations[lang].botGreeting }];
   });
   
-  // array to track ALL messages that have been copied
+  // array to track all messages that have been copied
   const [copiedIds, setCopiedIds] = useState<string[]>([]);
+
+  // track reactions (thumbs up / thumbs down) for messages
+  const [reactions, setReactions] = useState<Record<string, 'up' | 'down'>>({});
 
   // refs
   const menuRef = useRef<HTMLDivElement>(null);
@@ -256,6 +259,7 @@ export default function ChatScreen() {
     setInputText('');
     setStagedFiles([]);
     setCopiedIds([]); // clear copied states on new chat
+    setReactions({}); // clear reactions on new chat
   };
 
   // copy text to clipboard and permanently save its ID
@@ -264,6 +268,11 @@ export default function ChatScreen() {
     if (!copiedIds.includes(id)) {
       setCopiedIds(prev => [...prev, id]);
     }
+  };
+
+  // handle reaction (thumbs up / down)
+  const handleReaction = (id: string, type: 'up' | 'down') => {
+    setReactions(prev => ({ ...prev, [id]: type }));
   };
 
   // handle file input change
@@ -484,6 +493,7 @@ export default function ChatScreen() {
           {/* map messages */}
           {messages.map((msg) => {
             const isCopied = copiedIds.includes(msg.id);
+            const currentReaction = reactions[msg.id];
             
             return (
               <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -539,7 +549,32 @@ export default function ChatScreen() {
                     </div>
                   )}
 
-                  {/* BOTTOM copy button - ONLY rendered if message is longer than 300 characters */}
+                  {/* thumbs up/down with fill color on click */}
+                  {msg.sender === 'bot' && (
+                    <div className="flex items-center gap-2 px-1 mt-0.5">
+                      <button 
+                        onClick={() => handleReaction(msg.id, 'up')}
+                        className={`transition-colors p-1 rounded-md ${
+                          currentReaction === 'up' ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
+                        }`}
+                        title="To jest okej"
+                      >
+                        <ThumbsUp size={15} fill={currentReaction === 'up' ? "currentColor" : "none"} />
+                      </button>
+                      
+                      <button 
+                        onClick={() => handleReaction(msg.id, 'down')}
+                        className={`transition-colors p-1 rounded-md ${
+                          currentReaction === 'down' ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
+                        }`}
+                        title="To nie jest okej"
+                      >
+                        <ThumbsDown size={15} fill={currentReaction === 'down' ? "currentColor" : "none"} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* bottom copy button - only rendered if message is longer than 300 characters */}
                   {msg.sender === 'bot' && msg.text && msg.text.length > 300 && (
                     <div className="flex justify-end px-1 mt-1">
                       <button 
@@ -566,7 +601,7 @@ export default function ChatScreen() {
         <footer className="px-4 pb-8 bg-transparent">
           <div className="max-w-2xl mx-auto relative mb-4">
             
-            {/* STAGED FILES PREVIEW (above input) */}
+            {/* staged files preview */}
             {stagedFiles.length > 0 && (
               <div className="absolute bottom-full left-0 mb-3 flex flex-wrap gap-2 z-10 w-full">
                 {stagedFiles.map((file, i) => (
