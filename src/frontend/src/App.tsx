@@ -1,27 +1,33 @@
 import { useState } from 'react';
-import LoginScreen from './LoginScreen';
-import ChatScreen from './ChatScreen'; // Importujemy nowy ekran czatu
+import ChatScreen from './ChatScreen';
+import LoginScreen from './LoginScreen'; // adjust name if your login file is named differently
 
-function App() {
-  // Zmienna isLoggedIn przechowuje informację, czy użytkownik jest zalogowany
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+export default function App() {
+  
+  // check local storage first to remember login state after refresh
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return localStorage.getItem('isLoggedIn') === 'true';
+  });
 
-  // Funkcja, która uruchomi się po kliknięciu "Zaloguj się"
+  // fired when user logs in successfully
   const handleLogin = () => {
     setIsLoggedIn(true);
+    localStorage.setItem('isLoggedIn', 'true'); // save to memory
   };
 
-  return (
-    <>
-      {/* Jeśli jest zalogowany (isLoggedIn === true), pokaż ChatScreen. 
-          W przeciwnym razie pokaż LoginScreen */}
-      {isLoggedIn ? (
-        <ChatScreen />
-      ) : (
-        <LoginScreen onLogin={handleLogin} />
-      )}
-    </>
-  );
-}
+  // handle logout - commented out for now since we don't have a logout button yet
+  /*
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem('isLoggedIn'); 
+  };
+  */
 
-export default App;
+  // show login screen if not logged in
+  if (!isLoggedIn) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  // show main chat view
+  return <ChatScreen />;
+}
