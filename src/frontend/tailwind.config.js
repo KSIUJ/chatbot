@@ -5,7 +5,12 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        // To sprawia, że Tailwind wszędzie użyje fontu Inter
+        sans: ['Inter', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 }
