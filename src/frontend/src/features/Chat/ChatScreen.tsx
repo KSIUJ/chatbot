@@ -4,7 +4,7 @@ import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg";
 import { themeStyles } from './themes';
 import { translations } from './languages';
 import { useChat } from './useChat';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface ChatScreenProps {
   onLogout?: () => void;
@@ -45,6 +45,18 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
     handleRegenerate,
     inputRef
   } = useChat(onLogout);
+
+  // stan do śledzenia rozwiniętych wiadomości
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (id: string) => {
+    setExpandedMessages(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // save theme to local storage
   useEffect(() => {
@@ -255,6 +267,14 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
             const isCopied = copiedIds.includes(msg.id);
             const currentReaction = reactions[msg.id];
             
+            // text cutting
+            const TEXT_LIMIT = 350;
+            const isLongMessage = msg.text && msg.text.length > TEXT_LIMIT;
+            const isExpanded = expandedMessages.has(msg.id);
+            const displayText = isLongMessage && !isExpanded 
+              ? msg.text.slice(0, TEXT_LIMIT) + '...' 
+              : msg.text;
+            
             return (
               <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                 
@@ -289,11 +309,23 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
 
                   {/* render text and static copy button inside message box */}
                   {msg.text && (
-                    <div className={`p-5 pr-14 relative rounded-2xl border shadow-sm text-[15px] leading-relaxed transition-colors duration-300 
+                    <div className={`p-5 pr-14 relative rounded-2xl border shadow-sm text-[15px] leading-relaxed transition-colors duration-300 whitespace-pre-wrap break-words 
                       ${msg.sender === 'user' ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}
                       ${msg.isStopped ? 'opacity-80 italic' : ''}`
                     }>
-                      {msg.text}
+                      {displayText}
+                      
+                      {/* show more/less */}
+                      {isLongMessage && (
+                        <button
+                          onClick={() => toggleExpand(msg.id)}
+                          className="block mt-2 text-[10px] font-bold uppercase tracking-wider opacity-60 hover:opacity-100 transition-opacity"
+                        >
+                          {isExpanded 
+                            ? (selectedLanguage === 'angielski' ? 'Show less' : 'Zwiń') 
+                            : (selectedLanguage === 'angielski' ? 'Show more' : 'Rozwiń')}
+                        </button>
+                      )}
 
                       {/* copy button fixed to top-right inside bot message box */}
                       {msg.sender === 'bot' && !msg.isStopped && (
