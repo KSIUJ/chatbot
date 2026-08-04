@@ -77,6 +77,7 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
           t={t}
           lang={lang}
           stagedFiles={stagedFiles}
+          selectedLanguage={selectedLanguage}
           removeStagedFile={removeStagedFile}
           handleFileChange={handleFileChange}
           inputRef={inputRef}
