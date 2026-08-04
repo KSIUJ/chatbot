@@ -163,39 +163,42 @@ export function useChat(onLogout?: () => void) {
     setIsTyping(false);
   };
 
-  // start streaming response chunk by chunk
+  // start streaming response with dots thinking delay
   const startStreamingResponse = () => {
-    setIsTyping(true);
     const botMsgId = (Date.now() + 1).toString();
     const fullReplyText = translations[selectedLanguage].botReply;
     let charIndex = 0;
 
-    setMessages(prev => [...prev, {
-      id: botMsgId,
-      sender: 'bot',
-      text: ''
-    }]);
+    setTimeout(() => {
+      setIsTyping(false);
 
-    streamingIntervalRef.current = setInterval(() => {
-      charIndex += 1;
-      const currentChunk = fullReplyText.slice(0, charIndex);
+      setMessages(prev => [...prev, {
+        id: botMsgId,
+        sender: 'bot',
+        text: ''
+      }]);
 
-      setMessages(prev => prev.map(msg => 
-        msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
-      ));
+      streamingIntervalRef.current = setInterval(() => {
+        charIndex += 1;
+        const currentChunk = fullReplyText.slice(0, charIndex);
 
-      if (charIndex >= fullReplyText.length) {
-        if (streamingIntervalRef.current) {
-          clearInterval(streamingIntervalRef.current);
-          streamingIntervalRef.current = null;
+        setMessages(prev => prev.map(msg => 
+          msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
+        ));
+
+        if (charIndex >= fullReplyText.length) {
+          if (streamingIntervalRef.current) {
+            clearInterval(streamingIntervalRef.current);
+            streamingIntervalRef.current = null;
+          }
         }
-        setIsTyping(false);
-      }
-    }, 25);
+      }, 25);
+    }, 800);
   };
 
   const handleRegenerate = () => {
     if (streamingIntervalRef.current) clearInterval(streamingIntervalRef.current);
+    setIsTyping(true);
     startStreamingResponse();
   };
 
@@ -212,10 +215,10 @@ export function useChat(onLogout?: () => void) {
     setMessages(prev => [...prev, newUserMsg]);
     setInputText('');
     setStagedFiles([]);
-
-    setTimeout(() => {
-      startStreamingResponse();
-    }, 400);
+    
+    // animation right after hitting send button
+    setIsTyping(true);
+    startStreamingResponse();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
