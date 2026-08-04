@@ -2,6 +2,6 @@
 -dodac strone do profilu
 -formatowanie markdown
 -auto resizing miejsca na input
--auto focus na input (powrot kursora do miejsca na wpisywanie)
+-auto focus na input (powrot kursora do miejsca na wpisywanie)  ZROBIONE
 -cos nie dziala z przerywaniem odp ????!!!
 -link do strony KSI ZROBIONE
