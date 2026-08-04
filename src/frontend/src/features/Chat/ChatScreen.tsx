@@ -1,4 +1,4 @@
-import { Send, Bot, Plus, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy, ThumbsUp, ThumbsDown, Sliders, LogOut, MessageSquare } from 'lucide-react';
+import { Send, Bot, Plus, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy, ThumbsUp, ThumbsDown, Sliders, LogOut } from 'lucide-react';
 import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg"; 
 
 import { themeStyles } from './themes';
@@ -10,7 +10,6 @@ interface ChatScreenProps {
 }
 
 export default function ChatScreen({ onLogout }: ChatScreenProps) {
-  // states and logic extracted to custom hook
   const {
     showSettingsMenu,
     settingsView,
@@ -27,6 +26,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
     messages,
     copiedIds,
     reactions,
+    isTyping, 
     menuRef,
     messagesEndRef,
     toggleSettings,
@@ -40,11 +40,8 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
     handleKeyDown
   } = useChat(onLogout);
 
-  // get styles and texts based on states
   const t = themeStyles[selectedTheme];
   const lang = translations[selectedLanguage];
-  
-  // check if theme is dark to add white bg to logo
   const isDarkTheme = selectedTheme === 'ciemny' || selectedTheme === 'granatowy';
 
   return (
@@ -53,10 +50,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
       {/* left sidebar */}
       <div className={`hidden md:flex w-64 ${t.sidebar} flex-col border-r transition-colors duration-300`}>
         
-        {/* logo + new chat button */}
         <div className="p-4 space-y-4">
-          
-          {/* clickable logo wrapper */}
           <a 
             href="KSI_LOGO" 
             target="_blank" 
@@ -67,11 +61,9 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
             <div className={`flex items-center justify-center shrink-0 transition-colors duration-300 ${isDarkTheme ? 'bg-white rounded-full p-1 shadow-sm' : ''}`}>
               <img src={mojeLogo} alt="Logo KSI" className="h-8 w-8 object-contain" />
             </div>
-            
             <span className={`font-medium ${t.text} text-base tracking-tight transition-colors`}>{lang.appTitle}</span>
           </a>
           
-          {/* new chat button with onClick */}
           <button 
             onClick={handleNewChat}
             className={`w-full flex items-center gap-2 ${t.text} ${t.hover} transition-colors font-medium py-1.5 px-2 rounded-md`}
@@ -84,7 +76,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
         {/* setting and profile */}
         <div className="p-3 space-y-0.5 mt-auto relative" ref={menuRef}>
           
-          {/* settings menu */}
           {showSettingsMenu && (
             <div className={`absolute bottom-full left-3 mb-2 w-56 ${t.popover} border rounded-2xl py-2 z-50 ${t.text} transition-colors duration-200`}>
               
@@ -125,7 +116,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                 </>
               )}
 
-              {/* language options */}
               {settingsView === 'language' && (
                 <div className="flex flex-col">
                   <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.sidebar.includes('border') ? t.sidebar.split(' ')[1] : 'border-neutral-200'}`}>
@@ -146,7 +136,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                 </div>
               )}
 
-              {/* theme options */}
               {settingsView === 'theme' && (
                 <div className="flex flex-col">
                   <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.sidebar.includes('border') ? t.sidebar.split(' ')[1] : 'border-neutral-200'}`}>
@@ -169,7 +158,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                 </div>
               )}
 
-              {/* RAG contexts options */}
               {settingsView === 'rag' && (
                 <div className="flex flex-col">
                   <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.sidebar.includes('border') ? t.sidebar.split(' ')[1] : 'border-neutral-200'}`}>
@@ -204,7 +192,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
             </div>
           )}
 
-          {/* settings button */}
           <button 
             onClick={toggleSettings}
             className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium ${
@@ -220,7 +207,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
               <span>{lang.account}</span>
           </button>
 
-          {/* logout button */}
           <button 
             onClick={handleLogout}
             className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium text-red-500 hover:bg-red-500/10`}
@@ -232,11 +218,9 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
         
       </div>
 
-      {/* main chat view */}
       <div className="flex-1 flex flex-col h-screen relative overflow-hidden">
         
         <main className="flex-1 p-4 pt-8 overflow-y-auto space-y-6 scroll-smooth">
-          {/* map messages */}
           {messages.map((msg) => {
             const isCopied = copiedIds.includes(msg.id);
             const currentReaction = reactions[msg.id];
@@ -244,17 +228,15 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
             return (
               <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                 
-                {/* bot icon - TODO: make a new one*/}
+                {/* bot icon - TODO: make a new one */}
                 {msg.sender === 'bot' && (
                   <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5 transition-colors duration-300`}>
                     <Bot size={22} />
                   </div>
                 )}
 
-                {/* message wrapper for text, files and top action bar */}
                 <div className="flex flex-col gap-2 max-w-[70%]">
                   
-                  {/* render files if any */}
                   {msg.files && msg.files.length > 0 && (
                     <div className={`flex flex-wrap gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                       {msg.files.map((file: File, i: number) => {
@@ -273,14 +255,12 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                     </div>
                   )}
 
-                  {/* render text and static copy button inside message box */}
                   {msg.text && (
                     <div className={`p-5 pr-14 relative rounded-2xl border shadow-sm text-[15px] leading-relaxed transition-colors duration-300 
                       ${msg.sender === 'user' ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}`
                     }>
                       {msg.text}
 
-                      {/* copy button */}
                       {msg.sender === 'bot' && (
                         <button 
                           onClick={() => handleCopy(msg.text, msg.id)}
@@ -295,7 +275,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                     </div>
                   )}
 
-                  {/* thumbs up/down with fill color on click */}
                   {msg.sender === 'bot' && (
                     <div className="flex items-center gap-2 px-1 mt-0.5">
                       <button 
@@ -319,37 +298,38 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                       </button>
                     </div>
                   )}
-
-                  {/* optional for longer messages */}
-                  {/* 
-                  {msg.sender === 'bot' && msg.text && msg.text.length > 300 && (
-                    <div className="flex justify-end px-1 mt-1">
-                      <button 
-                        onClick={() => handleCopy(msg.text, msg.id)}
-                        className={`transition-colors p-1.5 rounded-md ${
-                          isCopied ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
-                        }`}
-                        title={isCopied ? lang.copied : lang.copy}
-                      >
-                        {isCopied ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
-                    </div>
-                  )}
-                  */}
                   
                 </div>
-
               </div>
             );
           })}
-          {/* empty div for auto-scroll */}
+
+          {/* render three dots when waiting for response */}
+          {isTyping && (
+            <div className="flex gap-4 max-w-4xl mx-auto w-full">
+
+              {/* bot icon - TODO: make a new one */}
+              <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5 transition-colors duration-300`}>
+                <Bot size={22} />
+              </div>
+              <div className="flex flex-col gap-2 max-w-[70%]">
+                <div className={`px-5 py-6 relative rounded-2xl border shadow-sm transition-colors duration-300 ${t.msgBox} rounded-tl-sm flex items-center h-[52px]`}>
+                  <div className="flex gap-1.5 items-center justify-center h-full">
+                    <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </main>
         
         <footer className="px-4 pb-8 bg-transparent z-20">
           <div className="max-w-2xl mx-auto relative mb-4">
             
-            {/* staged files preview */}
             {stagedFiles.length > 0 && (
               <div className="absolute bottom-full left-0 mb-3 flex flex-wrap gap-2 z-10 w-full">
                 {stagedFiles.map((file: File, i: number) => (
@@ -386,20 +366,20 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
               <Paperclip size={20} />
             </label>
 
-            {/* input */}
             <input 
               type="text" 
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={lang.inputPlaceholder}
-              className={`w-full pl-12 pr-14 py-4 border shadow-md rounded-full focus:ring-2 outline-none transition-all duration-300 ${t.inputBox}`}
+              
+              placeholder={isTyping ? "Bot pisze..." : lang.inputPlaceholder}
+              className={`w-full pl-12 pr-14 py-4 border shadow-md rounded-full focus:ring-2 outline-none transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed ${t.inputBox}`}
             />
             
-            {/* send button */}
             <button 
               onClick={handleSendMessage}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-colors shadow-sm active:scale-95 z-10 ${t.sendBtn}`}
+              
+              className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-colors shadow-sm active:scale-95 z-10 disabled:opacity-50 disabled:cursor-not-allowed ${t.sendBtn}`}
             >
               <Send size={18} className="-translate-x-px translate-y-px" />
             </button>

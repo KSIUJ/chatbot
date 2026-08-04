@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { type ThemeKey } from './themes';
-import { translations, type LangKey } from './languages';
+import { type ThemeKey } from './themes'; 
+import { translations, type LangKey } from './languages'; 
 import type { Message } from './types';
 
 export function useChat(onLogout?: () => void) {
-  // states
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme' | 'rag'>('main');
   
@@ -23,9 +22,9 @@ export function useChat(onLogout?: () => void) {
     return saved ? parseInt(saved, 10) : 5;
   });
 
-  // chat states
   const [inputText, setInputText] = useState('');
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
   
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('chatMessages');
@@ -43,11 +42,9 @@ export function useChat(onLogout?: () => void) {
   const [copiedIds, setCopiedIds] = useState<string[]>([]);
   const [reactions, setReactions] = useState<Record<string, 'up' | 'down'>>({});
 
-  // refs
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // local storage effects
   useEffect(() => {
     localStorage.setItem('chatLanguage', selectedLanguage);
   }, [selectedLanguage]);
@@ -69,7 +66,6 @@ export function useChat(onLogout?: () => void) {
     localStorage.setItem('chatMessages', JSON.stringify(messagesToSave));
   }, [messages]);
 
-  // other effects
   useEffect(() => {
     if (messages.length === 1 && messages[0].id === '1') {
       setMessages([{ id: '1', sender: 'bot', text: translations[selectedLanguage].botGreeting }]);
@@ -95,9 +91,8 @@ export function useChat(onLogout?: () => void) {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isTyping]);
 
-  // helpers
   const toggleSettings = () => {
     setShowSettingsMenu(!showSettingsMenu);
     setSettingsView('main'); 
@@ -120,6 +115,7 @@ export function useChat(onLogout?: () => void) {
     setStagedFiles([]);
     setCopiedIds([]); 
     setReactions({}); 
+    setIsTyping(false);
   };
 
   const handleCopy = (text: string, id: string) => {
@@ -158,14 +154,17 @@ export function useChat(onLogout?: () => void) {
     setMessages(prev => [...prev, newUserMsg]);
     setInputText('');
     setStagedFiles([]);
+    setIsTyping(true);
 
+    // simulation
     setTimeout(() => {
+      setIsTyping(false); // stop the animation after receiving reply
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: 'bot',
         text: translations[selectedLanguage].botReply
       }]);
-    }, 1000);
+    }, 1500); 
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -188,6 +187,7 @@ export function useChat(onLogout?: () => void) {
     messages,
     copiedIds,
     reactions,
+    isTyping, 
     menuRef,
     messagesEndRef,
     toggleSettings,
