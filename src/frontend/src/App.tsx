@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import ChatScreen from './ChatScreen';
-import LoginScreen from './LoginScreen'; // adjust name if your login file is named differently
+import ChatScreen from './features/Chat/ChatScreen';
+import LoginScreen from './features/Auth/LoginScreen'; // adjust name if your login file is named differently
 
 export default function App() {
   

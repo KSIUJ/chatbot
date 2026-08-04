@@ -1,6 +1,6 @@
 import { Mail, Lock, ArrowRight } from 'lucide-react';
-import facadeImage from './assets/facade_4-Dwl60qUz.svg'; 
-import mojeLogo from './assets/logo-ksi-IBUoeAwm.svg'; 
+import facadeImage from "../../assets/facade_4-Dwl60qUz.svg";
+import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg";
 
 interface LoginScreenProps {
   onLogin: () => void;

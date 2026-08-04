@@ -1,352 +1,44 @@
-import { useState, useEffect, useRef } from 'react';
-import { Send, Bot, Plus, MessageSquare, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy, ThumbsUp, ThumbsDown, Sliders, LogOut } from 'lucide-react';
-import mojeLogo from './assets/logo-ksi-IBUoeAwm.svg'; 
+import { Send, Bot, Plus, Settings, UserCircle, Paperclip, Globe, Moon, ChevronRight, ArrowLeft, Check, X, FileText, Copy, ThumbsUp, ThumbsDown, Sliders, LogOut, MessageSquare } from 'lucide-react';
+import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg"; 
 
-// themes, only 4 for now - may add more later
-const themeStyles = {
-  jasny: {
-    app: "bg-neutral-50",
-    sidebar: "bg-white border-neutral-200",
-    text: "text-neutral-900",
-    textMuted: "text-neutral-500",
-    hover: "hover:bg-neutral-100",
-    active: "bg-neutral-200",
-    botIcon: "bg-neutral-600",
-    msgBox: "bg-white border-neutral-200 text-neutral-800",
-    userMsgBox: "bg-neutral-800 text-white", // for user messages
-    inputBox: "bg-white border-neutral-200 text-neutral-900 focus:ring-neutral-500/50",
-    sendBtn: "bg-neutral-800 hover:bg-neutral-900 text-white",
-    popover: "bg-white border-neutral-200 shadow-xl",
-    copiedIcon: "text-neutral-800", // color for copied icon
-  },
-  ciemny: {
-    app: "bg-[#121212]",
-    sidebar: "bg-[#1a1a1a] border-neutral-800",
-    text: "text-neutral-200",
-    textMuted: "text-neutral-400",
-    hover: "hover:bg-neutral-800",
-    active: "bg-neutral-700",
-    botIcon: "bg-neutral-500",
-    msgBox: "bg-[#252525] border-0 text-neutral-100 shadow-md",
-    userMsgBox: "bg-[#333333] border-0 text-neutral-100 shadow-md", 
-    inputBox: "bg-[#1e1e1e] border-neutral-800 text-neutral-200 focus:ring-neutral-600/50",
-    sendBtn: "bg-neutral-700 hover:bg-neutral-600 text-white",
-    popover: "bg-[#2c2c2c] border-neutral-800 shadow-xl",
-    copiedIcon: "text-blue-500", 
-  },
-  granatowy: {
-    app: "bg-slate-900",
-    sidebar: "bg-slate-950 border-slate-800",
-    text: "text-slate-200",
-    textMuted: "text-slate-400",
-    hover: "hover:bg-slate-800",
-    active: "bg-slate-700",
-    botIcon: "bg-blue-600",
-    msgBox: "bg-slate-800 border-0 text-slate-200",
-    userMsgBox: "bg-blue-600 border-0 text-white",
-    inputBox: "bg-slate-800 border-slate-700 text-slate-200 focus:ring-blue-500/50",
-    sendBtn: "bg-blue-600 hover:bg-blue-500 text-white",
-    popover: "bg-slate-800 border-slate-700 shadow-xl",
-    copiedIcon: "text-blue-400", 
-  },
-  różowy: {
-    app: "bg-pink-50",
-    sidebar: "bg-pink-100 border-pink-200",
-    text: "text-pink-950",
-    textMuted: "text-pink-600",
-    hover: "hover:bg-pink-200",
-    active: "bg-pink-300",
-    botIcon: "bg-pink-500",
-    msgBox: "bg-white border-pink-200 text-pink-900",
-    userMsgBox: "bg-pink-600 text-white",
-    inputBox: "bg-white border-pink-200 text-pink-900 focus:ring-pink-400/50",
-    sendBtn: "bg-pink-600 hover:bg-pink-500 text-white",
-    popover: "bg-pink-50 border-pink-200 shadow-xl",
-    copiedIcon: "text-pink-500", 
-  }
-};
-
-// languages
-const translations = {
-  polski: {
-    appTitle: "Chatbot WMiI",
-    newChat: "Nowy czat",
-    recent: "Ostatnie",
-    chat1: "Zasady przyznawania stypendiów...",
-    chat2: "Regulamin studiów WMiI",
-    chat3: "Kontakt do dziekanatu",
-    language: "Język",
-    theme: "Motyw",
-    ragContexts: "Konteksty RAG",
-    settings: "Ustawienia",
-    account: "Konto",
-    logout: "Wyloguj się",
-    botGreeting: "Cześć! Jestem wirtualnym asystentem Wydziału Matematyki i Informatyki. W czym mogę Ci dzisiaj pomóc?",
-    botReply: "testowa odp", // test reply
-    inputPlaceholder: "Zapytaj Chatbota",
-    disclaimer: "Chatbot to AI i może popełniać błędy. Zweryfikuj ważne informacje na stronie wydziału.",
-    copy: "Kopiuj",
-    copied: "Skopiowano",
-    themeNames: {
-      jasny: "jasny",
-      ciemny: "ciemny",
-      granatowy: "granatowy",
-      różowy: "różowy"
-    }
-  },
-  angielski: {
-    appTitle: "WMiI Chatbot",
-    newChat: "New chat",
-    recent: "Recent",
-    chat1: "Scholarship rules...",
-    chat2: "WMiI study regulations",
-    chat3: "Dean's office contact",
-    language: "Language",
-    theme: "Theme",
-    ragContexts: "RAG Contexts",
-    settings: "Settings",
-    account: "Account",
-    logout: "Log out",
-    botGreeting: "Hello! I am the virtual assistant of the Faculty of Mathematics and Computer Science. How can I help you today?",
-    botReply: "test reply", // test reply
-    inputPlaceholder: "Ask Chatbot",
-    disclaimer: "Chatbot is an AI and may make mistakes. Verify important information on the faculty website.",
-    copy: "Copy",
-    copied: "Copied",
-    themeNames: {
-      jasny: "light",
-      ciemny: "dark",
-      granatowy: "navy",
-      różowy: "pink"
-    }
-  }
-};
-
-type ThemeKey = keyof typeof themeStyles;
-type LangKey = keyof typeof translations;
-
-// single message type with optional files array
-type Message = {
-  id: string;
-  sender: 'user' | 'bot';
-  text: string;
-  files?: File[];
-};
+import { themeStyles } from './themes';
+import { translations } from './languages';
+import { useChat } from './useChat';
 
 interface ChatScreenProps {
   onLogout?: () => void;
 }
 
 export default function ChatScreen({ onLogout }: ChatScreenProps) {
-  
-  // states
-  
-  // setting menu either shown(true) or not(false)
-  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
-  
-  // track in which submenu user is currently in ('main' | 'language' | 'theme' | 'rag')
-  const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme' | 'rag'>('main');
-  
-  // remembers choosen language, try to get from localStorage first
-  const [selectedLanguage, setSelectedLanguage] = useState<LangKey>(() => {
-    const saved = localStorage.getItem('chatLanguage');
-    return (saved as LangKey) || 'polski';
-  });
-  
-  // remembers choosen theme, try to get from localStorage first
-  const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(() => {
-    const saved = localStorage.getItem('chatTheme');
-    return (saved as ThemeKey) || 'jasny';
-  });
-
-  // remembers rag contexts count, default 5, try to get from localStorage first
-  const [ragCount, setRagCount] = useState<number>(() => {
-    const saved = localStorage.getItem('chatRagCount');
-    return saved ? parseInt(saved, 10) : 5;
-  });
-
-  // chat states
-  
-  // input state
-  const [inputText, setInputText] = useState('');
-  
-  // array of files waiting to be sent (preview area)
-  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
-  
-  // array of messages - load from localStorage if exists
-  const [messages, setMessages] = useState<Message[]>(() => {
-    const saved = localStorage.getItem('chatMessages');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Could not load messages", e);
-      }
-    }
-    // fallback if nothing is saved
-    const lang = (localStorage.getItem('chatLanguage') as LangKey) || 'polski';
-    return [{ id: '1', sender: 'bot', text: translations[lang].botGreeting }];
-  });
-  
-  // array to track all messages that have been copied
-  const [copiedIds, setCopiedIds] = useState<string[]>([]);
-
-  // track reactions (thumbs up / thumbs down) for messages
-  const [reactions, setReactions] = useState<Record<string, 'up' | 'down'>>({});
-
-  // refs
-  const menuRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // for auto-scrolling
-
-  // local storage
-  
-  useEffect(() => {
-    localStorage.setItem('chatLanguage', selectedLanguage);
-  }, [selectedLanguage]);
-
-  useEffect(() => {
-    localStorage.setItem('chatTheme', selectedTheme);
-  }, [selectedTheme]);
-
-  useEffect(() => {
-    localStorage.setItem('chatRagCount', ragCount.toString());
-  }, [ragCount]);
-
-  useEffect(() => {
-    // we map messages to remove actual File objects before saving to localStorage
-    // (browsers can't easily stringify File objects)
-    const messagesToSave = messages.map(msg => ({
-      id: msg.id,
-      sender: msg.sender,
-      text: msg.text
-      // skipping 'files' to avoid JSON errors
-    }));
-    localStorage.setItem('chatMessages', JSON.stringify(messagesToSave));
-  }, [messages]);
-
-
-  // other effects
-  
-  // update initial bot greeting if user changes language and no other messages exist
-  useEffect(() => {
-    if (messages.length === 1 && messages[0].id === '1') {
-      setMessages([{ id: '1', sender: 'bot', text: translations[selectedLanguage].botGreeting }]);
-    }
-  }, [selectedLanguage]);
-
-  // when the menuRef is shown and the user clicks outside if it, it automatically closes
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        // first close the menu, then switch to main view
-        setShowSettingsMenu(false); 
-        setSettingsView('main');    
-      }
-    }
-    
-    // add listener to the whole document if menu is open
-    if (showSettingsMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    
-    // cleanup function to remove listener
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showSettingsMenu]); 
-
-  // auto-scroll to the bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-
-  // helpers
-  
-  // toggle setting menu
-  const toggleSettings = () => {
-    setShowSettingsMenu(!showSettingsMenu);
-    setSettingsView('main'); // always reset to main view on click
-  };
-
-  // handle logout action
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    if (onLogout) {
-      onLogout();
-    } else {
-      window.location.reload(); // awaryjne odświeżenie, jeśli stan trzymany jest wyżej bez przekazanej funkcji
-    }
-  };
-
-  // new chat - resets messages array and staged files
-  const handleNewChat = () => {
-    setMessages([
-      { id: Date.now().toString(), sender: 'bot', text: translations[selectedLanguage].botGreeting }
-    ]);
-    setInputText('');
-    setStagedFiles([]);
-    setCopiedIds([]); // clear copied states on new chat
-    setReactions({}); // clear reactions on new chat
-  };
-
-  // copy text to clipboard and permanently save its ID
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    if (!copiedIds.includes(id)) {
-      setCopiedIds(prev => [...prev, id]);
-    }
-  };
-
-  // handle reaction (thumbs up / down)
-  const handleReaction = (id: string, type: 'up' | 'down') => {
-    setReactions(prev => ({ ...prev, [id]: type }));
-  };
-
-  // handle file input change
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setStagedFiles(prev => [...prev, ...filesArray]);
-    }
-    e.target.value = ''; // reset input so same file can be selected again
-  };
-
-  // remove a file from staging area
-  const removeStagedFile = (index: number) => {
-    setStagedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // handle sending message
-  const handleSendMessage = () => {
-    if (!inputText.trim() && stagedFiles.length === 0) return; // do not send empty messages
-
-    // add user message
-    const newUserMsg: Message = { 
-      id: Date.now().toString(), 
-      sender: 'user', 
-      text: inputText.trim(),
-      files: stagedFiles.length > 0 ? stagedFiles : undefined
-    };
-    
-    setMessages(prev => [...prev, newUserMsg]);
-    setInputText('');
-    setStagedFiles([]); // clear staging area
-
-    // fake bot reply after 1 second
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        sender: 'bot',
-        text: translations[selectedLanguage].botReply
-      }]);
-    }, 1000);
-  };
-
-  // allow sending with Enter key
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleSendMessage();
-  };
+  // states and logic extracted to custom hook
+  const {
+    showSettingsMenu,
+    settingsView,
+    setSettingsView,
+    selectedLanguage,
+    setSelectedLanguage,
+    selectedTheme,
+    setSelectedTheme,
+    ragCount,
+    setRagCount,
+    inputText,
+    setInputText,
+    stagedFiles,
+    messages,
+    copiedIds,
+    reactions,
+    menuRef,
+    messagesEndRef,
+    toggleSettings,
+    handleLogout,
+    handleNewChat,
+    handleCopy,
+    handleReaction,
+    handleFileChange,
+    removeStagedFile,
+    handleSendMessage,
+    handleKeyDown
+  } = useChat(onLogout);
 
   // get styles and texts based on states
   const t = themeStyles[selectedTheme];
@@ -388,32 +80,6 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
             {lang.newChat}
           </button>
         </div>
-
-        {/* 
-        last chats
-        <div className="flex-1 overflow-y-auto px-4 py-2">
-            <p className={`text-[10px] tracking-wider ${t.textMuted} mb-2 uppercase font-medium`}>
-              {lang.recent}
-            </p>
-            
-            <div className="space-y-0.5">
-            <button className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md ${t.text} ${t.hover} transition-colors text-xs text-left font-medium`}>
-                <MessageSquare size={14} className="shrink-0" />
-                <span className="truncate">{lang.chat1}</span>
-            </button>
-            
-            <button className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md ${t.text} ${t.hover} transition-colors text-xs text-left font-medium`}>
-                <MessageSquare size={14} className="shrink-0" />
-                <span className="truncate">{lang.chat2}</span>
-            </button>
-            
-            <button className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md ${t.text} ${t.hover} transition-colors text-xs text-left font-medium`}>
-                <MessageSquare size={14} className="shrink-0" />
-                <span className="truncate">{lang.chat3}</span>
-            </button>
-            </div>
-        </div>
-        */}
 
         {/* setting and profile */}
         <div className="p-3 space-y-0.5 mt-auto relative" ref={menuRef}>
@@ -490,7 +156,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                     <span className="text-sm font-medium">{lang.theme}</span>
                   </div>
                   
-                  {(['jasny', 'ciemny', 'granatowy', 'różowy'] as ThemeKey[]).map((themeOption) => (
+                  {(['jasny', 'ciemny', 'granatowy', 'różowy'] as const).map((themeOption) => (
                     <button 
                       key={themeOption}
                       onClick={() => setSelectedTheme(themeOption)} 
@@ -578,7 +244,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
             return (
               <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
                 
-                {/* bot icon */}
+                {/* bot icon - TODO: make a new one*/}
                 {msg.sender === 'bot' && (
                   <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5 transition-colors duration-300`}>
                     <Bot size={22} />
@@ -591,30 +257,30 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                   {/* render files if any */}
                   {msg.files && msg.files.length > 0 && (
                     <div className={`flex flex-wrap gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      {msg.files.map((file, i) => {
+                      {msg.files.map((file: File, i: number) => {
                         const fileUrl = URL.createObjectURL(file);
                         return file.type.startsWith('image/') ? (
                           <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer hover:opacity-80 transition-opacity">
-                            <img src={fileUrl} alt="attachment" className="max-w-[200px] max-h-[200px] object-cover rounded-xl border border-neutral-200/20 shadow-sm" />
+                            <img src={fileUrl} alt="attachment" className="max-w-50 max-h-50 object-cover rounded-xl border border-neutral-200/20 shadow-sm" />
                           </a>
                         ) : (
                           <a key={i} href={fileUrl} target="_blank" rel="noopener noreferrer" download={file.name} className={`flex items-center gap-2 p-3 rounded-xl shadow-sm cursor-pointer hover:opacity-80 transition-opacity ${msg.sender === 'user' ? t.userMsgBox : t.msgBox}`}>
                             <FileText size={18} />
-                            <span className="text-sm font-medium truncate max-w-[150px]">{file.name}</span>
+                            <span className="text-sm font-medium truncate max-w-37.5">{file.name}</span>
                           </a>
                         );
                       })}
                     </div>
                   )}
 
-                  {/* render text and sticky/absolute copy button inside message box */}
+                  {/* render text and static copy button inside message box */}
                   {msg.text && (
                     <div className={`p-5 pr-14 relative rounded-2xl border shadow-sm text-[15px] leading-relaxed transition-colors duration-300 
                       ${msg.sender === 'user' ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}`
                     }>
                       {msg.text}
 
-                      {/* copy button fixed to top-right inside bot message box */}
+                      {/* copy button */}
                       {msg.sender === 'bot' && (
                         <button 
                           onClick={() => handleCopy(msg.text, msg.id)}
@@ -625,11 +291,11 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                         >
                           {isCopied ? <Check size={16} /> : <Copy size={16} />}
                         </button>
-                      )}
+                      )} 
                     </div>
                   )}
 
-                  {/* thumbs up/down */}
+                  {/* thumbs up/down with fill color on click */}
                   {msg.sender === 'bot' && (
                     <div className="flex items-center gap-2 px-1 mt-0.5">
                       <button 
@@ -654,7 +320,8 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                     </div>
                   )}
 
-                  {/* bottom copy button - only rendered if message is longer than 300 characters */}
+                  {/* optional for longer messages */}
+                  {/* 
                   {msg.sender === 'bot' && msg.text && msg.text.length > 300 && (
                     <div className="flex justify-end px-1 mt-1">
                       <button 
@@ -668,6 +335,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                       </button>
                     </div>
                   )}
+                  */}
                   
                 </div>
 
@@ -678,13 +346,13 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
           <div ref={messagesEndRef} />
         </main>
         
-        <footer className="px-4 pb-8 bg-transparent">
+        <footer className="px-4 pb-8 bg-transparent z-20">
           <div className="max-w-2xl mx-auto relative mb-4">
             
             {/* staged files preview */}
             {stagedFiles.length > 0 && (
               <div className="absolute bottom-full left-0 mb-3 flex flex-wrap gap-2 z-10 w-full">
-                {stagedFiles.map((file, i) => (
+                {stagedFiles.map((file: File, i: number) => (
                   <div key={i} className={`flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full border shadow-sm text-xs font-medium ${t.msgBox}`}>
                     {file.type.startsWith('image/') ? (
                       <div className="h-5 w-5 rounded overflow-hidden shrink-0">
@@ -693,7 +361,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                     ) : (
                       <FileText size={14} className="shrink-0" />
                     )}
-                    <span className="truncate max-w-[120px]">{file.name}</span>
+                    <span className="truncate max-w-30">{file.name}</span>
                     <button onClick={() => removeStagedFile(i)} className={`p-1 rounded-full ${t.hover} transition-colors`}>
                       <X size={14} />
                     </button>
