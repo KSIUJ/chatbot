@@ -318,7 +318,7 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
                         className={`transition-colors p-1 rounded-md ${
                           currentReaction === 'up' ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
                         }`}
-                        title="To mi pomogło"
+                        title="useful"
                       >
                         <ThumbsUp size={15} fill={currentReaction === 'up' ? "currentColor" : "none"} />
                       </button>
@@ -328,7 +328,7 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
                         className={`transition-colors p-1 rounded-md ${
                           currentReaction === 'down' ? t.copiedIcon : `${t.textMuted} hover:${t.text} ${t.hover}`
                         }`}
-                        title="To mi nie pomogło"
+                        title="not useful"
                       >
                         <ThumbsDown size={15} fill={currentReaction === 'down' ? "currentColor" : "none"} />
                       </button>
@@ -421,16 +421,21 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
               <Paperclip size={20} />
             </label>
 
-            {/* input */}
-            <input 
-              ref={inputRef}
-              type="text" 
+            {/* auto-expanding textarea */}
+            <textarea 
+              ref={inputRef} 
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => {
+                setInputText(e.target.value);
+               
+                e.target.style.height = 'auto';
+                e.target.style.height = `${e.target.scrollHeight}px`;
+              }}
               onKeyDown={handleKeyDown}
-              //disabled={isTyping}
               placeholder={isTyping ? "Bot pisze..." : lang.inputPlaceholder}
-              className={`w-full pl-12 pr-14 py-4 border shadow-md rounded-full focus:ring-2 outline-none transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed ${t.inputBox}`}
+              rows={1}
+              style={{ minHeight: '56px', maxHeight: '200px' }}
+              className={`w-full pl-12 pr-14 py-4 border shadow-md rounded-3xl focus:ring-2 outline-none transition-all duration-100 disabled:opacity-70 disabled:cursor-not-allowed resize-none overflow-hidden ${t.inputBox}`}
             />
             
             {/* send or stop button */}
@@ -438,7 +443,7 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
               <button 
                 onClick={handleStopGenerating}
                 className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full transition-colors shadow-sm active:scale-95 z-10 text-neutral-400 hover:text-red-500 hover:bg-red-500/10`}
-                title="Zatrzymaj"
+                title="stop"
               >
                 <Square size={18} fill="currentColor" />
               </button>
