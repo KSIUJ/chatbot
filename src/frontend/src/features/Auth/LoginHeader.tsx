@@ -17,7 +17,7 @@ export default function LoginHeader() {
         />
       </a>
       <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-        CHATBOT WMiI
+        CHATBOT WMiI UJ
       </h1>
       <p className="text-xs font-semibold text-slate-400/80 tracking-widest uppercase">
         Authorization

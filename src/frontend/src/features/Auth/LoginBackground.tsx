@@ -4,7 +4,7 @@ export default function LoginBackground() {
   return (
     <div className="absolute top-1/2 left-0 w-full -translate-y-1/2 opacity-30 pointer-events-none select-none flex justify-center">
       <div 
-        className="w-full max-w-7xl bg-blue-900" 
+        className="w-full max-w-full bg-blue-900" 
         style={{
           WebkitMaskImage: `url(${facadeImage})`,
           WebkitMaskSize: 'contain',
