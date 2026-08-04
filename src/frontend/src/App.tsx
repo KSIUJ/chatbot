@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ChatScreen from './features/Chat/ChatScreen';
 import LoginScreen from './features/Auth/LoginScreen'; 
 import ProfileScreen from './features/Profile/ProfileScreen'; 
@@ -9,11 +9,19 @@ export default function App() {
     return localStorage.getItem('userEmail');
   });
 
-  // track which screen is currently visible
-  const [activeView, setActiveView] = useState<'chat' | 'profile'>('chat');
+  // track which screen is currently visible (remembering it from local storage)
+  const [activeView, setActiveView] = useState<'chat' | 'profile'>(() => {
+    const savedView = localStorage.getItem('activeView');
+    return savedView === 'profile' ? 'profile' : 'chat';
+  });
 
   // get theme from storage to pass to profile screen (defaults to jasny)
   const currentTheme = localStorage.getItem('chat-theme') || 'jasny';
+
+  // save active view to memory every time it changes
+  useEffect(() => {
+    localStorage.setItem('activeView', activeView);
+  }, [activeView]);
 
   // fired when user logs in successfully (receives email from login screen)
   const handleLogin = (email: string) => {
@@ -26,6 +34,7 @@ export default function App() {
     setUserEmail(null);
     setActiveView('chat');
     localStorage.removeItem('userEmail'); 
+    localStorage.removeItem('activeView'); // clear saved view on logout
   };
 
   // show login screen if not logged in (no email in state)
@@ -48,8 +57,8 @@ export default function App() {
   // show main chat view
   return (
     <ChatScreen 
-      onOpenProfile={() => setActiveView('profile')}
-      onLogout={handleLogout} 
+      onOpenProfile={() => setActiveView('profile')} 
+      onLogout={handleLogout}
     />
   );
 }
