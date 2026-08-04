@@ -156,7 +156,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
                 
                 <div className="px-4 py-3 flex flex-col gap-2">
                   <div className="flex justify-between text-xs font-medium">
-                    <span>Liczba kontekstów:</span>
+                   
                     <span className="font-bold">{ragCount}</span>
                   </div>
                   <input 

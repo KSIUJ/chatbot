@@ -21,7 +21,6 @@ export default function ChatMessageList(props: ChatMessageListProps) {
     messagesEndRef, handleCopy, handleReaction, handleRegenerate 
   } = props;
 
-  // stan do śledzenia rozwiniętych wiadomości - przenieśliśmy to tutaj!
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) => {
