@@ -47,9 +47,9 @@ export function useChat(onLogout?: () => void) {
   // refs
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // local storage
+  // local storage effects
   useEffect(() => {
     localStorage.setItem('chatLanguage', selectedLanguage);
   }, [selectedLanguage]);
@@ -116,9 +116,9 @@ export function useChat(onLogout?: () => void) {
   };
 
   const handleNewChat = () => {
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current);
-      responseTimeoutRef.current = null;
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
     }
 
     setMessages([
@@ -154,35 +154,49 @@ export function useChat(onLogout?: () => void) {
     setStagedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // stop generating response
+  // stop streaming response
   const handleStopGenerating = () => {
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current);
-      responseTimeoutRef.current = null;
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
     }
     setIsTyping(false);
-    
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      sender: 'bot',
-      text: selectedLanguage === 'angielski' ? 'Response stopped.' : 'Odpowiedź zatrzymana.',
-      isStopped: true
-    }]);
   };
 
-  // regenerate response
-  const handleRegenerate = () => {
+  // start streaming response chunk by chunk
+  const startStreamingResponse = () => {
     setIsTyping(true);
-    if (responseTimeoutRef.current) clearTimeout(responseTimeoutRef.current);
-    
-    responseTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        sender: 'bot',
-        text: translations[selectedLanguage].botReply
-      }]);
-    }, 3000);
+    const botMsgId = (Date.now() + 1).toString();
+    const fullReplyText = translations[selectedLanguage].botReply;
+    let charIndex = 0;
+
+    setMessages(prev => [...prev, {
+      id: botMsgId,
+      sender: 'bot',
+      text: ''
+    }]);
+
+    streamingIntervalRef.current = setInterval(() => {
+      charIndex += 1;
+      const currentChunk = fullReplyText.slice(0, charIndex);
+
+      setMessages(prev => prev.map(msg => 
+        msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
+      ));
+
+      if (charIndex >= fullReplyText.length) {
+        if (streamingIntervalRef.current) {
+          clearInterval(streamingIntervalRef.current);
+          streamingIntervalRef.current = null;
+        }
+        setIsTyping(false);
+      }
+    }, 25);
+  };
+
+  const handleRegenerate = () => {
+    if (streamingIntervalRef.current) clearInterval(streamingIntervalRef.current);
+    startStreamingResponse();
   };
 
   const handleSendMessage = () => {
@@ -198,17 +212,10 @@ export function useChat(onLogout?: () => void) {
     setMessages(prev => [...prev, newUserMsg]);
     setInputText('');
     setStagedFiles([]);
-    setIsTyping(true);
 
-    // simulation
-    responseTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false); // stop the animation after receiving reply
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        sender: 'bot',
-        text: translations[selectedLanguage].botReply
-      }]);
-    }, 3000); 
+    setTimeout(() => {
+      startStreamingResponse();
+    }, 400);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
