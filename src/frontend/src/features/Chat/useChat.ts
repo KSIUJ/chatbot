@@ -48,8 +48,15 @@ export function useChat(onLogout?: () => void) {
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
 
   // local storage effects
+
+  //const focusInput = () => {
+  //inputRef.current?.focus();
+  //};
+
   useEffect(() => {
     localStorage.setItem('chatLanguage', selectedLanguage);
   }, [selectedLanguage]);
@@ -191,6 +198,8 @@ export function useChat(onLogout?: () => void) {
             clearInterval(streamingIntervalRef.current);
             streamingIntervalRef.current = null;
           }
+
+          setTimeout(() => inputRef.current?.focus(), 50);
         }
       }, 25);
     }, 800);
@@ -254,6 +263,7 @@ export function useChat(onLogout?: () => void) {
     handleSendMessage,
     handleKeyDown,
     handleStopGenerating,
-    handleRegenerate
+    handleRegenerate,
+    inputRef
   };
 }

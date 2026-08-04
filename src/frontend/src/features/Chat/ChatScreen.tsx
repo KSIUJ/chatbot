@@ -40,7 +40,8 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
     handleSendMessage,
     handleKeyDown,
     handleStopGenerating,
-    handleRegenerate
+    handleRegenerate,
+    inputRef
   } = useChat(onLogout);
 
   // get styles and texts based on states
@@ -412,11 +413,12 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
 
             {/* input */}
             <input 
+              ref={inputRef}
               type="text" 
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={isTyping}
+              //disabled={isTyping}
               placeholder={isTyping ? "Bot pisze..." : lang.inputPlaceholder}
               className={`w-full pl-12 pr-14 py-4 border shadow-md rounded-full focus:ring-2 outline-none transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed ${t.inputBox}`}
             />
