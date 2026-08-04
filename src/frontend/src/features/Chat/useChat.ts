@@ -4,6 +4,7 @@ import { translations, type LangKey } from './languages';
 import type { Message } from './types';
 
 export function useChat(onLogout?: () => void) {
+  // states
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme' | 'rag'>('main');
   
@@ -22,6 +23,7 @@ export function useChat(onLogout?: () => void) {
     return saved ? parseInt(saved, 10) : 5;
   });
 
+  // chat states
   const [inputText, setInputText] = useState('');
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -42,9 +44,12 @@ export function useChat(onLogout?: () => void) {
   const [copiedIds, setCopiedIds] = useState<string[]>([]);
   const [reactions, setReactions] = useState<Record<string, 'up' | 'down'>>({});
 
+  // refs
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const responseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // local storage
   useEffect(() => {
     localStorage.setItem('chatLanguage', selectedLanguage);
   }, [selectedLanguage]);
@@ -61,11 +66,13 @@ export function useChat(onLogout?: () => void) {
     const messagesToSave = messages.map(msg => ({
       id: msg.id,
       sender: msg.sender,
-      text: msg.text
+      text: msg.text,
+      isStopped: msg.isStopped
     }));
     localStorage.setItem('chatMessages', JSON.stringify(messagesToSave));
   }, [messages]);
 
+  // other effects
   useEffect(() => {
     if (messages.length === 1 && messages[0].id === '1') {
       setMessages([{ id: '1', sender: 'bot', text: translations[selectedLanguage].botGreeting }]);
@@ -93,6 +100,7 @@ export function useChat(onLogout?: () => void) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  // helpers
   const toggleSettings = () => {
     setShowSettingsMenu(!showSettingsMenu);
     setSettingsView('main'); 
@@ -108,6 +116,11 @@ export function useChat(onLogout?: () => void) {
   };
 
   const handleNewChat = () => {
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current);
+      responseTimeoutRef.current = null;
+    }
+
     setMessages([
       { id: Date.now().toString(), sender: 'bot', text: translations[selectedLanguage].botGreeting }
     ]);
@@ -141,6 +154,37 @@ export function useChat(onLogout?: () => void) {
     setStagedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  // stop generating response
+  const handleStopGenerating = () => {
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current);
+      responseTimeoutRef.current = null;
+    }
+    setIsTyping(false);
+    
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      sender: 'bot',
+      text: selectedLanguage === 'angielski' ? 'Response stopped.' : 'Odpowiedź zatrzymana.',
+      isStopped: true
+    }]);
+  };
+
+  // regenerate response
+  const handleRegenerate = () => {
+    setIsTyping(true);
+    if (responseTimeoutRef.current) clearTimeout(responseTimeoutRef.current);
+    
+    responseTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        sender: 'bot',
+        text: translations[selectedLanguage].botReply
+      }]);
+    }, 3000);
+  };
+
   const handleSendMessage = () => {
     if (!inputText.trim() && stagedFiles.length === 0) return; 
 
@@ -157,14 +201,14 @@ export function useChat(onLogout?: () => void) {
     setIsTyping(true);
 
     // simulation
-    setTimeout(() => {
+    responseTimeoutRef.current = setTimeout(() => {
       setIsTyping(false); // stop the animation after receiving reply
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: 'bot',
         text: translations[selectedLanguage].botReply
       }]);
-    }, 1500); 
+    }, 3000); 
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -198,6 +242,8 @@ export function useChat(onLogout?: () => void) {
     handleFileChange,
     removeStagedFile,
     handleSendMessage,
-    handleKeyDown
+    handleKeyDown,
+    handleStopGenerating,
+    handleRegenerate
   };
 }
