@@ -1,8 +1,10 @@
 import { FileText, Paperclip, Send, Square, X } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface ChatInputProps {
   t: any;
   lang: any;
+  selectedLanguage: string; 
   stagedFiles: File[];
   removeStagedFile: (index: number) => void;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -17,10 +19,20 @@ interface ChatInputProps {
 
 export default function ChatInput(props: ChatInputProps) {
   const {
-    t, lang, stagedFiles, removeStagedFile, handleFileChange,
+    t, lang, selectedLanguage, stagedFiles, removeStagedFile, handleFileChange,
     inputRef, inputText, setInputText, handleKeyDown,
     isTyping, handleStopGenerating, handleSendMessage
   } = props;
+
+  useEffect(() => {
+    if (inputRef.current) {
+      
+      inputRef.current.style.height = '0px';
+      const scrollHeight = inputRef.current.scrollHeight;
+      
+      inputRef.current.style.height = inputText === '' ? 'auto' : `${scrollHeight}px`;
+    }
+  }, [inputText, inputRef]);
 
   return (
     <footer className="px-4 pb-8 bg-transparent z-20">
@@ -67,16 +79,21 @@ export default function ChatInput(props: ChatInputProps) {
         <textarea 
           ref={inputRef} 
           value={inputText}
-          onChange={(e) => {
-            setInputText(e.target.value);
-            e.target.style.height = 'auto';
-            e.target.style.height = `${e.target.scrollHeight}px`;
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={(e) => {
+        
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault(); 
+              handleSendMessage();
+            } else {
+              handleKeyDown(e);
+            }
           }}
-          onKeyDown={handleKeyDown}
-          placeholder={isTyping ? "Bot pisze..." : lang.inputPlaceholder}
+
+          placeholder={isTyping ? (selectedLanguage.toLowerCase().includes('n') ? "Answering..." : "Odpowiada...") : lang.inputPlaceholder}
           rows={1}
-          style={{ minHeight: '56px', maxHeight: '200px' }}
-          className={`w-full pl-12 pr-14 py-4 border shadow-md rounded-3xl focus:ring-2 outline-none transition-all duration-100 disabled:opacity-70 disabled:cursor-not-allowed resize-none overflow-hidden ${t.inputBox}`}
+          style={{ maxHeight: '200px' }}
+          className={`w-full pl-12 pr-14 py-3 border shadow-md rounded-3xl focus:ring-2 outline-none transition-all duration-100 disabled:opacity-70 disabled:cursor-not-allowed resize-none overflow-hidden ${t.inputBox}`}
         />
         
         {/* send or stop button */}
