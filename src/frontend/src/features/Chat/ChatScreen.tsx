@@ -61,11 +61,11 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
           
           {/* clickable logo wrapper */}
           <a 
-            href="KSI_LOGO" 
+            href="https://ksi.sh"  // link to KSI website
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
-            title="Przejdź na stronę koła"
+            title="KSI website"
           >
             <div className={`flex items-center justify-center shrink-0 transition-colors duration-300 ${isDarkTheme ? 'bg-white rounded-full p-1 shadow-sm' : ''}`}>
               <img src={mojeLogo} alt="Logo KSI" className="h-8 w-8 object-contain" />
