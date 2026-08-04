@@ -48,7 +48,7 @@ export function useChat(onLogout?: () => void) {
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
 
   // local storage effects
@@ -230,7 +230,7 @@ export function useChat(onLogout?: () => void) {
     startStreamingResponse();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter') handleSendMessage();
   };
 
