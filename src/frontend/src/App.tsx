@@ -48,7 +48,8 @@ export default function App() {
   // show main chat view
   return (
     <ChatScreen 
-      onOpenProfile={() => setActiveView('profile')} 
+      onOpenProfile={() => setActiveView('profile')}
+      onLogout={handleLogout} 
     />
   );
 }

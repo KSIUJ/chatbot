@@ -31,7 +31,7 @@ export default function ProfileScreen({ email, onClose, onLogout, selectedTheme 
           avatarBg: 'bg-slate-700',
           avatarText: 'text-slate-300'
         };
-      case 'rozowy':
+      case 'różowy':
         return {
           bg: 'bg-pink-50',
           text: 'text-pink-900',

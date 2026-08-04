@@ -4,6 +4,7 @@ import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg";
 import { themeStyles } from './themes';
 import { translations } from './languages';
 import { useChat } from './useChat';
+import { useEffect } from 'react';
 
 interface ChatScreenProps {
   onLogout?: () => void;
@@ -44,6 +45,11 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
     handleRegenerate,
     inputRef
   } = useChat(onLogout);
+
+  // save theme to local storage
+  useEffect(() => {
+    localStorage.setItem('chat-theme', selectedTheme);
+  }, [selectedTheme]);
 
   // get styles and texts based on states
   const t = themeStyles[selectedTheme];
