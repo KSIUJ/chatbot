@@ -7,9 +7,10 @@ import { useChat } from './useChat';
 
 interface ChatScreenProps {
   onLogout?: () => void;
+  onOpenProfile?: () => void;
 }
 
-export default function ChatScreen({ onLogout }: ChatScreenProps) {
+export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps) {
   // states and logic extracted to custom hook
   const {
     showSettingsMenu,
@@ -219,7 +220,10 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
               <span>{lang.settings}</span>
           </button>
           
-          <button className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium ${t.text} ${t.hover}`}>
+          <button 
+            onClick={onOpenProfile}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium ${t.text} ${t.hover}`}
+          >
               <UserCircle size={15} />
               <span>{lang.account}</span>
           </button>
@@ -356,7 +360,7 @@ export default function ChatScreen({ onLogout }: ChatScreenProps) {
                 <Bot size={22} />
               </div>
               <div className="flex flex-col gap-2 max-w-[70%]">
-                <div className={`px-5 py-6 relative rounded-2xl border shadow-sm transition-colors duration-300 ${t.msgBox} rounded-tl-sm flex items-center h-[52px]`}>
+                <div className={`px-5 py-6 relative rounded-2xl border shadow-sm transition-colors duration-300 ${t.msgBox} rounded-tl-sm flex items-center h-13`}>
                   <div className="flex gap-1.5 items-center justify-center h-full">
                     <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '0ms' }}></span>
                     <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '150ms' }}></span>

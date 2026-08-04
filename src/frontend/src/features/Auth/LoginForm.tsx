@@ -1,15 +1,27 @@
+import { useState } from 'react';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 
 interface LoginFormProps {
-  onLogin: () => void;
+  onLogin: (email: string) => void;
 }
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
+  // state to hold input values
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // basic check to ensure email is provided
+    if (email.trim()) {
+      onLogin(email.trim());
+    }
+  };
+
   return (
-    <form className="space-y-4 pt-2" onSubmit={(e) => {
-      e.preventDefault();
-      onLogin();
-    }}>
+    <form className="space-y-4 pt-2" onSubmit={handleSubmit}>
       
       <div className="space-y-1.5">
         <label className="text-[11px] font-semibold text-slate-700 tracking-wide uppercase">Login</label>
@@ -19,6 +31,8 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
           </div>
           <input
             type="text"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full pl-9 pr-3 py-2.5 bg-white/90 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 text-slate-900 placeholder-slate-400 outline-none transition-all text-sm"
             placeholder="@student.uj.edu.pl"
           />
@@ -33,6 +47,8 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
           </div>
           <input
             type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="w-full pl-9 pr-3 py-2.5 bg-white/90 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 text-slate-900 placeholder-slate-400 outline-none transition-all text-sm"
             placeholder="••••••••"
           />

@@ -3,7 +3,7 @@ import LoginHeader from './LoginHeader';
 import LoginForm from './LoginForm';
 
 interface LoginScreenProps {
-  onLogin: () => void;
+  onLogin: (email: string) => void;
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
