@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { Mail, Lock, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import RememberCheckbox from './RememberCheckbox';
 
 interface LoginFormProps {
-  onLogin: (email: string) => void;
+  onLogin: (email: string, remember: boolean) => void;
 }
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
   // form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  // checkbox state
+  const [rememberMe, setRememberMe] = useState(false);
   
   // error and loading states
   const [error, setError] = useState('');
@@ -41,8 +45,8 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         return;
       }
 
-      // if password is correct proceed to login
-      onLogin(email.trim());
+      // if password is correct proceed to login passing remember state
+      onLogin(email.trim(), rememberMe);
     }, 1000);
   };
 
@@ -86,6 +90,11 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
             placeholder="••••••••"
             disabled={isLoading}
           />
+        </div>
+        
+        {/* remember me checkbox */}
+        <div className="pt-1">
+          <RememberCheckbox checked={rememberMe} onChange={setRememberMe} />
         </div>
       </div>
 
