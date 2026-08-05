@@ -48,6 +48,9 @@ export function useChat(onLogout?: () => void) {
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ref to handle the initial thinking delay
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // local storage effects
@@ -117,10 +120,10 @@ export function useChat(onLogout?: () => void) {
   };
 
   const handleNewChat = () => {
-    if (streamingIntervalRef.current) {
-      clearInterval(streamingIntervalRef.current);
-      streamingIntervalRef.current = null;
-    }
+    if (streamingIntervalRef.current) clearInterval(streamingIntervalRef.current);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    streamingIntervalRef.current = null;
+    typingTimeoutRef.current = null;
 
     setMessages([
       { id: Date.now().toString(), sender: 'bot', text: translations[selectedLanguage].botGreeting }
@@ -155,13 +158,55 @@ export function useChat(onLogout?: () => void) {
     setStagedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // stop streaming response
+  // stop streaming response and update message state
   const handleStopGenerating = () => {
+    let wasInDelay = false;
+
+    // cancel the initial 800ms delay if it hasn't started streaming yet
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+      wasInDelay = true;
+    }
+
+    // clear the streaming interval if it is already generating text
     if (streamingIntervalRef.current) {
       clearInterval(streamingIntervalRef.current);
       streamingIntervalRef.current = null;
     }
+    
     setIsTyping(false);
+
+    const interruptedText = selectedLanguage === 'angielski' ? ' [Interrupted]' : ' [Przerwano]';
+
+    setMessages(prev => {
+      // if stopped during the initial dots (delay), the bot message wasn't even added yet
+      // we need to add it now as an empty interrupted message
+      if (wasInDelay) {
+        return [...prev, {
+          id: Date.now().toString(),
+          sender: 'bot',
+          text: interruptedText.trim(),
+          isStopped: true // triggers the retry button
+        }];
+      }
+
+      // if stopped while typing, append the interrupted text to the current bot message
+      const newMessages = [...prev];
+      const lastMsgIndex = newMessages.length - 1;
+      
+      if (lastMsgIndex >= 0 && newMessages[lastMsgIndex].sender === 'bot') {
+        const lastMsg = newMessages[lastMsgIndex];
+        if (!lastMsg.isStopped) {
+          newMessages[lastMsgIndex] = {
+            ...lastMsg,
+            text: lastMsg.text + interruptedText,
+            isStopped: true // this triggers the retry button
+          };
+        }
+      }
+      return newMessages;
+    });
   };
 
   // start streaming response with dots thinking delay and error handling
@@ -170,9 +215,9 @@ export function useChat(onLogout?: () => void) {
     
     try {
       // simulating network request / backend response delay
-      setTimeout(() => {
-        // catch accidental network drop or server failure simulation
-        // for now everything is fine, but try...catch protects us if something goes wrong here
+      typingTimeoutRef.current = setTimeout(() => {
+        typingTimeoutRef.current = null;
+        
         const fullReplyText = translations[selectedLanguage].botReply;
         let charIndex = 0;
 
@@ -208,7 +253,6 @@ export function useChat(onLogout?: () => void) {
       console.error("Network error or bot failed to respond:", error);
       setIsTyping(false);
 
-      // add error message to chat so user is not stuck with typing dots
       const errorMessage = selectedLanguage === 'angielski' 
         ? "Oops! Network error or server failure. Please try again." 
         : "Ups! Błąd sieci lub awaria serwera. Spróbuj ponownie.";
@@ -225,6 +269,7 @@ export function useChat(onLogout?: () => void) {
   // retry generating response (removes error/stopped message first to keep chat clean)
   const handleRegenerate = () => {
     if (streamingIntervalRef.current) clearInterval(streamingIntervalRef.current);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     
     // remove the last message if it was an error/stopped bot message
     setMessages(prev => {
