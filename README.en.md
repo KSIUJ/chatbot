@@ -11,8 +11,6 @@
     <img src="https://img.shields.io/badge/license-TODO-lightgrey">
   </p>
 
-<p align="center">🇵🇱 <a href="README.md">Polska wersja / Polish version (main)</a></p>
-
 ---
 
 ## Table of contents
@@ -38,7 +36,7 @@
 
 ## About the project
 
-Built as part of the **KSI Student Science Club (Koło Naukowe Studentów Informatyki)** at the Jagiellonian University Faculty of Mathematics and Computer Science (UJ WMI). The goal of the project is to build a dedicated chatbot using a **Retrieval-Augmented Generation (RAG)** architecture, able to answer Faculty-related questions based on verified documents and source data.
+Built as part of the **KSI Student Science Club (Koło Naukowe Studentów Informatyki)** at the Jagiellonian University Faculty of Mathematics and Computer Science (UJ WMI). The goal of the project is to build a dedicated chatbot using a **Retrieval-Augmented Generation (RAG)** architecture, able to efficiently answer Faculty-related questions based on verified documents and source data.
 
 > _The project is under active development. Some features are still being implemented._
 
@@ -46,19 +44,21 @@ Built as part of the **KSI Student Science Club (Koło Naukowe Studentów Inform
 
 ## Why this project exists
 
-Our project was born out of a need to make life easier for students (especially those just starting out at WMI), and to build a real, advanced engineering tool within the KSI Student Science Club. We wanted to combine theory with practice:
+Our project was born out of a need to make life easier for students (especially those just starting out at WMI) and to build a real, advanced engineering tool within the KSI Student Science Club. We wanted to combine theory with practice:
 
-- Use a RAG (Retrieval-Augmented Generation) architecture to search real Faculty databases and websites.
-- Build a fully local AI ecosystem (based on, among others, a Qwen model).
+- Use a RAG (Retrieval-Augmented Generation) architecture to search real faculty databases and websites.
+- Build a fully local AI ecosystem (based on, among others, the Qwen model).
 - Create a centralized, intelligent assistant that answers questions about courses, credit requirements, or club materials in a few seconds, removing the need to click through dozens of subpages.
 
 ## Architecture
 
 The system is built on a modern tech stack for RAG systems:
 
-- **LLM (Decoder):** `Qwen3-30B-A3B Q4_K_M` model, hosted locally.
-- **Embeddings / Database:** (TODO: fill in).
+- **LLM (Decoder):** `Qwen3-30B-A3B Q4_K_M` model hosted locally.
+- **Embeddings:** `sdadas/mmlw-roberta-large`.
+- **Vector database:** ChromaDB (`PersistentClient`), data in `dataset/vectorstore/`.
 - **Document processing:** `pymupdf4llm`, `BeautifulSoup4`, `pypdf`, `python-docx`.
+- **Frontend:** React + TypeScript, Tailwind CSS.
 - **Backend:** Python, (TODO: fill in).
 
 ## Installation
@@ -68,6 +68,7 @@ The system is built on a modern tech stack for RAG systems:
 ### Requirements
 
 - Python 3.11+
+- Node.js (TODO: fill in version)
 - **TODO:** remaining requirements
 
 ### Steps
@@ -86,8 +87,8 @@ pip install -r requirements.txt
 # TODO: create a single requirements.txt covering the whole project
 
 # 4. Configure environment variables
-cp .env.example .env   # TODO: add a .env.example file
-# fill in MORDOR_COOKIE, USOS API credentials, etc.
+cp .env.example .env
+# fill in: MORDOR_COOKIE, USOS_CONSUMER_KEY/SECRET
 ```
 
 ## Usage
@@ -101,13 +102,17 @@ python src/data/strony/scraper.py
 # Download files from Mordor
 python src/data/mordor/files_downloader.py
 
-# Process downloaded Mordor files into chunks
+# Process downloaded Mordor files into chunks (for the vector database)
 python src/data/mordor/mordor_scraper.py
 
 # Query the USOS API (exploratory/anonymous mode)
 python src/data/usos/usos_client.py services/fac/fac2 --params fac_id=WMI
 
-# TODO: fill in as next steps are completed
+# Build/update the vector database from all sources
+python -m src.backend.RAG.ingest.run_ingest
+
+# Or only a selected source
+python -m src.backend.RAG.ingest.run_ingest --source mordor
 ```
 
 ## Repository structure
@@ -115,19 +120,27 @@ python src/data/usos/usos_client.py services/fac/fac2 --params fac_id=WMI
 ```
 .
 ├── docs/
-│   └── plan.txt              # project plan, sprint notes
+│   └── plan.txt                    # project plan, sprint notes
 ├── src/
 │   ├── backend/
-│   │   └── main.py           # backend API (FastAPI) — in progress
-│   └── data/
-│       ├── mordor/           # downloading and processing files from Mordor
-│       ├── strony/           # scraper for faculty/club websites and Wikipedia
-│       └── usos/             # USOS API client
+│   │   ├── main.py                 # backend API (FastAPI) — in progress
+│   │   └── RAG/                    # retrieval pipeline
+│   │       ├── encoder.py          # embeddings (sentence-transformers)
+│   │       ├── vectorstore.py      # ChromaDB
+│   │       ├── retriever.py        # encoder + vectorstore
+│   │       ├── context_builder.py  # interface for the LLM layer
+│   │       └── ingest/             # loading source data into vectorstore
+│   ├── data/
+│   │   ├── mordor/                 # downloading and processing files from Mordor
+│   │   ├── strony/                 # scraper for faculty/club websites and Wikipedia
+│   │   └── usos/                   # USOS API client
+│   └── frontend/                   # chat interface (React + TypeScript)
+├── tests/
+│   ├── backend/RAG/                # RAG pipeline tests
+│   └── data/usos/                  # USOS API client tests
 ├── README.md
 └── README.en.md
 ```
-
-**TODO:** expand this as more directories are added
 
 ## Team
 
@@ -158,8 +171,6 @@ python src/data/usos/usos_client.py services/fac/fac2 --params fac_id=WMI
 - Advanced features
 - User accounts, etc.
 - Automation
-
-**TODO:** replace with the current roadmap / link to the project board once the plan evolves.
 
 ## License
 
