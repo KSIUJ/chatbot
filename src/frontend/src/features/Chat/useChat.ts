@@ -50,13 +50,7 @@ export function useChat(onLogout?: () => void) {
   const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-
   // local storage effects
-
-  //const focusInput = () => {
-  //inputRef.current?.focus();
-  //};
-
   useEffect(() => {
     localStorage.setItem('chatLanguage', selectedLanguage);
   }, [selectedLanguage]);
@@ -170,48 +164,85 @@ export function useChat(onLogout?: () => void) {
     setIsTyping(false);
   };
 
-  // start streaming response with dots thinking delay
+  // start streaming response with dots thinking delay and error handling
   const startStreamingResponse = () => {
     const botMsgId = (Date.now() + 1).toString();
-    const fullReplyText = translations[selectedLanguage].botReply;
-    let charIndex = 0;
+    
+    try {
+      // simulating network request / backend response delay
+      setTimeout(() => {
+        // catch accidental network drop or server failure simulation
+        // for now everything is fine, but try...catch protects us if something goes wrong here
+        const fullReplyText = translations[selectedLanguage].botReply;
+        let charIndex = 0;
 
-    setTimeout(() => {
+        setIsTyping(false);
+
+        setMessages(prev => [...prev, {
+          id: botMsgId,
+          sender: 'bot',
+          text: ''
+        }]);
+
+        streamingIntervalRef.current = setInterval(() => {
+          charIndex += 1;
+          const currentChunk = fullReplyText.slice(0, charIndex);
+
+          setMessages(prev => prev.map(msg => 
+            msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
+          ));
+
+          if (charIndex >= fullReplyText.length) {
+            if (streamingIntervalRef.current) {
+              clearInterval(streamingIntervalRef.current);
+              streamingIntervalRef.current = null;
+            }
+
+            setTimeout(() => inputRef.current?.focus(), 50);
+          }
+        }, 25);
+      }, 800);
+
+    } catch (error) {
+      // handle network error or server crash 
+      console.error("Network error or bot failed to respond:", error);
       setIsTyping(false);
 
+      // add error message to chat so user is not stuck with typing dots
+      const errorMessage = selectedLanguage === 'angielski' 
+        ? "Oops! Network error or server failure. Please try again." 
+        : "Ups! Błąd sieci lub awaria serwera. Spróbuj ponownie.";
+
       setMessages(prev => [...prev, {
-        id: botMsgId,
+        id: Date.now().toString(),
         sender: 'bot',
-        text: ''
+        text: errorMessage,
+        isStopped: true
       }]);
-
-      streamingIntervalRef.current = setInterval(() => {
-        charIndex += 1;
-        const currentChunk = fullReplyText.slice(0, charIndex);
-
-        setMessages(prev => prev.map(msg => 
-          msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
-        ));
-
-        if (charIndex >= fullReplyText.length) {
-          if (streamingIntervalRef.current) {
-            clearInterval(streamingIntervalRef.current);
-            streamingIntervalRef.current = null;
-          }
-
-          setTimeout(() => inputRef.current?.focus(), 50);
-        }
-      }, 25);
-    }, 800);
+    }
   };
 
+  // retry generating response (removes error/stopped message first to keep chat clean)
   const handleRegenerate = () => {
     if (streamingIntervalRef.current) clearInterval(streamingIntervalRef.current);
+    
+    // remove the last message if it was an error/stopped bot message
+    setMessages(prev => {
+      const newMessages = [...prev];
+      const lastMsg = newMessages[newMessages.length - 1];
+      if (lastMsg && lastMsg.sender === 'bot' && lastMsg.isStopped) {
+        newMessages.pop();
+      }
+      return newMessages;
+    });
+
+    // start typing animation and try generating again
     setIsTyping(true);
     startStreamingResponse();
   };
 
   const handleSendMessage = () => {
+    // prevent sending empty messages or whitespace only
     if (!inputText.trim() && stagedFiles.length === 0) return; 
 
     const newUserMsg: Message = { 
@@ -225,7 +256,7 @@ export function useChat(onLogout?: () => void) {
     setInputText('');
     setStagedFiles([]);
     
-    // animation right after hitting send button
+    // start typing indicator right after hitting send button
     setIsTyping(true);
     startStreamingResponse();
   };

@@ -45,10 +45,12 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
       // for now password must be haslo123 to succeed!!!!!!
       if (password !== 'haslo123') {
         setError('invalid email or password.');
+        setPassword(''); // <--- WYZEROWANIE HASŁA PRZY BŁĘDZIE
         return;
       }
 
       // if password is correct proceed to login passing remember state
+      setPassword(''); // <--- WYZEROWANIE HASŁA PRZY SUKCESIE
       onLogin(email.trim(), rememberMe);
     }, 1000);
   };
