@@ -31,3 +31,44 @@ Dane:
 -strony (Sonia + Patrycja)
 -mordor (Mikołaj + Ola)
 -usos (Karol)
+
+RAG retrieval (src/backend/RAG/) - podsumowanie:
+
+Model embeddingowy: sdadas/mmlw-roberta-large (domyslnie, uzywany lokalnie
+przez sentence-transformers). Wybrany, bo tresci sa glownie po polsku, a
+domyslny all-MiniLM-L6-v2 jest trenowany na danych anglojezycznych i wypada
+wyraznie slabiej na polskich zapytaniach (patrz benchmark PIRB). Model i
+prefiksy query/passage mozna podmienic bez zmian w kodzie przez
+RAG_EMBEDDING_MODEL / RAG_QUERY_PREFIX / RAG_PASSAGE_PREFIX w .env - jesli
+materialy z mordoru okaza sie w duzej czesci angielskie, warto rozwazyc
+intfloat/multilingual-e5-large lub BAAI/bge-m3.
+
+Zalozenia co do formatu danych (w momencie pisania w data/mordor|strony|usos
+nie bylo jeszcze zadnych realnych plikow, tylko .gitkeep - ponizsze oparte
+jest na kodzie scraperow, nie na realnych danych):
+- mordor: mordor_scraper.py obecnie NIE zapisuje chunkow nigdzie (jest tam
+  "TODO: Save chunks..." i przetwarza tylko pierwsze 5 plikow jako test) -
+  nie modyfikowalam tego pliku, from_mordor.py samodzielnie chunkuje WSZYSTKIE
+  pliki z data/mordor/ tym samym podejsciem (pymupdf4llm + splitter 1000/200),
+  zeby latwo bylo przelaczyc sie na wczytywanie zapisanych chunkow, gdy ta
+  funkcja zostanie dokonczona. Dodatkowo pliki graficzne pobierane przez
+  files_downloader.py (jpg/png) sa ingestowane jako osobne dokumenty typu
+  "image" (embed_text = nazwa pliku + katalog - prowizorka do czasu realnych
+  opisow/OCR).
+- strony: scraper.py zapisuje wszystko do jednego plaskiego pliku
+  data/strony/webiste_data.txt w formacie "URL: <adres>\n\n<tresc>" - bez
+  chunkowania i bez linkow do obrazow. from_strony.py parsuje ten plik po
+  znaczniku URL i dopiero tutaj dzieli kazda strone na chunki.
+- usos: scrape_staff.py zapisuje jeden plik JSON per uruchomienie
+  (staff_{fac_id}_{znacznik_czasu}.json) - from_usos.py domyslnie bierze
+  NAJNOWSZY taki plik (sortowanie po nazwie/znaczniku czasu), jeden pracownik
+  = jeden Document (bez chunkowania, rekordy sa krotkie).
+
+Do zsynchronizowania z Sonia (zadanie "dane upgrade" - normalizacja danych):
+mozliwe, ze czesc warstwy normalizacji w src/backend/RAG/ingest/ pokrywa sie
+z jej praca. Zanim dwie osoby zbuduja rownolegle dwie wersje normalizacji,
+warto zderzyc schemat Document (schema.py) z tym, co ona planuje.
+
+Poza zakresem tego zadania: faktyczne spiecie build_context() z
+src/backend/main.py (FastAPI) i z src/backend/llm/ - main.py jest na razie
+tylko placeholderem, a llm/ rozwija rownolegle Mikolaj.
