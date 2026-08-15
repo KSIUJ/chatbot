@@ -4,3 +4,4 @@ requests_oauthlib
 pytest
 fastapi
 uvicorn[standard]
+sqlalchemy
