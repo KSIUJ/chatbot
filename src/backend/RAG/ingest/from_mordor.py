@@ -32,6 +32,8 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
+PROGRESS_EVERY = 200
+
 
 def _iter_files(directory):
     for root, _, filenames in os.walk(directory):
@@ -135,13 +137,10 @@ def load_documents(directory: str = BASE_DIR) -> list[Document]:
         return []
 
     documents: list[Document] = []
-    counter = 0
+    processed = 0
     for file_path in _iter_files(directory):
         _, ext = os.path.splitext(file_path)
         ext = ext.lower()
-
-        print (f"{file_path} ({counter})")
-        counter += 1
 
         if ext == ".pdf":
             if _pdf_has_text_layer(file_path):
@@ -155,4 +154,9 @@ def load_documents(directory: str = BASE_DIR) -> list[Document]:
         else:
             continue
 
+        processed += 1
+        if processed % PROGRESS_EVERY == 0:
+            print(f"[mordor] przetworzono {processed} plikow, {len(documents)} chunkow do tej pory")
+
+    print(f"[mordor] gotowe: {processed} plikow, {len(documents)} chunkow")
     return documents
