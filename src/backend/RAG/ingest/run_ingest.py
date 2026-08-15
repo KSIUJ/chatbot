@@ -18,9 +18,12 @@ SOURCE_LOADERS = {
 }
 
 
-def run_ingest(sources: list[str] | None = None) -> dict[str, int]:
-    """Wczytuje dokumenty z wybranych zrodel (domyslnie wszystkich) i dodaje
-    je do vectorstore. Zwraca liczbe dokumentow dodanych per zrodlo."""
+BATCH_SIZE = 256
+
+
+def run_ingest(
+    sources: list[str] | None = None, batch_size: int = BATCH_SIZE
+) -> dict[str, int]:
     from ..vectorstore import VectorStore
 
     sources = sources or list(SOURCE_LOADERS.keys())
@@ -30,10 +33,22 @@ def run_ingest(sources: list[str] | None = None) -> dict[str, int]:
     for source in sources:
         loader = SOURCE_LOADERS[source]
         documents = loader()
-        if documents:
-            store.add_documents(documents)
-        summary[source] = len(documents)
-        print(f"[ingest] {source}: {len(documents)} dokumentow")
+        total = len(documents)
+
+        todo = store.filter_new(documents)
+        skipped = total - len(todo)
+        if skipped:
+            print(f"[ingest] {source}: pomijam {skipped} juz zapisanych, do zrobienia {len(todo)}")
+
+        done = 0
+        for i in range(0, len(todo), batch_size):
+            batch = todo[i : i + batch_size]
+            store.add_documents(batch) 
+            done += len(batch)
+            print(f"[ingest] {source}: {done}/{len(todo)} zapisanych (partia {i // batch_size + 1})")
+
+        summary[source] = total
+        print(f"[ingest] {source}: {total} dokumentow lacznie (nowych {len(todo)}, juz bylo {skipped})")
 
     return summary
 

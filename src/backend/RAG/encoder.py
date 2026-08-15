@@ -30,6 +30,22 @@ DEFAULT_QUERY_PREFIX = "zapytanie: "
 DEFAULT_PASSAGE_PREFIX = ""
 
 
+def _default_device() -> str:
+    override = os.getenv("RAG_DEVICE")
+    if override:
+        return override
+    try:
+        import torch
+
+        if torch.backends.mps.is_available():
+            return "mps"
+        if torch.cuda.is_available():
+            return "cuda"
+    except Exception:
+        pass
+    return "cpu"
+
+
 class Encoder:
     def __init__(
         self,
@@ -49,7 +65,9 @@ class Encoder:
             if passage_prefix is not None
             else os.getenv("RAG_PASSAGE_PREFIX", DEFAULT_PASSAGE_PREFIX)
         )
-        self._model = SentenceTransformer(self.model_name, device=device)
+        self.device = device or _default_device()
+        print(f"[encoder] model={self.model_name} device={self.device}")
+        self._model = SentenceTransformer(self.model_name, device=self.device)
 
     def embed(self, text: str) -> list[float]:
         """Koduje pojedynczy fragment (dokument/passage) na wektor."""
@@ -58,7 +76,13 @@ class Encoder:
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Koduje liste fragmentow (dokumentow/passages) na wektory."""
         prefixed = [self.passage_prefix + t for t in texts]
-        vectors = self._model.encode(prefixed, convert_to_numpy=True, normalize_embeddings=True)
+        vectors = self._model.encode(
+            prefixed,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            batch_size=32,
+            show_progress_bar=False,
+        )
         return vectors.tolist()
 
     def embed_query(self, query: str) -> list[float]:
