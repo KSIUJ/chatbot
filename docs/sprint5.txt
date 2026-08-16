@@ -1,0 +1,10 @@
+sprint 5
+todo
+- strona połączyć backend coś ten (Ola) 
+- backend (Ola + Patrycja + Sonia)
+    - historia czatów (Sonia)
+    - endpointy (Ola + Patrycja)
+    - konta (Ola + Patrycja)
+- automatyzacja bazy i test RAGa (Karol)
+- prompt systemowy i test llma (Mikołaj)
+    
