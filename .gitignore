@@ -18,6 +18,7 @@ dataset/
 data/mordor/
 
 # other
+.venv
 *.log
 __pycache__/
 .DS_Store
