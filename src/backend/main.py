@@ -1,10 +1,17 @@
-
 #uvicorn src.backend.main:app --reload
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 
 from .config import APP_NAME, FRONTEND_ORIGINS
-from .database import conversations
+from .database import (
+    add_message,
+    create_conversation as db_create_conversation,
+    get_conversation as db_get_conversation,
+    get_db,
+    get_messages,
+    init_db,
+)
 from .models import Message, MessageRole
 from .request import ChatRequest
 from .response import (
@@ -24,6 +31,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
 
 
 def _generate_placeholder_answer(message: str) -> str:
@@ -47,8 +59,8 @@ def health() -> HealthResponse:
 
 
 @app.post("/conversations", response_model=ConversationResponse)
-def create_conversation() -> ConversationResponse:
-    conversation = conversations.create()
+def create_conversation(db: Session = Depends(get_db)) -> ConversationResponse:
+    conversation = db_create_conversation(db)
     return ConversationResponse(
         id=conversation.id,
         created_at=conversation.created_at,
@@ -57,36 +69,35 @@ def create_conversation() -> ConversationResponse:
 
 
 @app.get("/conversations/{conversation_id}", response_model=ConversationResponse)
-def get_conversation(conversation_id: str) -> ConversationResponse:
-    conversation = conversations.get(conversation_id)
+def get_conversation(conversation_id: str, db: Session = Depends(get_db)) -> ConversationResponse:
+    conversation = db_get_conversation(db, conversation_id)
     if conversation is None:
         raise HTTPException(status_code=404, detail="Konwersacja nie znaleziona")
 
+    messages = get_messages(db, conversation_id)
     return ConversationResponse(
         id=conversation.id,
         created_at=conversation.created_at,
-        messages=[_to_message_response(m) for m in conversation.messages],
+        messages=[_to_message_response(m) for m in messages],
     )
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest) -> ChatResponse:
+def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     """Glowny endpoint: przyjmuje wiadomosc uzytkownika, zapisuje ja w historii,
     generuje odpowiedz (na razie placeholder) i zwraca ja wraz z conversation_id.
     """
     if payload.conversation_id is not None:
-        conversation = conversations.get(payload.conversation_id)
+        conversation = db_get_conversation(db, payload.conversation_id)
         if conversation is None:
             raise HTTPException(status_code=404, detail="Konwersacja nie znaleziona")
     else:
-        conversation = conversations.create()
+        conversation = db_create_conversation(db)
 
-    user_message = Message(role=MessageRole.USER, content=payload.message)
-    conversations.add_message(conversation.id, user_message)
+    add_message(db, conversation.id, MessageRole.USER, payload.message)
 
     answer_text = _generate_placeholder_answer(payload.message)
-    assistant_message = Message(role=MessageRole.ASSISTANT, content=answer_text)
-    conversations.add_message(conversation.id, assistant_message)
+    assistant_message = add_message(db, conversation.id, MessageRole.ASSISTANT, answer_text)
 
     return ChatResponse(
         conversation_id=conversation.id,
