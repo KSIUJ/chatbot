@@ -9,3 +9,4 @@ uvicorn[standard]
 sentence-transformers
 chromadb
 langchain-text-splitters
+sqlalchemy
