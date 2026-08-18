@@ -19,6 +19,7 @@ data/mordor/
 data/strony/
 
 # other
+.venv
 *.log
 __pycache__/
 .DS_Store
