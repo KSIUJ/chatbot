@@ -162,7 +162,7 @@ export function useChat(onLogout?: () => void) {
   const handleStopGenerating = () => {
     let wasInDelay = false;
 
-    // cancel the initial 800ms delay if it hasn't started streaming yet
+    // cancel the initial delay if it hasn't started streaming yet
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
@@ -209,44 +209,56 @@ export function useChat(onLogout?: () => void) {
     });
   };
 
-  // start streaming response with dots thinking delay and error handling
-  const startStreamingResponse = () => {
+  // start streaming response with real API fetch and error handling
+  const startStreamingResponse = async (userText: string) => {
     const botMsgId = (Date.now() + 1).toString();
     
     try {
-      // simulating network request / backend response delay
-      typingTimeoutRef.current = setTimeout(() => {
-        typingTimeoutRef.current = null;
-        
-        const fullReplyText = translations[selectedLanguage].botReply;
-        let charIndex = 0;
+      // simulating network request / hitting python backend
+      const response = await fetch("http://127.0.0.1:8000/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userText 
+        }),
+      });
 
-        setIsTyping(false);
+      if (!response.ok) {
+        throw new Error("Błąd połączenia z serwerem");
+      }
 
-        setMessages(prev => [...prev, {
-          id: botMsgId,
-          sender: 'bot',
-          text: ''
-        }]);
+      const data = await response.json();
+      
+      // Dopasuj do formatu zwracanego z backendu/mocka Ollamy
+      const fullReplyText = data.message?.content || data.answer || "Brak odpowiedzi";
 
-        streamingIntervalRef.current = setInterval(() => {
-          charIndex += 1;
-          const currentChunk = fullReplyText.slice(0, charIndex);
+      setIsTyping(false);
 
-          setMessages(prev => prev.map(msg => 
-            msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
-          ));
+      setMessages(prev => [...prev, {
+        id: botMsgId,
+        sender: 'bot',
+        text: ''
+      }]);
 
-          if (charIndex >= fullReplyText.length) {
-            if (streamingIntervalRef.current) {
-              clearInterval(streamingIntervalRef.current);
-              streamingIntervalRef.current = null;
-            }
+      let charIndex = 0;
+      streamingIntervalRef.current = setInterval(() => {
+        charIndex += 1;
+        const currentChunk = fullReplyText.slice(0, charIndex);
 
-            setTimeout(() => inputRef.current?.focus(), 50);
+        setMessages(prev => prev.map(msg => 
+          msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
+        ));
+
+        if (charIndex >= fullReplyText.length) {
+          if (streamingIntervalRef.current) {
+            clearInterval(streamingIntervalRef.current);
+            streamingIntervalRef.current = null;
           }
-        }, 25);
-      }, 800);
+          setTimeout(() => inputRef.current?.focus(), 50);
+        }
+      }, 15);
 
     } catch (error) {
       // handle network error or server crash 
@@ -281,19 +293,25 @@ export function useChat(onLogout?: () => void) {
       return newMessages;
     });
 
+    // Znajdujemy ostatnią wiadomość od użytkownika
+    const lastUserMsg = messages.slice().reverse().find(m => m.sender === 'user');
+    const textToRegenerate = lastUserMsg ? lastUserMsg.text : "";
+
     // start typing animation and try generating again
     setIsTyping(true);
-    startStreamingResponse();
+    startStreamingResponse(textToRegenerate);
   };
 
   const handleSendMessage = () => {
     // prevent sending empty messages or whitespace only
     if (!inputText.trim() && stagedFiles.length === 0) return; 
 
+    const userText = inputText.trim();
+
     const newUserMsg: Message = { 
       id: Date.now().toString(), 
       sender: 'user', 
-      text: inputText.trim(),
+      text: userText,
       files: stagedFiles.length > 0 ? stagedFiles : undefined
     };
     
@@ -303,7 +321,7 @@ export function useChat(onLogout?: () => void) {
     
     // start typing indicator right after hitting send button
     setIsTyping(true);
-    startStreamingResponse();
+    startStreamingResponse(userText);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
