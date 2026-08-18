@@ -10,3 +10,8 @@ sentence-transformers
 chromadb
 langchain-text-splitters
 sqlalchemy
+pymupdf4llm
+
+# Backend API (src/backend/main.py)
+fastapi
+uvicorn[standard]
