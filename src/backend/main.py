@@ -72,6 +72,9 @@ def get_conversation(conversation_id: str) -> ConversationResponse:
     )
 
 
+"""Zrobione wzglednie w sensie no zwraca ladnie te wiadomosci ale nie obsluguje
+conversation_id i nie zapisuje w bazie, wiec to do zmiany"""
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest) -> ChatResponse:
     """Glowny endpoint: przyjmuje wiadomosc uzytkownika, zapisuje ja w historii,
