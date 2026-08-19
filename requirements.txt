@@ -7,3 +7,13 @@ pytest
 sentence-transformers
 chromadb
 langchain-text-splitters
+
+# --- Auth / API  ---
+fastapi==0.115.0
+sqlalchemy==2.0.35
+pydantic[email]==2.9.2
+passlib==1.7.4
+bcrypt==4.0.1
+pyjwt==2.9.0
+slowapi==0.1.9
+python-multipart==0.0.9
