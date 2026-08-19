@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import ChatScreen from './features/Chat/ChatScreen';
 import LoginScreen from './features/Auth/LoginScreen'; 
 import ProfileScreen from './features/Profile/ProfileScreen'; 
+import RegisterScreen from './features/Auth/RegisterScreen';
 
 export default function App() {
   // get email from local storage to remember login state
@@ -15,9 +16,12 @@ export default function App() {
   });
 
   // track which screen is currently visible
-  const [activeView, setActiveView] = useState<'chat' | 'profile'>(() => {
+  const [activeView, setActiveView] = useState<'chat' | 'profile' | 'login' | 'register'>(() => {
     const savedView = localStorage.getItem('activeView');
-    return savedView === 'profile' ? 'profile' : 'chat';
+    if (savedView === 'profile' || savedView === 'login' || savedView === 'register') {
+      return savedView;
+    }
+    return 'chat';
   });
 
   // get theme from storage to pass to profile screen
@@ -33,11 +37,11 @@ export default function App() {
     setUserEmail(email);
     setIsGuest(false);
     localStorage.setItem('userEmail', email); 
-    localStorage.removeItem('isGuest'); // clear guest status if logged in
+    localStorage.removeItem('isGuest'); 
     setActiveView('chat');
   };
 
-  // fired when user clicks "continue without logging in"
+  // fired when user clicks continue without logging in
   const handleContinueAsGuest = () => {
     setIsGuest(true);
     localStorage.setItem('isGuest', 'true');
@@ -54,12 +58,22 @@ export default function App() {
     localStorage.removeItem('activeView'); 
   };
 
-  // if no user email and not a guest, show login screen
-  if (!userEmail && !isGuest) {
+  // if no user email and not a guest, show login or register screen
+  if (!userEmail && !isGuest && activeView !== 'register') {
     return (
       <LoginScreen 
         onLogin={handleLogin} 
         onContinueAsGuest={handleContinueAsGuest} 
+        onGoToRegister={() => setActiveView('register')}
+      />
+    );
+  }
+
+  // show register screen
+  if (activeView === 'register') {
+    return (
+      <RegisterScreen 
+        onGoBackToLogin={() => setActiveView('login')} 
       />
     );
   }
