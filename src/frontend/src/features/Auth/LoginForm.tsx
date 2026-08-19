@@ -45,12 +45,12 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
       // for now password must be haslo123 to succeed!!!!!!
       if (password !== 'haslo123') {
         setError('invalid email or password.');
-        setPassword(''); // <--- WYZEROWANIE HASŁA PRZY BŁĘDZIE
+        setPassword(''); // reset password on error
         return;
       }
 
       // if password is correct proceed to login passing remember state
-      setPassword(''); // <--- WYZEROWANIE HASŁA PRZY SUKCESIE
+      setPassword(''); // reset password on success
       onLogin(email.trim(), rememberMe);
     }, 1000);
   };
@@ -92,7 +92,6 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
               setPassword(e.target.value);
               setError(''); // clear error when user starts typing
             }}
-            
             className="w-full pl-9 pr-10 py-2.5 bg-white/90 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 text-slate-900 placeholder-slate-400 outline-none transition-all text-sm"
             placeholder="••••••••"
             disabled={isLoading}
@@ -130,7 +129,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full group rounded-xl bg-blue-700/80 px-4 py-2.5 font-bold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100 flex items-center justify-center gap-2 mt-6 shadow-sm border border-transparent text-sm"
+        className="w-full group rounded-xl bg-blue-700/80 px-4 py-2.5 font-bold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100 flex items-center justify-center gap-2 mt-6 shadow-sm border border-transparent text-sm cursor-pointer"
       >
         {isLoading ? (
           <>
