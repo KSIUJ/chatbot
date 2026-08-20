@@ -13,6 +13,7 @@ interface ChatScreenProps {
 }
 
 export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps) {
+  
   // states and logic extracted to custom hook
   const {
     showSettingsMenu, settingsView, setSettingsView, selectedLanguage, setSelectedLanguage,

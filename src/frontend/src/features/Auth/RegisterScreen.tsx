@@ -7,6 +7,7 @@ interface RegisterScreenProps {
 }
 
 export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps) {
+
   // form states
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -46,10 +47,12 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
 
   // handle code input changes
   const handleCodeChange = (index: number, value: string) => {
+
     // only allow numbers
     if (value && !/^\d+$/.test(value)) return;
 
     const newCode = [...code];
+    
     // take only the last character if someone pastes
     newCode[index] = value.slice(-1);
     setCode(newCode);

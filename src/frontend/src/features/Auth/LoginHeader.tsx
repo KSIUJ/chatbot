@@ -1,4 +1,4 @@
-import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg";
+import ksiLogo from "../../assets/logo-ksi-IBUoeAwm.svg";
 
 export default function LoginHeader() {
   return (
@@ -11,7 +11,7 @@ export default function LoginHeader() {
         title="KSI website"
       >
         <img 
-          src={mojeLogo} 
+          src={ksiLogo} 
           alt="Logo Użytkownika" 
           className="h-16 w-auto mx-auto mb-4 object-contain" 
         />
