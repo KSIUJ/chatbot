@@ -3,13 +3,12 @@ python-dotenv
 requests_oauthlib
 pytest
 
-# RAG retrieval (src/backend/RAG/)
 sentence-transformers
 chromadb
 langchain-text-splitters
 
-# --- Auth / API  ---
 fastapi==0.115.0
+uvicorn[standard]
 sqlalchemy==2.0.35
 pydantic[email]==2.9.2
 passlib==1.7.4
