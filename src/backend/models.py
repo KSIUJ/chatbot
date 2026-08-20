@@ -27,6 +27,15 @@ class MessageRole(str, enum.Enum):
     USER = "user"
     ASSISTANT = "assistant"
 
+class MessageFeedback(str, enum.Enum):
+    """Ocena odpowiedzi asystenta - lapka w gore/dol"""
+    UP = "up"
+    DOWN = "down"
+
+
+# Domyslna liczba kontekstow jesli uzytkownik nie ustawil wlasnej
+DEFAULT_CONTEXT_COUNT = 5
+
 
 class User(Base):
     __tablename__ = "users"
@@ -40,6 +49,8 @@ class User(Base):
 
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    context_count: Mapped[int] = mapped_column(default=DEFAULT_CONTEXT_COUNT)
 
     conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -78,6 +89,8 @@ class Message(Base):
 
     # Lista zrodel z RAG-a
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+    feedback: Mapped[MessageFeedback | None] = mapped_column(SAEnum(MessageFeedback), nullable=True)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 

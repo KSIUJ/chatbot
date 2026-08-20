@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from .models import Base, Conversation, Message, MessageRole, User
+from .models import Base, Conversation, DEFAULT_CONTEXT_COUNT, Message, MessageFeedback, MessageRole, User
 
 load_dotenv()
 
@@ -48,11 +48,11 @@ ALLOWED_EMAIL_DOMAIN = "uj.edu.pl"
 
 
 class EmailNotAllowedError(Exception):
-    """Email nie konczy sie na @uj.edu.pl"""
+    """Email does not end with @uj.edu.pl"""
 
 
 class EmailAlreadyRegisteredError(Exception):
-    """Ktos juz ma konto na ten email"""
+    """Account with this email already exists"""
 
 
 def is_allowed_email(email: str) -> bool:
@@ -87,23 +87,25 @@ def create_user(
     email: str,
     username: str | None = None,
     password: str | None = None,
+    context_count: int | None = None,
 ) -> User:
     """Zaklada konto. Rzuca EmailNotAllowedError / EmailAlreadyRegisteredError
     jesli cos jest nie tak"""
     if not is_allowed_email(email):
-        raise EmailNotAllowedError(f"Email {email!r} nie jest z domeny uj.edu.pl")
+        raise EmailNotAllowedError(f"Email {email!r} is not from the uj.edu.pl domain")
 
     if get_user_by_email(db, email) is not None:
-        raise EmailAlreadyRegisteredError(f"Konto dla {email!r} juz istnieje")
+        raise EmailAlreadyRegisteredError(f"An account for {email!r} already exists")
 
     user = User(
         email=email.strip().lower(),
         username=username,
         password_hash=hash_password(password) if password else None,
+        context_count=context_count if context_count is not None else DEFAULT_CONTEXT_COUNT,
     )
     db.add(user)
     db.commit()
-    db.refresh(user)  # zeby user.id/created_at byly uzupelnione wartosciami z bazy
+    db.refresh(user)
     return user
 
 
@@ -114,6 +116,17 @@ def get_user(db: Session, user_id: str) -> User | None:
 def get_user_by_email(db: Session, email: str) -> User | None:
     stmt = select(User).where(User.email == email.strip().lower())
     return db.execute(stmt).scalar_one_or_none()
+
+def set_user_context_count(db: Session, user_id: str, context_count: int) -> User:
+    """Zmienia liczbe kontekstow wybrana przez uzytkownika"""
+    user = get_user(db, user_id)
+    if user is None:
+        raise KeyError(f"User {user_id} does not exist")
+
+    user.context_count = context_count
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 # CONVERSATIONS
@@ -171,3 +184,14 @@ def get_messages(db: Session, conversation_id: str) -> list[Message]:
         .order_by(Message.created_at)
     )
     return list(db.execute(stmt).scalars().all())
+
+def set_message_feedback(db: Session, message_id: str, feedback: MessageFeedback | None) -> Message:
+    """Ustawia/kasuje lapke w gore lub w dol na wiadomosci. feedback=None czysci ocene."""
+    message = db.get(Message, message_id)
+    if message is None:
+        raise KeyError(f"Message {message_id} does not exist")
+
+    message.feedback = feedback
+    db.commit()
+    db.refresh(message)
+    return message
