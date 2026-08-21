@@ -8,3 +8,17 @@ class ChatRequest(BaseModel):
 
 class CreateConversationRequest(BaseModel):
     pass 
+
+class RegisterRequest(BaseModel):
+    email: str
+    haslo: str = Field(min_length=8)
+
+
+class VerifyMailRequest(BaseModel):
+    email: str
+    kod: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    haslo: str

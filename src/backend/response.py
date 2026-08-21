@@ -24,3 +24,10 @@ class ChatResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class AuthMessageResponse(BaseModel):
+    detail: str

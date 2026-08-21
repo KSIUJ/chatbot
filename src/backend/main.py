@@ -24,6 +24,8 @@ from .response import (
     MessageResponse,
 )
 
+from .auth_routes import router as auth_router
+
 #TODO no tu zmieniajcie co chcecie to takie dla inspiracji, w miarę powinno działać
 
 app = FastAPI(title=APP_NAME)
@@ -38,6 +40,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 
 @app.on_event("startup")
 def on_startup() -> None:
