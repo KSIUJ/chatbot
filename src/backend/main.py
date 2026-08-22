@@ -1,3 +1,4 @@
+#alembic upgrade head
 #uvicorn src.backend.main:app --reload
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
