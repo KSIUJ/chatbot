@@ -20,6 +20,7 @@
 - [About the project](#about-the-project)
 - [Why this project exists](#why-this-project-exists)
 - [Architecture](#architecture)
+- [Running with Docker](#running-with-docker)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Repository structure](#repository-structure)
@@ -60,6 +61,38 @@ The system is built on a modern tech stack for RAG systems:
 - **Embeddings / Database:** (TODO: fill in).
 - **Document processing:** `pymupdf4llm`, `BeautifulSoup4`, `pypdf`, `python-docx`.
 - **Backend:** Python, (TODO: fill in).
+
+## Running with Docker
+
+The easiest way to run the whole app (frontend + backend + RAG + local LLM) without installing anything by hand.
+
+### Requirements
+
+- [Docker](https://docs.docker.com/engine/install/) + **Docker Compose v2** (the `docker compose` command, not the old standalone `docker-compose`) - any current Docker install already has this.
+- An NVIDIA GPU + the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) - so Ollama (the LLM) and the RAG embeddings run on GPU instead of CPU (Qwen 14B on CPU alone is not really usable).
+
+### Steps
+
+```bash
+# 1. Set up environment variables (USOS keys are optional, only needed for scraping)
+cp .env.example .env
+
+# 2. Build the images and start the whole stack
+docker compose up --build
+```
+
+On first run, the `ollama-pull` container downloads the `qwen2.5:14b` model (a few GB) before the backend starts - this is expected and only happens once (the model is kept in the `ollama-data` volume).
+
+Once it's up:
+
+- Frontend: http://localhost:8080
+- Backend (direct, for debugging): http://localhost:8000/health
+
+The frontend talks to the backend through nginx's built-in reverse proxy (`/api/*`), so the app works from whatever address you serve it on - no rebuild needed for a specific host.
+
+To use a different Ollama model or frontend port on the host: set `OLLAMA_MODEL=` / `FRONTEND_PORT=` in `.env` before running `docker compose up`.
+
+**Not covered by this docker-compose yet** (still run manually, outside the containers - see [Usage](#usage)): the scrapers (`src/data/`) and the RAG ingest pipeline (`src/backend/RAG/ingest/run_ingest.py`) - these are one-off/occasional batch jobs, not long-running services.
 
 ## Installation
 
