@@ -1,5 +1,8 @@
 
 #uvicorn src.backend.main:app --reload
+import os
+from fastapi.staticfiles import StaticFiles
+from .llm.generate import answer as rag_answer
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -26,9 +29,9 @@ app.add_middleware(
 )
 
 
-def _generate_placeholder_answer(message: str) -> str:
-    #TODO no wiadomo trzeba połączyć z RAGiem i LLMem
-    return f"Echo: {message}"
+def _generate_answer(message: str) -> tuple[str, list[str]]:
+    result = rag_answer(message)
+    return result["answer"], result["files"]
 
 
 def _to_message_response(message: Message) -> MessageResponse:
@@ -69,6 +72,9 @@ def get_conversation(conversation_id: str) -> ConversationResponse:
     )
 
 
+"""Zrobione wzglednie w sensie no zwraca ladnie te wiadomosci ale nie obsluguje
+conversation_id i nie zapisuje w bazie, wiec to do zmiany"""
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest) -> ChatResponse:
     """Glowny endpoint: przyjmuje wiadomosc uzytkownika, zapisuje ja w historii,
@@ -84,8 +90,8 @@ def chat(payload: ChatRequest) -> ChatResponse:
     user_message = Message(role=MessageRole.USER, content=payload.message)
     conversations.add_message(conversation.id, user_message)
 
-    answer_text = _generate_placeholder_answer(payload.message)
-    assistant_message = Message(role=MessageRole.ASSISTANT, content=answer_text)
+    answer_text, sources = _generate_answer(payload.message)
+    assistant_message = Message(role=MessageRole.ASSISTANT, content=answer_text, sources=sources)
     conversations.add_message(conversation.id, assistant_message)
 
     return ChatResponse(

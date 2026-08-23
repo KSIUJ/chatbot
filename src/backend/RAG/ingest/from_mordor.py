@@ -32,6 +32,8 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 
+PROGRESS_EVERY = 200
+
 
 def _iter_files(directory):
     for root, _, filenames in os.walk(directory):
@@ -41,9 +43,33 @@ def _iter_files(directory):
             yield os.path.join(root, filename)
 
 
+def _pdf_has_text_layer(file_path: str, min_chars: int = 20) -> bool:
+    import fitz
+
+    fitz.TOOLS.mupdf_display_errors(False)
+
+    try:
+        doc = fitz.open(file_path)
+    except Exception:
+        return False
+    try:
+        total = 0
+        for page in doc:
+            total += len(page.get_text("text").strip())
+            if total >= min_chars:
+                return True
+        return False
+    except Exception:
+        return False
+    finally:
+        doc.close()
+
+
 def _text_documents(file_path: str) -> list[Document]:
     import pymupdf4llm
     from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+    pymupdf4llm.use_layout(False)
 
     file_name = os.path.basename(file_path)
     parent_dir = os.path.dirname(file_path)
@@ -89,8 +115,10 @@ def _text_documents(file_path: str) -> list[Document]:
 def _image_document(file_path: str) -> Document:
     file_name = os.path.basename(file_path)
     parent_dir = os.path.dirname(file_path)
-    category = os.path.basename(parent_dir)
-    embed_text = f"{category} {file_name}".replace("_", " ").replace("-", " ")
+
+    rel_path = os.path.relpath(file_path, BASE_DIR)
+    rel_no_ext = os.path.splitext(rel_path)[0]
+    embed_text = rel_no_ext.replace(os.sep, " ").replace("_", " ").replace("-", " ")
 
     return Document(
         id=make_id("mordor", file_path),
@@ -109,15 +137,26 @@ def load_documents(directory: str = BASE_DIR) -> list[Document]:
         return []
 
     documents: list[Document] = []
+    processed = 0
     for file_path in _iter_files(directory):
         _, ext = os.path.splitext(file_path)
         ext = ext.lower()
 
-        if ext in TEXT_EXTENSIONS:
+        if ext == ".pdf":
+            if _pdf_has_text_layer(file_path):
+                documents.extend(_text_documents(file_path))
+            else:
+                documents.append(_image_document(file_path))
+        elif ext in {".docx", ".txt"}:
             documents.extend(_text_documents(file_path))
         elif ext in IMAGE_EXTENSIONS:
             documents.append(_image_document(file_path))
         else:
             continue
 
+        processed += 1
+        if processed % PROGRESS_EVERY == 0:
+            print(f"[mordor] przetworzono {processed} plikow, {len(documents)} chunkow do tej pory")
+
+    print(f"[mordor] gotowe: {processed} plikow, {len(documents)} chunkow")
     return documents
