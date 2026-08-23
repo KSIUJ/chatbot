@@ -1,0 +1,13 @@
+sprint 3
+todo
+- prosta strona (Ola + Mikołaj)
+- backend (ja)
+    - RAG prompt -> prompt + kontekst (encoder + baza danych + retriever) (karol + patrycja)
+    - prompt + kontekst -> llm -> output (Mikołaj)
+    - mordor upgrade (jakiś key z directory coś ten) (Mikołaj ola)
+    - dane upgrade + knmf + readme (Sonia)
+    
+    key value
+    zwykłe key = value
+    zdjęcia key = opis zdjęcia value = plik
+    
