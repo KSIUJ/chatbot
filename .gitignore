@@ -1,5 +1,9 @@
 # passwords and API keys
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # data
 data/mordor
@@ -22,8 +26,52 @@ data/strony/
 .venv
 *.log
 __pycache__/
-.DS_Store
 Thumbs.db
+
+# Logs
+logs
+*.log
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# python virtual environments
+venv/
+.venv/
+env/
+*.pyc
+
+# cache and tests 
+coverage/
+.eslintcache
+.stylelintcache
+
 src/data/mordor/check_progress.py
 src/data/usos/.last_request_time
 .superpowers/
+
+src/frontend/src/assets/facade_4-Dwl60qUz.svg
+src/frontend/src/assets/logo-ksi-IBUoeAwm.svg
+
+*.db
+mock_ollama.py
