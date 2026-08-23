@@ -1,0 +1,24 @@
+<!-- PLACEHOLDER: abstrakcyjny ksztalt zamiast prawdziwego zdjecia fasady budynku
+     (oryginal byl tylko lokalnie u autorki, .gitignore go wykluczal - patrz raport
+     dockeryzacji). Podmienic na prawdziwy asset, gdy bedzie dostepny w repo. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid meet">
+  <rect x="40" y="40" width="720" height="320" rx="4" fill="#000"/>
+  <g fill="#000">
+    <rect x="80" y="80" width="60" height="90"/>
+    <rect x="160" y="80" width="60" height="90"/>
+    <rect x="240" y="80" width="60" height="90"/>
+    <rect x="320" y="80" width="60" height="90"/>
+    <rect x="420" y="80" width="60" height="90"/>
+    <rect x="500" y="80" width="60" height="90"/>
+    <rect x="580" y="80" width="60" height="90"/>
+    <rect x="660" y="80" width="60" height="90"/>
+    <rect x="80" y="200" width="60" height="90"/>
+    <rect x="160" y="200" width="60" height="90"/>
+    <rect x="240" y="200" width="60" height="90"/>
+    <rect x="320" y="200" width="60" height="90"/>
+    <rect x="420" y="200" width="60" height="90"/>
+    <rect x="500" y="200" width="60" height="90"/>
+    <rect x="580" y="200" width="60" height="90"/>
+    <rect x="660" y="200" width="60" height="90"/>
+  </g>
+</svg>
