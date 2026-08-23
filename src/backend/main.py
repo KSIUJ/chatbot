@@ -1,13 +1,21 @@
-
-#uvicorn src.backend.main:app --reload
 import os
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from .llm.generate import answer as rag_answer
-from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+
+# import llm logic
+from .llm.generate import answer as rag_answer
 
 from .config import APP_NAME, FRONTEND_ORIGINS
-from .database import conversations
+from .database import (
+    add_message,
+    create_conversation as db_create_conversation,
+    get_conversation as db_get_conversation,
+    get_db,
+    get_messages,
+    init_db,
+)
 from .models import Message, MessageRole
 from .request import ChatRequest
 from .response import (
@@ -17,10 +25,9 @@ from .response import (
     MessageResponse,
 )
 
-#TODO no tu zmieniajcie co chcecie to takie dla inspiracji, w miarę powinno działać
-
 app = FastAPI(title=APP_NAME)
 
+# setup CORS so the frontend doesn't complain about cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
@@ -29,11 +36,19 @@ app.add_middleware(
 )
 
 
+# spin up the database on app startup
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
+
+
+# quick wrapper to extract answer and files from rag_answer
 def _generate_answer(message: str) -> tuple[str, list[str]]:
     result = rag_answer(message)
     return result["answer"], result["files"]
 
 
+# helper function to map db message model to frontend response model
 def _to_message_response(message: Message) -> MessageResponse:
     return MessageResponse(
         id=message.id,
@@ -44,14 +59,16 @@ def _to_message_response(message: Message) -> MessageResponse:
     )
 
 
+# simple healthcheck endpoint to verify if the api is alive
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse()
 
 
+# endpoint to spin up a new, empty conversation
 @app.post("/conversations", response_model=ConversationResponse)
-def create_conversation() -> ConversationResponse:
-    conversation = conversations.create()
+def create_conversation(db: Session = Depends(get_db)) -> ConversationResponse:
+    conversation = db_create_conversation(db)
     return ConversationResponse(
         id=conversation.id,
         created_at=conversation.created_at,
@@ -59,40 +76,43 @@ def create_conversation() -> ConversationResponse:
     )
 
 
+# endpoint to grab an existing conversation along with its history
 @app.get("/conversations/{conversation_id}", response_model=ConversationResponse)
-def get_conversation(conversation_id: str) -> ConversationResponse:
-    conversation = conversations.get(conversation_id)
+def get_conversation(conversation_id: str, db: Session = Depends(get_db)) -> ConversationResponse:
+    conversation = db_get_conversation(db, conversation_id)
     if conversation is None:
-        raise HTTPException(status_code=404, detail="Konwersacja nie znaleziona")
+        raise HTTPException(status_code=404, detail="conversation not found")
 
+    messages = get_messages(db, conversation_id)
     return ConversationResponse(
         id=conversation.id,
         created_at=conversation.created_at,
-        messages=[_to_message_response(m) for m in conversation.messages],
+        messages=[_to_message_response(m) for m in messages],
     )
 
 
-"""Zrobione wzglednie w sensie no zwraca ladnie te wiadomosci ale nie obsluguje
-conversation_id i nie zapisuje w bazie, wiec to do zmiany"""
-
+# main chat endpoint: processes user query, hits the llm, and saves the chat history
 @app.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest) -> ChatResponse:
-    """Glowny endpoint: przyjmuje wiadomosc uzytkownika, zapisuje ja w historii,
-    generuje odpowiedz (na razie placeholder) i zwraca ja wraz z conversation_id.
-    """
+def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
+    # fetch existing conversation or create a new one if id is missing
     if payload.conversation_id is not None:
-        conversation = conversations.get(payload.conversation_id)
+        conversation = db_get_conversation(db, payload.conversation_id)
         if conversation is None:
-            raise HTTPException(status_code=404, detail="Konwersacja nie znaleziona")
+            raise HTTPException(status_code=404, detail="conversation not found")
     else:
-        conversation = conversations.create()
+        conversation = db_create_conversation(db)
 
-    user_message = Message(role=MessageRole.USER, content=payload.message)
-    conversations.add_message(conversation.id, user_message)
+    # step 1: log user's message into the database
+    add_message(db, conversation.id, MessageRole.USER, payload.message)
 
+    # step 2: pass the query to mikolaj's llm logic and get the answer + sources
     answer_text, sources = _generate_answer(payload.message)
-    assistant_message = Message(role=MessageRole.ASSISTANT, content=answer_text, sources=sources)
-    conversations.add_message(conversation.id, assistant_message)
+
+    # step 3: save the llm's response back to the database
+    assistant_message = add_message(db, conversation.id, MessageRole.ASSISTANT, answer_text)
+    
+    # step 4: attach source files to the message object (if any exist)
+    assistant_message.sources = sources
 
     return ChatResponse(
         conversation_id=conversation.id,
