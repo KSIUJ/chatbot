@@ -1,0 +1,10 @@
+sprint 4
+todo
+- prosta strona (Ola + Mikołaj)
+- backend (ja)
+    - RAG + automatyzacja
+    - prompt + kontekst -> llm -> output (Mikołaj)
+    - +ksi (Sonia)
+    - jak się promptuje + co bierze RAG (Sonia)
+    - ile roboty historia czatów (Sonia)
+  
