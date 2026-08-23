@@ -1,0 +1,21 @@
+.git
+.venv
+venv
+env
+__pycache__
+*.pyc
+
+# dane uzytkownika - montowane jako wolumeny, nie pakowane do obrazu
+data
+dataset
+*.db
+
+.env
+.env.*
+!.env.example
+
+docs
+tests
+.pytest_cache
+
+src/frontend
