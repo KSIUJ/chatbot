@@ -1,8 +1,19 @@
+pytest
 requests
 python-dotenv
 requests_oauthlib
 pytest
 fastapi
 uvicorn[standard]
+
+# RAG retrieval (src/backend/RAG/)
+sentence-transformers
+chromadb
+langchain-text-splitters
 sqlalchemy
 alembic
+pymupdf4llm
+
+# Backend API (src/backend/main.py)
+fastapi
+uvicorn[standard]
