@@ -11,6 +11,7 @@ sentence-transformers
 chromadb
 langchain-text-splitters
 sqlalchemy
+alembic
 pymupdf4llm
 
 # Backend API (src/backend/main.py)
