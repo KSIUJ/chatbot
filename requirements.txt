@@ -8,3 +8,8 @@ pytest
 sentence-transformers
 chromadb
 langchain-text-splitters
+pymupdf4llm
+
+# Backend API (src/backend/main.py)
+fastapi
+uvicorn[standard]

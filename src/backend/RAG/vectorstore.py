@@ -49,6 +49,18 @@ class VectorStore:
             metadatas=metadatas,
         )
 
+    def filter_new(self, documents: list[Document]) -> list[Document]:
+        if not documents:
+            return []
+
+        ids = [d.id for d in documents]
+        present: set[str] = set()
+        for i in range(0, len(ids), 1000):
+            got = self._collection.get(ids=ids[i : i + 1000])
+            present.update(got.get("ids", []))
+
+        return [d for d in documents if d.id not in present]
+
     def search(self, query: str, top_k: int = 5) -> list[dict]:
         """Zwraca top-k najbardziej pasujacych wpisow dla danego zapytania."""
         query_embedding = self.encoder.embed_query(query)
