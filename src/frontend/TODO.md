@@ -1,0 +1,7 @@
+-nowa ikonka chatbota - pozniej, libresprite lub aseprite
+-dodac strone do profilu ZROBIONE
+-formatowanie markdown, chyba ??
+-auto resizing miejsca na input ZROBIONE
+-auto focus na input (powrot kursora do miejsca na wpisywanie)  ZROBIONE
+-cos nie dziala z przerywaniem odp ZROBIONE
+-link do strony KSI ZROBIONE
