@@ -27,6 +27,15 @@ class MessageRole(str, enum.Enum):
     USER = "user"
     ASSISTANT = "assistant"
 
+class MessageFeedback(str, enum.Enum):
+    """Ocena odpowiedzi asystenta - lapka w gore/dol"""
+    UP = "up"
+    DOWN = "down"
+
+
+# Domyslna liczba kontekstow jesli uzytkownik nie ustawil wlasnej
+DEFAULT_CONTEXT_COUNT = 5
+
 
 class User(Base):
     __tablename__ = "users"
@@ -39,7 +48,14 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(default=True)
+
+    # Czy uzytkownik potwierdzil maila kodem wyslanym przy rejestracji
+    # (osobne od is_active - to jest "czy konto aktywne/niezablokowane")
+    zweryfikowany: Mapped[bool] = mapped_column(default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    context_count: Mapped[int] = mapped_column(default=DEFAULT_CONTEXT_COUNT)
 
     conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -79,7 +95,36 @@ class Message(Base):
     # Lista zrodel z RAG-a
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
 
+    feedback: Mapped[MessageFeedback | None] = mapped_column(SAEnum(MessageFeedback), nullable=True)
+
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"Message(id={self.id!r}, role={self.role!r})"
+
+
+class EmailCode(Base):
+    """Kody weryfikacji maila wysylane przy rejestracji."""
+    __tablename__ = "email_codes"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    kod: Mapped[str] = mapped_column(String(6), nullable=False)
+    typ: Mapped[str] = mapped_column(String(20), nullable=False)  # na razie zawsze "verify"
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used: Mapped[bool] = mapped_column(default=False)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"EmailCode(id={self.id!r}, user_id={self.user_id!r}, typ={self.typ!r})"
+
+
+class BlacklistedToken(Base):
+    """Token uniewazniony przez logout - trzymany do naturalnego wygasniecia."""
+    __tablename__ = "blacklisted_tokens"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
+    token: Mapped[str] = mapped_column(String(500), unique=True, index=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"BlacklistedToken(id={self.id!r})"

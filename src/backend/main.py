@@ -1,3 +1,5 @@
+#python -m alembic upgrade head
+#uvicorn src.backend.main:app --reload
 import os
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
