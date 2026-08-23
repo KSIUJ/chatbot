@@ -1,0 +1,91 @@
+# Alembic
+
+## Ważne uwagi:
+
+- Nigdy nie należy zmieniać tabel ręcznie w bazie ani edytować plików w `alembic/versions`, tylko zawsze przez komendy poniżej.
+- Każda migracja to nowy plik w `alembic/versions`. Ma upgrade() (co zrobić) i downgrade() (jak cofnąć).
+- Migracje działają podobnie do gita (revision ≈ commit, upgrade ≈ push), tylko że zamiast historii repo zapamiętują aktualną wersję schematu bazy danych.
+- Jeśli `alembic upgrade head` narzeka na "multiple heads" to znaczy, że dwie osoby zrobiły migrację równolegle i pojawił się konflikt.
+
+## Instalacja
+
+Alembic jest już w `requirements.txt`:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+(inicjalizacja projektu (`alembic init`) już została zrobiona, nie trzeba tego powtarzać)
+
+## Generowanie migracji
+
+```bash
+python -m alembic revision --autogenerate -m "opis zmiany"
+```
+
+## Podniesienie bazy do najnowszej wersji schematu
+
+```bash
+python -m alembic upgrade head
+```
+
+## Sprawdzenie, na której wersji jest aktualnie baza
+
+```bash
+python -m alembic current
+```
+
+## Historia migracji
+
+```bash
+python -m alembic history --verbose
+```
+
+## Cofnięcie ostatniej migracji
+
+```bash
+python -m alembic downgrade -1
+```
+
+## Cofnięcie wszystkiego (pusta baza)
+
+```bash
+python -m alembic downgrade base
+```
+
+## Przykładowy pipeline (typowa sesja)
+
+Zakładając dodanie nowej kolumny `avatar_url` do `User` w `src/backend/models.py`:
+
+```powershell
+# 1. Generowanie migracji - Alembic sam porównuje models.py z bazą i proponuje zmianę
+python -m alembic revision --autogenerate -m "add avatar_url to users"
+
+# Output np:
+#   Generating .../alembic/versions/a1b2c3d4e5f6_add_avatar_url_to_users.py ... done
+
+# 2. Otwiera się wygenerowany plik i sprawdza czy upgrade()/downgrade() robi to
+#    co trzeba (np. czy nowa kolumna ma sensowny nullable/default)
+
+# 3. Odpalenie migracji na lokalnej bazie
+python -m alembic upgrade head
+
+# Output np:
+#   INFO  [alembic.runtime.migration] Running upgrade d509882390a9 -> a1b2c3d4e5f6, add avatar_url to users
+
+# 4. Sprawdzenie, że baza faktycznie stoi na nowej wersji
+python -m alembic current
+# -> a1b2c3d4e5f6 (head)
+
+# 5. Commit pliku migracji razem ze zmianą w models.py
+git add src/backend/models.py alembic/versions/a1b2c3d4e5f6_add_avatar_url_to_users.py
+git commit -m "add avatar_url to users"
+git push
+```
+
+Osoba która ściąga tę zmianę z Gita wykonuje tylko:
+
+```powershell
+git pull
+python -m alembic upgrade head
+```
