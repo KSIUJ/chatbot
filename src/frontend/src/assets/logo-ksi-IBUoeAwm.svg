@@ -1,0 +1,7 @@
+<!-- PLACEHOLDER: generyczna ikonka zamiast prawdziwego logo kola (oryginal byl
+     tylko lokalnie u autorki, .gitignore go wykluczal - patrz raport dockeryzacji).
+     Podmienic na prawdziwe logo, gdy bedzie dostepne w repo. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="28" fill="#1e3a8a"/>
+  <path d="M32 16 L44 40 H20 Z" fill="#fff"/>
+</svg>
