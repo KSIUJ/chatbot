@@ -102,16 +102,16 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     else:
         conversation = db_create_conversation(db)
 
-    # step 1: log user's message into the database
+    # log user's message into the database
     add_message(db, conversation.id, MessageRole.USER, payload.message)
 
-    # step 2: pass the query to mikolaj's llm logic and get the answer + sources
+    # pass the query to llm logic and get the answer + sources
     answer_text, sources = _generate_answer(payload.message)
 
-    # step 3: save the llm's response back to the database
+    # save the llm's response back to the database
     assistant_message = add_message(db, conversation.id, MessageRole.ASSISTANT, answer_text)
     
-    # step 4: attach source files to the message object (if any exist)
+    # attach source files to the message object (if any exist)
     assistant_message.sources = sources
 
     return ChatResponse(
