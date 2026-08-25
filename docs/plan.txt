@@ -15,23 +15,6 @@ could
 dane -> RAG -> na co zostanie czas
 
 
-Pierwszy sprint:
-- co to RAG (jaki format danych!!!)
-- skąd wziąć dane: (web scraping)
-	-strona wydziału + statut (czy cała?)
-	-strony kół
-	-wikipedia wydziału
-	-usos?
-	-mordor???
-	-discord????? nie
-
-
-Drugi sprint:
-Dane:
--strony (Sonia + Patrycja)
--mordor (Mikołaj + Ola)
--usos (Karol)
-
 RAG retrieval (src/backend/RAG/) - podsumowanie:
 
 Model embeddingowy: sdadas/mmlw-roberta-large (domyslnie, uzywany lokalnie
@@ -69,6 +52,4 @@ mozliwe, ze czesc warstwy normalizacji w src/backend/RAG/ingest/ pokrywa sie
 z jej praca. Zanim dwie osoby zbuduja rownolegle dwie wersje normalizacji,
 warto zderzyc schemat Document (schema.py) z tym, co ona planuje.
 
-Poza zakresem tego zadania: faktyczne spiecie build_context() z
-src/backend/main.py (FastAPI) i z src/backend/llm/ - main.py jest na razie
-tylko placeholderem, a llm/ rozwija rownolegle Mikolaj.
+
