@@ -1,7 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
 from .models import MessageRole
-#tu szablony odpowiedzi
 
 class MessageResponse(BaseModel):
     id: str
