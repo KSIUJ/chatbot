@@ -6,6 +6,10 @@ pytest
 fastapi
 uvicorn[standard]
 
+# Claude API (src/backend/llm/claude_client.py) - opcjonalny dostawca LLM,
+# wlaczany przez LLM_PROVIDER=claude (patrz .env.example)
+anthropic
+
 # RAG retrieval (src/backend/RAG/)
 sentence-transformers
 chromadb

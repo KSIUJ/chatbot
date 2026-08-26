@@ -1,7 +1,8 @@
 import os
 
 from ..RAG.context_builder import build_context
-from .client import chat
+from . import claude_client
+from . import client as ollama_client
 
 SYSTEM_PROMPT = (
     "Jestes asystentem Wydzialu Matematyki i Informatyki UJ. ZASADY:\n"
@@ -27,6 +28,15 @@ def _format_files(files: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _resolve_chat_fn():
+    """Wybiera implementacje chat() na podstawie LLM_PROVIDER (domyslnie
+    lokalny Ollama; "claude" przelacza na Claude API - patrz claude_client.py)."""
+    provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+    if provider == "claude":
+        return claude_client.chat
+    return ollama_client.chat
+
+
 def answer(query: str, top_k: int = 5) -> dict:
     context, files = build_context(query, top_k=top_k)
 
@@ -43,7 +53,8 @@ def answer(query: str, top_k: int = 5) -> dict:
 
     user_message = "\n\n".join(parts) + f"\n\nPYTANIE: {query}\n\nOdpowiedz po polsku."
 
-    reply = chat(system=SYSTEM_PROMPT, user=user_message)
+    chat_fn = _resolve_chat_fn()
+    reply = chat_fn(system=SYSTEM_PROMPT, user=user_message)
     return {"answer": reply, "files": files}
 
 
