@@ -1,7 +1,7 @@
 <h1 align="center">Jagiellonian University Faculty Chatbot – Faculty of Mathematics and Computer Science</h1>
 
 <p align="center">
-  A RAG-based chatbot answering student and prospective-student questions about the JU Faculty of Mathematics and Computer Science.
+  A RAG-based chatbot answering student and prospective-student questions about the UJ Faculty of Mathematics and Computer Science.
   <br>Built by the KSI Student Science Club.
 </p>
 
