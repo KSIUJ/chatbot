@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mail, ArrowLeft, ArrowRight, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, ArrowLeft, ArrowRight, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 import LoginBackground from './LoginBackground';
 
 interface RegisterScreenProps {
@@ -10,6 +10,10 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
 
   // form states
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  
   const [isLoading, setIsLoading] = useState(false);
   const [isCodeSent, setIsCodeSent] = useState(false);
 
@@ -31,28 +35,41 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
   }, [isCodeSent, timeLeft]);
 
   // handle sending code
-  const handleSendCode = (e?: React.FormEvent) => {
+  const handleSendCode = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!email.trim()) return;
 
     setIsLoading(true);
+    setError('');
     
-    // mock backend request with 1 second delay
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await fetch('http://localhost:8000/api/auth/register/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'failed to send code');
+      }
+
       setIsCodeSent(true); 
       setTimeLeft(60); // reset timer
-    }, 1000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // handle code input changes
   const handleCodeChange = (index: number, value: string) => {
-
     // only allow numbers
     if (value && !/^\d+$/.test(value)) return;
 
     const newCode = [...code];
-    
     // take only the last character if someone pastes
     newCode[index] = value.slice(-1);
     setCode(newCode);
@@ -89,12 +106,41 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
   };
 
   // handle final verification
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const fullCode = code.join('');
-    if (fullCode.length !== 6) return;
+    if (fullCode.length !== 6 || !password.trim()) {
+      setError('please enter the code and set a password.');
+      return;
+    }
     
-    // this is where backend dev will verify the code
-    console.log("verifying code:", fullCode);
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://localhost:8000/api/auth/register/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: email.trim(),
+          code: fullCode,
+          password: password
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'verification failed');
+      }
+
+      // registration successful! redirect to login
+      onGoBackToLogin();
+      
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -124,6 +170,14 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
           </p>
         </div>
 
+        {/* error message display */}
+        {error && (
+          <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <p>{error}</p>
+          </div>
+        )}
+
         {!isCodeSent ? (
           /* view 1: entering email */
           <form className="space-y-4 pt-2" onSubmit={handleSendCode}>
@@ -138,7 +192,10 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError('');
+                  }}
                   className="w-full pl-9 pr-3 py-2.5 bg-white/90 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 text-slate-900 placeholder-slate-400 outline-none transition-all text-sm"
                   placeholder="@student.uj.edu.pl"
                   disabled={isLoading}
@@ -193,12 +250,47 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
               ))}
             </div>
 
+            {/* password setup */}
+            <div className="space-y-1.5 pt-2">
+              <label className="text-[11px] font-semibold text-slate-700 tracking-wide uppercase">Set Password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Lock className="h-4 w-4" />
+                </div>
+                
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
+                  className="w-full pl-9 pr-10 py-2.5 bg-white/90 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600 text-slate-900 outline-none transition-all text-sm"
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                />
+                
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
             <button
               onClick={handleVerify}
-              disabled={code.join('').length !== 6}
+              disabled={code.join('').length !== 6 || !password.trim()}
               className="w-full group rounded-xl bg-blue-700/80 px-4 py-2.5 font-bold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-sm cursor-pointer"
             >
-              Verify Code
+              Verify Code & Register
             </button>
 
             {/* resend timer */}
