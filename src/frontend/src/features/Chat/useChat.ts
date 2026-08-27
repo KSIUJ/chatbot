@@ -221,7 +221,8 @@ export function useChat(onLogout?: () => void) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: userText 
+          message: userText,
+          rag_count: ragCount
         }),
       });
 

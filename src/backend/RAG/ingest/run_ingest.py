@@ -24,10 +24,12 @@ BATCH_SIZE = 256
 def run_ingest(
     sources: list[str] | None = None, batch_size: int = BATCH_SIZE
 ) -> dict[str, int]:
+    from ..lexical import LexicalIndex
     from ..vectorstore import VectorStore
 
     sources = sources or list(SOURCE_LOADERS.keys())
     store = VectorStore()
+    lexical = LexicalIndex()
     summary = {}
 
     for source in sources:
@@ -43,7 +45,8 @@ def run_ingest(
         done = 0
         for i in range(0, len(todo), batch_size):
             batch = todo[i : i + batch_size]
-            store.add_documents(batch) 
+            store.add_documents(batch)
+            lexical.add_documents(batch)
             done += len(batch)
             print(f"[ingest] {source}: {done}/{len(todo)} zapisanych (partia {i // batch_size + 1})")
 
@@ -51,6 +54,35 @@ def run_ingest(
         print(f"[ingest] {source}: {total} dokumentow lacznie (nowych {len(todo)}, juz bylo {skipped})")
 
     return summary
+
+
+def rebuild_lexical(batch_size: int = 5000) -> int:
+    from ..lexical import LexicalIndex
+    from ..vectorstore import VectorStore
+
+    collection = VectorStore().collection
+    lexical = LexicalIndex()
+
+    done = 0
+    while True:
+        batch = collection.get(
+            limit=batch_size, offset=done, include=["documents", "metadatas"]
+        )
+        if not batch["ids"]:
+            break
+
+        lexical.add_raw(
+            [
+                (doc_id, (metadata or {}).get("source"), text or "")
+                for doc_id, text, metadata in zip(
+                    batch["ids"], batch["documents"], batch["metadatas"]
+                )
+            ]
+        )
+        done += len(batch["ids"])
+        print(f"[lexical] {done} chunkow zaindeksowanych")
+
+    return done
 
 
 def main() -> None:
@@ -63,7 +95,17 @@ def main() -> None:
         help="Ograniczenie ingestu do wybranego zrodla (mozna podac wielokrotnie). "
         "Domyslnie: wszystkie zrodla.",
     )
+    parser.add_argument(
+        "--rebuild-lexical",
+        action="store_true",
+        help="Odbudowuje indeks leksykalny (FTS5) z istniejacego vectorstore i konczy.",
+    )
     args = parser.parse_args()
+
+    if args.rebuild_lexical:
+        total = rebuild_lexical()
+        print(f"[lexical] Gotowe: {total} chunkow.")
+        return
 
     summary = run_ingest(args.sources)
     total = sum(summary.values())
