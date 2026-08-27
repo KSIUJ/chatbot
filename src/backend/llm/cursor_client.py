@@ -11,10 +11,9 @@ realnie dziesiatki sekund, a rownolegle wywolania na tego samego agenta zwracaja
 Kazde wywolanie chat() tworzy nowego, bezstanowego agenta bez repo
 ("no-repo agent") i odpytuje o wynik w petli.
 
-Model domyslny: "claude-4.5-haiku" (nazwa wg wzorca z GET /v1/models, gdzie
-Cursor pokazuje np. "claude-4.6-sonnet-thinking"). Jesli Cursor odrzuci to ID,
-sprawdz dostepne modele przez cursor_client.list_models() i ustaw CURSOR_MODEL
-w .env.
+Model domyslny: "claude-haiku-4-5" (zweryfikowane przez GET /v1/models na
+realnym kluczu). Inne dostepne ID sprawdzisz przez cursor_client.list_models();
+nadpiszesz przez CURSOR_MODEL w .env.
 """
 
 import os
@@ -23,10 +22,14 @@ import time
 import requests
 
 API_BASE = "https://api.cursor.com"
-DEFAULT_MODEL = "claude-4.5-haiku"
-DEFAULT_TIMEOUT = 300
+DEFAULT_MODEL = "claude-haiku-4-5"
+# Calkowity budzet czasu na jedno chat() (create + polling). Cursor jest wolny:
+# samo POST /v1/agents potrafi blokowac ~60 s (czeka na zakonczenie runa).
+DEFAULT_TIMEOUT = 600
 DEFAULT_POLL_INTERVAL = 2.0
-_HTTP_TIMEOUT = 30
+# Timeout pojedynczego GET (polling statusu runa). POST /v1/agents dostaje
+# osobny, dluzszy timeout (parametr `timeout` funkcji chat()).
+_HTTP_TIMEOUT = 60
 
 # Statusy runa, po ktorych nie ma sensu dalej pollowac (patrz dokumentacja
 # GET /v1/agents/{id}/runs/{runId}).
@@ -64,17 +67,21 @@ def _raise_for_status(response: requests.Response) -> None:
     )
 
 
-def _request(method: str, path: str, **kwargs) -> dict:
+def _request(method: str, path: str, *, timeout: float = _HTTP_TIMEOUT, **kwargs) -> dict:
     try:
         response = requests.request(
             method,
             f"{API_BASE}{path}",
             headers=_headers(),
-            timeout=_HTTP_TIMEOUT,
+            timeout=timeout,
             **kwargs,
         )
     except requests.RequestException as e:
         raise RuntimeError(f"Blad polaczenia z Cursor API: {e}") from e
+    # Cursor zwraca JSON bez charset w Content-Type - bez tego autodetekcja
+    # requests/charset-normalizer myli polski UTF-8 z CP1250 (mojibake w
+    # odpowiedziach: "mogę" -> "mogÄ™").
+    response.encoding = "utf-8"
     _raise_for_status(response)
     return response.json()
 
@@ -109,9 +116,12 @@ def chat(
     # instrukcje systemowa z wiadomoscia uzytkownika w jeden tekst.
     prompt_text = f"{system}\n\n{user}" if system else user
 
+    # POST /v1/agents blokuje sie, dopoki run sie nie skonczy (~60 s+), wiec
+    # dostaje pelny budzet czasu zamiast domyslnego _HTTP_TIMEOUT.
     created = _request(
         "POST",
         "/v1/agents",
+        timeout=timeout,
         json={"prompt": {"text": prompt_text}, "model": {"id": model}},
     )
     agent_id = created["agent"]["id"]
