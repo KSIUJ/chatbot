@@ -67,8 +67,9 @@ def on_startup() -> None:
 
 
 # quick wrapper to extract answer and files from rag_answer
-def _generate_answer(message: str) -> tuple[str, list[str]]:
-    result = rag_answer(message)
+def _generate_answer(message: str, rag_count: int | None = None) -> tuple[str, list[str]]:
+    kwargs = {"k_mordor": rag_count, "k_other": rag_count} if rag_count else {}
+    result = rag_answer(message, **kwargs)
     return result["answer"], result["files"]
 
 
@@ -177,7 +178,7 @@ def verify_and_register(payload: VerifyAndRegisterRequest, db: Session = Depends
     if not email_code or email_code.kod != payload.code:
         raise HTTPException(status_code=400, detail="invalid code.")
         
-    if email_code.expires_at < datetime.now(timezone.utc):
+    if email_code.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="code has expired.")
         
     # mark code as used
@@ -232,7 +233,7 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     add_message(db, conversation.id, MessageRole.USER, payload.message)
 
     # step 2: pass the query to mikolaj's llm logic and get the answer + sources
-    answer_text, sources = _generate_answer(payload.message)
+    answer_text, sources = _generate_answer(payload.message, payload.rag_count)
 
     # step 3: save the llm's response back to the database
     assistant_message = add_message(db, conversation.id, MessageRole.ASSISTANT, answer_text)

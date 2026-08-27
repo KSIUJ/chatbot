@@ -10,10 +10,17 @@ SYSTEM_PROMPT = (
     "polamany tekst.\n"
     "2. Opieraj sie na sekcjach KONTEKST TEKSTOWY i PASUJACE PLIKI. Nie zmyslaj "
     "tresci, ktorej tam nie ma.\n"
-    "3. Jesli w PASUJACE PLIKI sa materialy pasujace do pytania, WSKAZ je "
+    "3. Jesli jest sekcja PRACOWNIK, to ona zawiera odpowiedz na pytanie o te "
+    "osobe (stanowisko, pokoj, dyzury, e-mail, zainteresowania). Nie szukaj "
+    "tych danych w pozostalych sekcjach.\n"
+    "4. Sekcja ZRODLA OFICJALNE ma pierwszenstwo: przy pytaniach o pracownikow, "
+    "dyzury, pokoje, regulaminy i terminy opieraj sie wylacznie na niej. "
+    "MATERIALY STUDENCKIE traktuj jako pomocnicze i nie cytuj z nich danych "
+    "kontaktowych ani zasad organizacyjnych.\n"
+    "5. Jesli w PASUJACE PLIKI sa materialy pasujace do pytania, WSKAZ je "
     "uzytkownikowi po nazwie - nawet jesli nie znasz ich tresci. To czesto "
     "skany zadan/notatek, wiec sam plik jest odpowiedzia i zostanie dolaczony.\n"
-    "4. Dopiero jesli naprawde nic nie pasuje, powiedz krotko, ze nie masz tego "
+    "6. Dopiero jesli naprawde nic nie pasuje, powiedz krotko, ze nie masz tego "
     "w materialach. Odpowiadaj rzeczowo i zwiezle."
 )
 
@@ -27,8 +34,8 @@ def _format_files(files: list[str]) -> str:
     return "\n".join(lines)
 
 
-def answer(query: str, top_k: int = 5) -> dict:
-    context, files = build_context(query, top_k=top_k)
+def answer(query: str, k_mordor: int = 5, k_other: int = 5) -> dict:
+    context, files = build_context(query, k_mordor=k_mordor, k_other=k_other)
 
     parts = []
     if context.strip():
