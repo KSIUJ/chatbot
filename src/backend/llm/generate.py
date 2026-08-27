@@ -3,6 +3,7 @@ import os
 from ..RAG.context_builder import build_context
 from . import claude_client
 from . import client as ollama_client
+from . import cursor_client
 
 SYSTEM_PROMPT = (
     "Jestes asystentem Wydzialu Matematyki i Informatyki UJ. ZASADY:\n"
@@ -30,10 +31,13 @@ def _format_files(files: list[str]) -> str:
 
 def _resolve_chat_fn():
     """Wybiera implementacje chat() na podstawie LLM_PROVIDER (domyslnie
-    lokalny Ollama; "claude" przelacza na Claude API - patrz claude_client.py)."""
+    lokalny Ollama; "claude" -> Claude API (claude_client.py); "cursor" ->
+    Cursor Cloud Agents API (cursor_client.py))."""
     provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
     if provider == "claude":
         return claude_client.chat
+    if provider == "cursor":
+        return cursor_client.chat
     return ollama_client.chat
 
 
