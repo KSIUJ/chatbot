@@ -1,8 +1,8 @@
 """
 Klient Claude API (Anthropic) - alternatywa dla lokalnego Ollamy (client.py),
 uzywana gdy LLM_PROVIDER=claude (patrz generate.py). Ten sam interfejs
-chat(system, user) -> str co client.py, zeby generate.py mogl przelaczac
-providera bez zmian w logice RAG.
+chat(system, user, history=None) -> str co client.py, zeby generate.py mogl
+przelaczac providera bez zmian w logice RAG.
 """
 
 import os
@@ -14,6 +14,7 @@ DEFAULT_MAX_TOKENS = 4096
 def chat(
     system: str,
     user: str,
+    history: list[dict] | None = None,
     model: str | None = None,
     temperature: float = 0.2,
     timeout: int = 300,
@@ -24,13 +25,17 @@ def chat(
     model = model or os.getenv("CLAUDE_MODEL", DEFAULT_MODEL)
     client = anthropic.Anthropic(timeout=timeout)
 
+    # Wczesniejsze tury rozmowy (role user/assistant) trafiaja jako natywne
+    # messages przed biezacym pytaniem - Claude API obsluguje wielotura wprost.
+    messages = [*(history or []), {"role": "user", "content": user}]
+
     try:
         response = client.messages.create(
             model=model,
             max_tokens=max_tokens,
             temperature=temperature,
             system=system,
-            messages=[{"role": "user", "content": user}],
+            messages=messages,
         )
     except anthropic.AuthenticationError as e:
         raise RuntimeError(

@@ -1,8 +1,8 @@
 """
 Klient Cursor Cloud Agents API - alternatywa dla lokalnego Ollamy (client.py)
 i Claude API (claude_client.py), uzywana gdy LLM_PROVIDER=cursor (patrz
-generate.py). Ten sam interfejs chat(system, user) -> str, zeby generate.py
-mogl przelaczac providera bez zmian w logice RAG.
+generate.py). Ten sam interfejs chat(system, user, history=None) -> str, zeby
+generate.py mogl przelaczac providera bez zmian w logice RAG.
 
 UWAGA: Cursor nie udostepnia synchronicznego API inferencji. Cloud Agents API
 uruchamia agenta w chmurze (provisioning VM), wiec pojedyncze zapytanie trwa
@@ -106,15 +106,24 @@ def list_models() -> list[str]:
 def chat(
     system: str,
     user: str,
+    history: list[dict] | None = None,
     model: str | None = None,
     timeout: int = DEFAULT_TIMEOUT,
     poll_interval: float = DEFAULT_POLL_INTERVAL,
 ) -> str:
     model = model or os.getenv("CURSOR_MODEL", DEFAULT_MODEL)
 
-    # Cursor ma jedno pole prompt.text (brak osobnej roli "system") - laczymy
-    # instrukcje systemowa z wiadomoscia uzytkownika w jeden tekst.
-    prompt_text = f"{system}\n\n{user}" if system else user
+    # Cursor ma jedno pole prompt.text (brak osobnych rol i historii) - skladamy
+    # instrukcje systemowa, wczesniejsze tury rozmowy i biezace pytanie w jeden
+    # tekst.
+    sections = [system] if system else []
+    for message in history or []:
+        speaker = "Uzytkownik" if message.get("role") == "user" else "Asystent"
+        content = message.get("content") or ""
+        if content:
+            sections.append(f"{speaker}: {content}")
+    sections.append(user)
+    prompt_text = "\n\n".join(sections)
 
     # POST /v1/agents blokuje sie, dopoki run sie nie skonczy (~60 s+), wiec
     # dostaje pelny budzet czasu zamiast domyslnego _HTTP_TIMEOUT.
