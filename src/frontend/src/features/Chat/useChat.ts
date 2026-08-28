@@ -53,6 +53,7 @@ export function useChat(onLogout?: () => void) {
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // ref to handle the initial thinking delay
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,13 +175,16 @@ export function useChat(onLogout?: () => void) {
 
   // stop streaming response and update message state
   const handleStopGenerating = () => {
-    let wasInDelay = false;
+    // the request is still in flight while the dots are showing - without
+    // aborting it the answer lands on screen after the user cancelled
+    const wasWaitingForResponse = !streamingIntervalRef.current;
 
-    // cancel the initial delay if it hasn't started streaming yet
+    abortRef.current?.abort();
+    abortRef.current = null;
+
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
-      wasInDelay = true;
     }
 
     // clear the streaming interval if it is already generating text
@@ -194,9 +198,8 @@ export function useChat(onLogout?: () => void) {
     const interruptedText = selectedLanguage === 'angielski' ? ' [Interrupted]' : ' [Przerwano]';
 
     setMessages(prev => {
-      // if stopped during the initial dots (delay), the bot message wasn't even added yet
-      // we need to add it now as an empty interrupted message
-      if (wasInDelay) {
+      // if stopped before streaming started, the bot message wasn't added yet
+      if (wasWaitingForResponse) {
         return [...prev, {
           id: Date.now().toString(),
           sender: 'bot',
@@ -224,9 +227,11 @@ export function useChat(onLogout?: () => void) {
   };
 
   // start streaming response with real API fetch and error handling
-  const startStreamingResponse = async (userText: string) => {
+  const startStreamingResponse = async (userText: string, regenerate = false) => {
     const botMsgId = (Date.now() + 1).toString();
-    
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       // simulating network request / hitting python backend
       const response = await fetch("http://127.0.0.1:8000/chat", {
@@ -237,8 +242,10 @@ export function useChat(onLogout?: () => void) {
         body: JSON.stringify({
           message: userText,
           rag_count: ragCount,
-          conversation_id: conversationId
+          conversation_id: conversationId,
+          regenerate
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -246,6 +253,7 @@ export function useChat(onLogout?: () => void) {
       }
 
       const data = await response.json();
+      if (controller.signal.aborted) return;
 
       if (data.conversation_id) {
         setConversationId(data.conversation_id);
@@ -281,6 +289,9 @@ export function useChat(onLogout?: () => void) {
       }, 15);
 
     } catch (error) {
+      // cancelling is not a failure - handleStopGenerating already updated the view
+      if (controller.signal.aborted) return;
+
       // handle network error or server crash 
       console.error("Network error or bot failed to respond:", error);
       setIsTyping(false);
@@ -319,7 +330,7 @@ export function useChat(onLogout?: () => void) {
 
     // start typing animation and try generating again
     setIsTyping(true);
-    startStreamingResponse(textToRegenerate);
+    startStreamingResponse(textToRegenerate, true);
   };
 
   const handleSendMessage = () => {
