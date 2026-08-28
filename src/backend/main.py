@@ -67,9 +67,11 @@ def on_startup() -> None:
 
 
 # quick wrapper to extract answer and files from rag_answer
-def _generate_answer(message: str, rag_count: int | None = None) -> tuple[str, list[str]]:
+def _generate_answer(
+    message: str, rag_count: int | None = None, history: list[dict] | None = None
+) -> tuple[str, list[str]]:
     kwargs = {"k_mordor": rag_count, "k_other": rag_count} if rag_count else {}
-    result = rag_answer(message, **kwargs)
+    result = rag_answer(message, history=history, **kwargs)
     return result["answer"], result["files"]
 
 
@@ -229,11 +231,16 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     else:
         conversation = db_create_conversation(db)
 
+    history = [
+        {"role": m.role.value, "content": m.content}
+        for m in get_messages(db, conversation.id)
+    ]
+
     # step 1: log user's message into the database
     add_message(db, conversation.id, MessageRole.USER, payload.message)
 
     # step 2: pass the query to mikolaj's llm logic and get the answer + sources
-    answer_text, sources = _generate_answer(payload.message, payload.rag_count)
+    answer_text, sources = _generate_answer(payload.message, payload.rag_count, history)
 
     # step 3: save the llm's response back to the database
     assistant_message = add_message(db, conversation.id, MessageRole.ASSISTANT, answer_text)

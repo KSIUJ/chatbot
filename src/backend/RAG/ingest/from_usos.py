@@ -79,6 +79,12 @@ def _format_positions(positions: list | None) -> str:
     return "; ".join(formatted)
 
 
+def _format_phones(phones: list | None) -> str:
+    if not phones:
+        return ""
+    return ", ".join(str(p).strip() for p in phones if str(p).strip())
+
+
 def _employee_to_document(employee: dict) -> Document:
     full_name = " ".join(
         part for part in (employee.get("first_name"), employee.get("last_name")) if part
@@ -89,6 +95,9 @@ def _employee_to_document(employee: dict) -> Document:
     interests_text = _strip_html(employee.get("interests_text") or "")
     positions = _format_positions(employee.get("employment_positions"))
     email = employee.get("email") or ""
+    phones = _format_phones(employee.get("phone_numbers"))
+    homepage_url = employee.get("homepage_url") or ""
+    profile_url = employee.get("profile_url") or ""
 
     lines = [f"{titles} {full_name}".strip()]
     if positions:
@@ -99,6 +108,10 @@ def _employee_to_document(employee: dict) -> Document:
         lines.append(f"Dyzury: {office_hours_text}")
     if email:
         lines.append(f"E-mail: {email}")
+    if phones:
+        lines.append(f"Telefon: {phones}")
+    if homepage_url:
+        lines.append(f"Strona domowa: {homepage_url}")
     if interests_text:
         lines.append(f"Zainteresowania: {interests_text}")
     embed_text = "\n".join(lines)
@@ -107,9 +120,12 @@ def _employee_to_document(employee: dict) -> Document:
         "employee_id": employee.get("id"),
         "employee_name": full_name,
         "email": email,
+        "phone": phones,
         "room": room,
         "office_hours": office_hours_text,
-        "profile_url": employee.get("profile_url"),
+        "interests": interests_text,
+        "homepage_url": homepage_url,
+        "profile_url": profile_url,
         "employment_positions": positions,
     }
 

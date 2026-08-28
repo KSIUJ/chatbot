@@ -19,8 +19,9 @@ export function useChat(onLogout?: () => void) {
   });
 
   const [ragCount, setRagCount] = useState<number>(() => {
-    const saved = localStorage.getItem('chatRagCount');
-    return saved ? parseInt(saved, 10) : 5;
+    const saved = parseInt(localStorage.getItem('chatRagCount') ?? '', 10);
+    if (!Number.isFinite(saved)) return 5;
+    return Math.min(Math.max(saved, 1), 8);
   });
 
   // chat states
@@ -41,6 +42,10 @@ export function useChat(onLogout?: () => void) {
     return [{ id: '1', sender: 'bot', text: translations[lang].botGreeting }];
   });
   
+  const [conversationId, setConversationId] = useState<string | null>(
+    () => localStorage.getItem('chatConversationId')
+  );
+
   const [copiedIds, setCopiedIds] = useState<string[]>([]);
   const [reactions, setReactions] = useState<Record<string, 'up' | 'down'>>({});
 
@@ -65,6 +70,14 @@ export function useChat(onLogout?: () => void) {
   useEffect(() => {
     localStorage.setItem('chatRagCount', ragCount.toString());
   }, [ragCount]);
+
+  useEffect(() => {
+    if (conversationId) {
+      localStorage.setItem('chatConversationId', conversationId);
+    } else {
+      localStorage.removeItem('chatConversationId');
+    }
+  }, [conversationId]);
 
   useEffect(() => {
     const messagesToSave = messages.map(msg => ({
@@ -125,6 +138,7 @@ export function useChat(onLogout?: () => void) {
     streamingIntervalRef.current = null;
     typingTimeoutRef.current = null;
 
+    setConversationId(null);
     setMessages([
       { id: Date.now().toString(), sender: 'bot', text: translations[selectedLanguage].botGreeting }
     ]);
@@ -222,7 +236,8 @@ export function useChat(onLogout?: () => void) {
         },
         body: JSON.stringify({
           message: userText,
-          rag_count: ragCount
+          rag_count: ragCount,
+          conversation_id: conversationId
         }),
       });
 
@@ -231,6 +246,10 @@ export function useChat(onLogout?: () => void) {
       }
 
       const data = await response.json();
+
+      if (data.conversation_id) {
+        setConversationId(data.conversation_id);
+      }
       
       // Dopasuj do formatu zwracanego z backendu/mocka Ollamy
       const fullReplyText = data.message?.content || data.answer || "Brak odpowiedzi";

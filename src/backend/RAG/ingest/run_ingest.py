@@ -22,7 +22,7 @@ BATCH_SIZE = 256
 
 
 def run_ingest(
-    sources: list[str] | None = None, batch_size: int = BATCH_SIZE
+    sources: list[str] | None = None, batch_size: int = BATCH_SIZE, purge: bool = False
 ) -> dict[str, int]:
     from ..lexical import LexicalIndex
     from ..vectorstore import VectorStore
@@ -33,11 +33,16 @@ def run_ingest(
     summary = {}
 
     for source in sources:
+        if purge:
+            removed = store.delete_source(source)
+            removed_lex = lexical.delete_source(source)
+            print(f"[ingest] {source}: usunieto {removed} z vectorstore, {removed_lex} z indeksu FTS")
+
         loader = SOURCE_LOADERS[source]
         documents = loader()
         total = len(documents)
 
-        todo = store.filter_new(documents)
+        todo = documents if purge else store.filter_new(documents)
         skipped = total - len(todo)
         if skipped:
             print(f"[ingest] {source}: pomijam {skipped} juz zapisanych, do zrobienia {len(todo)}")
@@ -96,6 +101,11 @@ def main() -> None:
         "Domyslnie: wszystkie zrodla.",
     )
     parser.add_argument(
+        "--purge",
+        action="store_true",
+        help="Usuwa dane zrodla z obu indeksow przed ingestem (wymusza nadpisanie zmienionych rekordow).",
+    )
+    parser.add_argument(
         "--rebuild-lexical",
         action="store_true",
         help="Odbudowuje indeks leksykalny (FTS5) z istniejacego vectorstore i konczy.",
@@ -107,7 +117,7 @@ def main() -> None:
         print(f"[lexical] Gotowe: {total} chunkow.")
         return
 
-    summary = run_ingest(args.sources)
+    summary = run_ingest(args.sources, purge=args.purge)
     total = sum(summary.values())
     print(f"[ingest] Razem dodano {total} dokumentow.")
 
