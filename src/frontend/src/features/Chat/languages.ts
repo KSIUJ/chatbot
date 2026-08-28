@@ -8,7 +8,7 @@ export const translations = {
     chat3: "Kontakt do dziekanatu",
     language: "Język",
     theme: "Motyw",
-    ragContexts: "Fragmenty na zrodlo",
+    ragContexts: "Fragmenty na źródło",
     settings: "Ustawienia",
     account: "Konto",
     logout: "Wyloguj się",

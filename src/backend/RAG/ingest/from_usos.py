@@ -38,6 +38,8 @@ STAFF_FILE_GLOB = "staff_*.json"
 
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
+MISSING = "brak danych w USOS"
+
 
 def _latest_staff_file(staff_dir: str) -> str | None:
     matches = sorted(glob.glob(os.path.join(staff_dir, STAFF_FILE_GLOB)))
@@ -102,14 +104,10 @@ def _employee_to_document(employee: dict) -> Document:
     lines = [f"{titles} {full_name}".strip()]
     if positions:
         lines.append(f"Stanowisko: {positions}")
-    if room:
-        lines.append(f"Pokoj: {room}")
-    if office_hours_text:
-        lines.append(f"Dyzury: {office_hours_text}")
-    if email:
-        lines.append(f"E-mail: {email}")
-    if phones:
-        lines.append(f"Telefon: {phones}")
+    lines.append(f"Pokoj: {room or MISSING}")
+    lines.append(f"Dyzury: {office_hours_text or MISSING}")
+    lines.append(f"E-mail: {email or MISSING}")
+    lines.append(f"Telefon: {phones or MISSING}")
     if homepage_url:
         lines.append(f"Strona domowa: {homepage_url}")
     if interests_text:

@@ -15,6 +15,7 @@ from .config import APP_NAME, FRONTEND_ORIGINS
 from .database import (
     add_message,
     create_conversation as db_create_conversation,
+    delete_last_assistant_message,
     get_conversation as db_get_conversation,
     get_db,
     get_messages,
@@ -231,13 +232,20 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     else:
         conversation = db_create_conversation(db)
 
-    history = [
-        {"role": m.role.value, "content": m.content}
-        for m in get_messages(db, conversation.id)
-    ]
+    # regeneration replays the last question, so drop the rejected answer instead
+    # of appending a duplicate turn that would later be fed back as history
+    regenerating = payload.regenerate and payload.conversation_id is not None
+    if regenerating:
+        delete_last_assistant_message(db, conversation.id)
+
+    previous = get_messages(db, conversation.id)
+    if regenerating and previous and previous[-1].role == MessageRole.USER:
+        previous = previous[:-1]
+    history = [{"role": m.role.value, "content": m.content} for m in previous]
 
     # step 1: log user's message into the database
-    add_message(db, conversation.id, MessageRole.USER, payload.message)
+    if not regenerating:
+        add_message(db, conversation.id, MessageRole.USER, payload.message)
 
     # step 2: pass the query to mikolaj's llm logic and get the answer + sources
     answer_text, sources = _generate_answer(payload.message, payload.rag_count, history)
