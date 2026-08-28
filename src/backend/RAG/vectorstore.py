@@ -127,5 +127,10 @@ class VectorStore:
             "other": self._query(embedding, k_other, GROUP_OTHER),
         }
 
+    def delete_source(self, source: str) -> int:
+        before = self._collection.count()
+        self._collection.delete(where={"source": source})
+        return before - self._collection.count()
+
     def count(self) -> int:
         return self._collection.count()

@@ -8,6 +8,7 @@ DEFAULT_DB_PATH = os.path.join("dataset", "lexical.db")
 TABLE = "chunks_fts"
 TITLE_WEIGHT = 5.0
 TITLE_MAX_CHARS = 200
+MAX_DOC_FREQ_RATIO = 0.02
 
 _FOLD = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
 
@@ -27,6 +28,8 @@ class LexicalIndex:
         if parent:
             os.makedirs(parent, exist_ok=True)
 
+        self._doc_freq: dict[str, int] = {}
+        self._total: int | None = None
         self._con = sqlite3.connect(db_path, check_same_thread=False)
         self._con.execute(
             f"""CREATE VIRTUAL TABLE IF NOT EXISTS {TABLE} USING fts5(
@@ -76,6 +79,23 @@ class LexicalIndex:
         )
         self._con.commit()
 
+    def document_frequency(self, token: str) -> int:
+        if token not in self._doc_freq:
+            self._doc_freq[token] = self._con.execute(
+                f"SELECT count(*) FROM {TABLE} WHERE {TABLE} MATCH ?", (f'"{token}"',)
+            ).fetchone()[0]
+        return self._doc_freq[token]
+
+    def selective_tokens(self, tokens: list[str]) -> list[str]:
+        if self._total is None:
+            self._total = self.count()
+        if not self._total:
+            return tokens
+
+        ceiling = MAX_DOC_FREQ_RATIO * self._total
+        selective = [t for t in tokens if self.document_frequency(t) <= ceiling]
+        return selective or tokens
+
     def search(self, tokens: list[str], sources: tuple[str, ...], limit: int = 5) -> list[str]:
         if not tokens or not sources or limit <= 0:
             return []
@@ -90,6 +110,11 @@ class LexicalIndex:
             (match, *sources, limit),
         ).fetchall()
         return [row[0] for row in rows]
+
+    def delete_source(self, source: str) -> int:
+        cur = self._con.execute(f"DELETE FROM {TABLE} WHERE source = ?", (source,))
+        self._con.commit()
+        return cur.rowcount
 
     def count(self, source: str | None = None) -> int:
         if source is None:
