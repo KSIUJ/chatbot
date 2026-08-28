@@ -65,9 +65,7 @@ def get_request_token() -> tuple[str, str]:
     _respect_rate_limit()
 
     url = BASE_URL.rstrip("/") + "/services/oauth/request_token"
-    response = requests.get(
-        url, params={"oauth_callback": "oob", "scopes": SCOPES}, auth=auth, timeout=30
-    )
+    response = requests.get(url, params={"scopes": SCOPES}, auth=auth, timeout=30)
 
     if response.status_code != 200:
         raise UsosApiError(response.status_code, response.text)

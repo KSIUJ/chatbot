@@ -23,7 +23,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   // handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // reset previous error
@@ -38,22 +38,35 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
     // start loading state
     setIsLoading(true);
 
-    // mock server request with 1 second delay
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      // real backend request to fastapi
+      const response = await fetch('http://localhost:8000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: email.trim(), 
+          password: password,
+          rememberMe: rememberMe 
+        }),
+      });
 
-      // mock backend validation
-      // for now password must be haslo123 to succeed!!!!!!
-      if (password !== 'haslo123') {
-        setError('invalid email or password.');
-        setPassword(''); // reset password on error
-        return;
+      const data = await response.json();
+
+      if (!response.ok) {
+        // backend throws errors in the "detail" field
+        throw new Error(data.detail || 'invalid email or password.');
       }
 
-      // if password is correct proceed to login passing remember state
-      setPassword(''); // reset password on success
+      // if success proceed to login passing remember state
+      setPassword(''); 
       onLogin(email.trim(), rememberMe);
-    }, 1000);
+
+    } catch (err: any) {
+      setError(err.message);
+      setPassword(''); // reset password on error
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
