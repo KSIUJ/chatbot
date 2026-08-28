@@ -162,7 +162,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
                   <input 
                     type="range" 
                     min="1" 
-                    max="15" 
+                    max="8" 
                     value={ragCount}
                     onChange={(e) => setRagCount(parseInt(e.target.value, 10))}
                     className="w-full accent-neutral-500 cursor-pointer"
@@ -170,7 +170,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
                   <div className="flex justify-between text-[10px] opacity-60">
                     <span>1</span>
                     <span>5 (default)</span>
-                    <span>15</span>
+                    <span>8</span>
                   </div>
                 </div>
               </div>
