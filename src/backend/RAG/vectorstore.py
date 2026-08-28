@@ -17,6 +17,9 @@ from .ingest.schema import Document
 DEFAULT_PERSIST_DIR = os.path.join("dataset", "vectorstore")
 COLLECTION_NAME = "chatbot_wmi"
 
+GROUP_MORDOR = {"source": "mordor"}
+GROUP_OTHER = {"source": {"$in": ["strony", "usos"]}}
+
 
 class VectorStore:
     def __init__(self, persist_dir: str = DEFAULT_PERSIST_DIR, encoder: Encoder | None = None):
@@ -61,13 +64,35 @@ class VectorStore:
 
         return [d for d in documents if d.id not in present]
 
-    def search(self, query: str, top_k: int = 5) -> list[dict]:
-        """Zwraca top-k najbardziej pasujacych wpisow dla danego zapytania."""
-        query_embedding = self.encoder.embed_query(query)
+    @property
+    def collection(self):
+        return self._collection
+
+    def get_by_ids(self, ids: list[str]) -> list[dict]:
+        if not ids:
+            return []
+
+        got = self._collection.get(ids=ids, include=["documents", "metadatas"])
+        by_id = {}
+        for id_, value, metadata in zip(got["ids"], got["documents"], got["metadatas"]):
+            by_id[id_] = {
+                "id": id_,
+                "value": value,
+                "content_type": metadata.get("content_type", "text"),
+                "source": metadata.get("source"),
+                "metadata": metadata,
+                "distance": None,
+            }
+        return [by_id[i] for i in ids if i in by_id]
+
+    def _query(self, embedding: list[float], top_k: int, where: dict | None = None) -> list[dict]:
+        if top_k <= 0:
+            return []
 
         results = self._collection.query(
-            query_embeddings=[query_embedding],
+            query_embeddings=[embedding],
             n_results=top_k,
+            where=where,
         )
 
         hits = []
@@ -88,6 +113,24 @@ class VectorStore:
                 }
             )
         return hits
+
+    def search(self, query: str, top_k: int = 5) -> list[dict]:
+        """Zwraca top-k najbardziej pasujacych wpisow dla danego zapytania."""
+        return self._query(self.encoder.embed_query(query), top_k)
+
+    def search_split(
+        self, query: str, k_mordor: int = 5, k_other: int = 5
+    ) -> dict[str, list[dict]]:
+        embedding = self.encoder.embed_query(query)
+        return {
+            "mordor": self._query(embedding, k_mordor, GROUP_MORDOR),
+            "other": self._query(embedding, k_other, GROUP_OTHER),
+        }
+
+    def delete_source(self, source: str) -> int:
+        before = self._collection.count()
+        self._collection.delete(where={"source": source})
+        return before - self._collection.count()
 
     def count(self) -> int:
         return self._collection.count()
