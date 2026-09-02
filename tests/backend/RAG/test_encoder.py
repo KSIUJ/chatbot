@@ -21,7 +21,7 @@ class _FakeSentenceTransformer:
         self.encoded_texts = []
         _FakeSentenceTransformer.last_instance = self
 
-    def encode(self, texts, convert_to_numpy=True, normalize_embeddings=True):
+    def encode(self, texts, convert_to_numpy=True, normalize_embeddings=True, **kwargs):
         import numpy as np
 
         if isinstance(texts, str):

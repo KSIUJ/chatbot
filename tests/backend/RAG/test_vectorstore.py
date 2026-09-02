@@ -86,3 +86,36 @@ def test_search_includes_image_content_type(tmp_path, fake_encoder):
 
     assert hits[0]["content_type"] == "image"
     assert hits[0]["value"] == "data/mordor/mapy/plan_budynku.png"
+
+
+def test_search_split_gives_each_group_its_own_slots(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
+    documents = [
+        Document(
+            id=f"mordor_{i}",
+            source="mordor",
+            embed_text="regulamin studiow zaliczenia przedmiotu",
+            content_type="text",
+            value=f"Notatka {i}",
+            metadata={"source_file": f"notatka_{i}.pdf"},
+        )
+        for i in range(3)
+    ]
+    documents.append(
+        Document(
+            id="usos_1",
+            source="usos",
+            embed_text="regulamin studiow zaliczenia przedmiotu",
+            content_type="text",
+            value="Jan Kowalski, pokoj 101.",
+            metadata={"employee_name": "Jan Kowalski"},
+        )
+    )
+    store.add_documents(documents)
+
+    groups = store.search_split("regulamin zaliczenia", k_mordor=2, k_other=2)
+
+    assert len(groups["mordor"]) == 2
+    assert all(h["source"] == "mordor" for h in groups["mordor"])
+    assert len(groups["other"]) == 1
+    assert groups["other"][0]["value"] == "Jan Kowalski, pokoj 101."

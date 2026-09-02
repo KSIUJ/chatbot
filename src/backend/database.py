@@ -201,6 +201,18 @@ def get_messages(db: Session, conversation_id: str) -> list[Message]:
     )
     return list(db.execute(stmt).scalars().all())
 
+def delete_last_assistant_message(db: Session, conversation_id: str) -> bool:
+    """Kasuje ostatnia wiadomosc asystenta, jesli konwersacja konczy sie wlasnie nia.
+    Uzywane przy regeneracji, zeby odrzucona odpowiedz nie zostala w historii."""
+    messages = get_messages(db, conversation_id)
+    if not messages or messages[-1].role != MessageRole.ASSISTANT:
+        return False
+
+    db.delete(messages[-1])
+    db.commit()
+    return True
+
+
 def set_message_feedback(db: Session, message_id: str, feedback: MessageFeedback | None) -> Message:
     """Ustawia/kasuje lapke w gore lub w dol na wiadomosci. feedback=None czysci ocene."""
     message = db.get(Message, message_id)
