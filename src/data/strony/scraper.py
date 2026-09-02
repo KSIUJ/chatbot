@@ -24,13 +24,14 @@ START_URLS = [
     "https://kmsuj.matinf.uj.edu.pl/",
     "https://nkr.si/",
     "https://knmf.im.uj.edu.pl/",
+    "https://usosownia.uj.edu.pl/start",
 ]
 
 ALLOWED_DOMAINS = {urlparse(u).netloc for u in START_URLS}
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_FILE = REPO_ROOT / "data" / "strony" / "webiste_data.txt"
 DELAY = 0.2
-MAX_PAGES = 1000
+MAX_PAGES = 3000
 
 WIKIPEDIA_URLS = [
     "https://pl.wikipedia.org/wiki/Wydzia%C5%82_Matematyki_i_Informatyki_Uniwersytetu_Jagiello%C5%84skiego",
