@@ -17,6 +17,9 @@ from .database import (
     get_db,
     get_messages,
     init_db,
+    count_registered_users,
+    count_anonymous_conversations,
+    count_prompts,
 )
 from .models import Message, MessageRole
 from .request import ChatRequest
@@ -25,6 +28,7 @@ from .response import (
     ConversationResponse,
     HealthResponse,
     MessageResponse,
+    StatsResponse,
 )
 
 app = FastAPI(title=APP_NAME)
@@ -119,4 +123,13 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     return ChatResponse(
         conversation_id=conversation.id,
         message=_to_message_response(assistant_message),
+    )
+
+
+@app.get("/api/stats", response_model=StatsResponse)
+def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
+    return StatsResponse(
+        accounts_created=count_registered_users(db),
+        anonymous_conversations=count_anonymous_conversations(db),
+        total_prompts=count_prompts(db),
     )
