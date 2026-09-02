@@ -24,3 +24,9 @@ class ChatResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = "ok"
+
+
+class StatsResponse(BaseModel):
+    accounts_created: int
+    anonymous_conversations: int
+    total_prompts: int
