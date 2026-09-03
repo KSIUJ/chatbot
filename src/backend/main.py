@@ -25,6 +25,9 @@ from .database import (
     is_allowed_email,
     verify_password,
     hash_password,
+    count_registered_users,
+    count_anonymous_conversations,
+    count_prompts,
 )
 from .models import Message, MessageRole, EmailCode
 from .request import ChatRequest
@@ -33,6 +36,7 @@ from .response import (
     ConversationResponse,
     HealthResponse,
     MessageResponse,
+    StatsResponse,
 )
 
 app = FastAPI(title=APP_NAME)
@@ -259,4 +263,15 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     return ChatResponse(
         conversation_id=conversation.id,
         message=_to_message_response(assistant_message),
+    )
+
+
+
+# endpoint returning aggregate usage statistics for recruiters/CV purposes
+@app.get("/api/stats", response_model=StatsResponse)
+def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
+    return StatsResponse(
+        accounts_created=count_registered_users(db),
+        anonymous_conversations=count_anonymous_conversations(db),
+        total_prompts=count_prompts(db),
     )
