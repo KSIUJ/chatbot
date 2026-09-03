@@ -4,6 +4,7 @@ from ..RAG.context_builder import build_context
 from . import claude_client
 from . import client as ollama_client
 from . import cursor_client
+from . import openrouter_client
 from .rewrite import condense
 
 SYSTEM_PROMPT = (
@@ -66,13 +67,16 @@ def _format_files(files: list[str]) -> str:
 def _resolve_chat_fn():
     """Wybiera implementacje chat() na podstawie LLM_PROVIDER (domyslnie
     lokalny Ollama; "claude" -> Claude API (claude_client.py); "cursor" ->
-    Cursor Cloud Agents API (cursor_client.py)). Wszystkie trzy maja ten sam
-    interfejs chat(system, user, history=None) -> str."""
+    Cursor Cloud Agents API (cursor_client.py); "openrouter" -> OpenRouter API
+    (openrouter_client.py)). Wszystkie maja ten sam interfejs
+    chat(system, user, history=None) -> str."""
     provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
     if provider == "claude":
         return claude_client.chat
     if provider == "cursor":
         return cursor_client.chat
+    if provider == "openrouter":
+        return openrouter_client.chat
     return ollama_client.chat
 
 
