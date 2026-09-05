@@ -1,137 +1,213 @@
-<h1 align="center">Chatbot Wydziałowy UJ – Wydział Matematyki i Informatyki</h1>
+<h1 align="center">Jagiellonian University Faculty Chatbot – Faculty of Mathematics and Computer Science</h1>
 
 <p align="center">
-  Chatbot oparty o RAG, który odpowiada na pytania studentów i kandydatów dotyczące Wydziału Matematyki i Informatyki UJ.
-  <br>Tworzony przez Koło Naukowe KSI.
+  A RAG-based chatbot answering student and prospective-student questions about the UJ Faculty of Mathematics and Computer Science.
+  <br>Built by the KSI Student Science Club.
 </p>
 
 <p align="center">
-    <img src="https://img.shields.io/badge/status-w%20budowie-yellow">
-    <img src="https://img.shields.io/badge/python-3.11+-blue">
+    <img src="https://img.shields.io/badge/status-in%20progress-yellow">
+    <img src="https://img.shields.io/badge/python-3.10+-blue">
     <img src="https://img.shields.io/badge/license-TODO-lightgrey">
+  </p>
+
+<p align="center">
+    <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white">
+    <img src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white">
+    <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white">
+    <img src="https://img.shields.io/badge/SQLAlchemy-D71F00?logo=sqlalchemy&logoColor=white">
+    <img src="https://img.shields.io/badge/ChromaDB-vector%20store-6E56CF">
+    <img src="https://img.shields.io/badge/Ollama-Qwen2.5-000000?logo=ollama&logoColor=white">
+    <img src="https://img.shields.io/badge/Tailwind%20CSS-06B6D4?logo=tailwindcss&logoColor=white">
   </p>
 
 ---
 
-## Spis treści
+## Table of contents
 
-- [O projekcie](#o-projekcie)
-- [Dlaczego ten projekt powstał](#dlaczego-ten-projekt-powstał)
-- [Architektura](#architektura)
-- [Instalacja](#instalacja)
-- [Użycie](#użycie)
-- [Struktura repozytorium](#struktura-repozytorium)
-- [Zespół](#zespół)
-- [Roadmapa](#roadmapa)
-- [Licencja](#licencja)
+<!-- TODO [Screenshot](#screenshot)-->
 
----
-
-## Wersje językowe / Language Versions
-
-- **Polski** — ten dokument
-- [English Version](README.en.md)
+- [About the project](#about-the-project)
+- [Why this project exists](#why-this-project-exists)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Repository structure](#repository-structure)
+- [Team](#team)
+- [License](#license)
 
 ---
 
-## O projekcie
+## About the project
 
-Projekt realizowany w ramach **Koła Naukowego Studentów Informatyki (KSI)** przy Wydziale Matematyki i Informatyki Uniwersytetu Jagiellońskiego (UJ WMI). Celem projektu jest stworzenie dedykowanego chatbota wykorzystującego architekturę **RAG (Retrieval-Augmented Generation)**, który sprawnie odpowiada na pytania związane z wydziałem, bazując na sprawdzonych dokumentach i danych źródłowych.
+A chatbot for the Jagiellonian University Faculty of Mathematics and Computer Science (UJ WMI), built by the **KSI Student Science Club**. It uses **Retrieval-Augmented Generation (RAG)** to answer Faculty-related questions grounded in real, verified sources instead of guessing.
 
-> _Projekt znajduje się w fazie rozwoju. Niektóre funkcjonalności są w trakcie wdrażania._
+What it does:
 
-**TODO (opcjonalnie):** jakieś przykłady pytań
+- Answers questions about credit requirements, course rules, and Faculty procedures using documents indexed from Mordor (the Faculty's internal file-sharing platform) and Faculty/club websites.
+- Pulls staff contact info, office hours, and positions directly from the USOS API.
+- Surfaces the actual source file (including scanned PDFs and images) behind an answer, not just a generated summary.
+- Runs entirely on a self-hosted stack — local embeddings and a local LLM served through Ollama, no third-party AI API calls.
+<!--TODO: user accounts (registration/login) are in progress"-->
 
-## Dlaczego ten projekt powstał
+> _The project is under active development. The RAG pipeline and backend API are functional._
 
-Nasz projekt powstał z potrzeby ułatwienia życia studentom (szczególnie tym zaczynającym swoją przygodę na WMI) oraz stworzenia realnego, zaawansowanego narzędzia inżynierskiego w ramach Koła Naukowego Studentów Informatyki (KSI). Chcieliśmy połączyć teorię z praktyką:
+<!--## Screenshot
 
-- Wykorzystać architekturę RAG (Retrieval-Augmented Generation) do przeszukiwania realnych, wydziałowych baz danych i stron.
-- Zbudować w pełni lokalny ekosystem AI (oparty m.in. o model Qwen).
-- Stworzyć scentralizowanego, inteligentnego asystenta, który w kilka sekund odpowie na pytania o przedmioty, zasady zaliczeń czy materiały z koła, eliminując konieczność przeklikiwania dziesiątek podstron.
+ TODO: dodać screenshot konweracji
+<p align="center">
+  <img src="docs/screenshot.png" alt="Chatbot UI screenshot placeholder" width="600">
+</p> -->
 
-## Architektura
+## Why this project exists
 
-System opiera się na nowoczesnym stosie technologicznym dla systemów RAG:
+Our project was born out of a need to make life easier for students (especially those just starting out at WMI), and to build a real, advanced engineering tool within the KSI Student Science Club. We wanted to combine theory with practice:
 
-- **LLM (Decoder):** Model `Qwen3-30B-A3B Q4_K_M` hostowany lokalnie.
-- **Embeddings / Baza Danych:** (TODO: uzupełnić).
-- **Przetwarzanie dokumentów:** `pymupdf4llm`, `BeautifulSoup4`, `pypdf`, `python-docx`.
-- **Backend:** Python, (TODO: uzupełnić).
+- Use a RAG (Retrieval-Augmented Generation) architecture to search real Faculty databases and websites.
+- Build a fully local AI ecosystem (served through Ollama, running a Qwen model).
+- Create a centralized, intelligent assistant that answers questions about courses, credit requirements, or club materials in a few seconds, removing the need to click through dozens of subpages.
 
-## Instalacja
+## Architecture
 
-**TODO:** projekt jest w trakcie budowy, więc pełna instrukcja instalacji end-to-end jeszcze nie istnieje. Poniżej szkielet do uzupełnienia w miarę powstawania poszczególnych modułów.
+- **LLM (Decoder):** `Qwen2.5:14b`, served locally through [Ollama](https://ollama.com/) (`src/backend/llm/client.py`). Model and host are configurable via `OLLAMA_MODEL` / `OLLAMA_HOST`.
+- **Embeddings:** `sentence-transformers`, defaulting to [`sdadas/mmlw-roberta-large`](https://huggingface.co/sdadas/mmlw-roberta-large) — a model tuned for Polish retrieval (`src/backend/RAG/encoder.py`). Swappable via `RAG_EMBEDDING_MODEL` without code changes.
+- **Vector store:** [ChromaDB](https://www.trychroma.com/) (`PersistentClient`), storing all three data sources in a single collection distinguished by a `source` field (`src/backend/RAG/vectorstore.py`).
+- **Relational database:** SQLAlchemy + Alembic migrations, SQLite by default (configurable via `DATABASE_URL`) — stores users, conversations, and messages (`src/backend/models.py`, `src/backend/database.py`).
+- **Backend API:** FastAPI (`src/backend/main.py`), exposing chat and conversation endpoints.
+- **Document processing:** `pymupdf4llm`, `BeautifulSoup4`, `pypdf`, `python-docx`.
+- **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS (`src/frontend/`).
 
-### Wymagania
+### Data sources
 
-- Python 3.11+
-- **TODO:** reszta wymagań
+Three independent ingestion pipelines feed the vector store (`src/backend/RAG/ingest/`), unified under one CLI:
 
-### Kroki
+- **Mordor** (`from_mordor.py`) — files downloaded from the Faculty's internal file-sharing platform via `src/data/mordor/files_downloader.py`.
+- **Strony** (`from_strony.py`) — a scraper over Faculty/club websites (`src/data/strony/scraper.py`).
+- **USOS** (`from_usos.py`) — data pulled through the USOS API (`src/data/usos/`), covering both anonymous and signed/authenticated calls.
+
+## Installation
+
+### Requirements
+
+- Python 3.10+
+- Node.js (for the frontend)
+- [Ollama](https://ollama.com/) running locally with a chat model pulled (default: `qwen2.5:14b`)
+
+### Steps
 
 ```bash
-# 1. Sklonuj repozytorium
-git clone <TODO-adres-repo>
-cd <TODO-nazwa-repo>
+# 1. Clone the repository
+git clone git@github.com:KSIUJ/chatbot.git
+cd chatbot
 
-# 2. Utwórz środowisko wirtualne
+# 2. Create a virtual environment
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 3. Zainstaluj zależności
+# 3. Install backend dependencies
 pip install -r requirements.txt
-# TODO: zrobić requirements.txt obejmujące cały projekt
 
-# 4. Skonfiguruj zmienne środowiskowe
-cp .env.example .env   # TODO: dodać plik .env.example
-# uzupełnij m.in. MORDOR_COOKIE, dane USOS API
+# 3a. Install extra dependencies needed only for the strony/mordor scrapers
+# (not required if you only run the backend/RAG pipeline)
+pip install -r src/data/strony/requirements.txt
+pip install -r src/data/mordor/requirements.txt
+
+# 4. Configure environment variables
+cp .env.example .env
+# fill in USOS_CONSUMER_KEY / USOS_CONSUMER_SECRET if you need signed USOS calls,
+# and optionally RAG_EMBEDDING_MODEL / RAG_QUERY_PREFIX / RAG_PASSAGE_PREFIX
+#
+# The following are NOT in .env.example but can be added manually if needed:
+# MORDOR_COOKIE, DATABASE_URL, FRONTEND_ORIGINS, OLLAMA_HOST, OLLAMA_MODEL
+# (see defaults in src/backend/config.py, database.py, llm/client.py)
+
+# 5. Apply database migrations
+python -m alembic upgrade head
+
+# 6. Install frontend dependencies
+cd src/frontend
+npm install
 ```
 
-## Użycie
+## Usage
 
-Po skonfigurowaniu środowiska (patrz [Instalacja](#instalacja)):
+### Backend API
 
 ```bash
-# Pobranie danych ze stron wydziałowych i Wikipedii
-python src/data/strony/scraper.py
-
-# Pobranie plików z Mordoru
-python src/data/mordor/files_downloader.py
-
-# Przetworzenie pobranych plików z Mordoru na chunki (do bazy wektorowej)
-python src/data/mordor/mordor_scraper.py
-
-# Zapytania do USOS API (tryb eksploracyjny/anonimowy)
-python src/data/usos/usos_client.py services/fac/fac2 --params fac_id=WMI
-
-# TODO: uzupełnić przy następnych krokach
+# from the repo root, with the venv active
+uvicorn src.backend.main:app --reload
 ```
 
-## Struktura repozytorium
+Key endpoints:
+
+- `GET /health` — health check
+- `POST /conversations` — start a new conversation
+- `GET /conversations/{id}` — fetch a conversation and its message history
+- `POST /chat` — send a message (optionally with `conversation_id`), get back the assistant's reply plus matched source files
+
+### Frontend
+
+```bash
+cd src/frontend
+npm run dev
+```
+
+### Data ingestion
+
+```bash
+# Scrape faculty/club websites and Wikipedia
+python src/data/strony/scraper.py
+
+# Download files from Mordor
+python src/data/mordor/files_downloader.py
+
+# Pull data from USOS (exploratory CLI)
+python src/data/usos/usos_client.py services/fac/fac2 --params fac_id=WMI
+
+# Ingest all three sources into the vector store
+python -m src.backend.RAG.ingest.run_ingest
+# or a single source:
+python -m src.backend.RAG.ingest.run_ingest --source mordor
+```
+
+### Tests
+
+```bash
+pytest
+```
+
+## Repository structure
 
 ```
 .
-├── docs/
-│   └── plan.txt              # plan projektu, notatki ze sprintów
+├── alembic/                        # database migrations
+├── data/                           # runtime output (gitignored, empty in repo)
+├── dataset/                        # runtime vector store output (gitignored, empty in repo)
+├── docs/                           # sprint notes
 ├── src/
 │   ├── backend/
-│   │   └── main.py           # API backendu (FastAPI) — w budowie
-│   └── data/
-│       ├── mordor/           # pobieranie i przetwarzanie plików z Mordoru
-│       ├── strony/           # scraper stron wydziałowych, kół, Wikipedii
-│       └── usos/             # klient USOS API
-├── README.md
-└── README.en.md
+│   │   ├── main.py                 # FastAPI app: chat + conversation endpoints
+│   │   ├── database.py, models.py  # SQLAlchemy models (users, conversations, messages)
+│   │   ├── config.py
+│   │   ├── request.py, response.py
+│   │   ├── llm/                    # Ollama client + prompt/answer generation
+│   │   └── RAG/
+│   │       ├── encoder.py          # text -> embeddings
+│   │       ├── vectorstore.py      # ChromaDB wrapper
+│   │       ├── retriever.py, context_builder.py
+│   │       └── ingest/             # per-source loaders (mordor, strony, usos) + CLI
+│   ├── data/                       # source code for scraping/downloading (mordor, strony, usos)
+│   └── frontend/                   # React + TypeScript + Vite + Tailwind app
+├── tests/backend/RAG/              # pytest suite for the RAG pipeline
+├── requirements.txt
+└── README.md
 ```
 
-**TODO:** rozbudować opis w miarę powstawania kolejnych katalogów
-
-## Zespół
+## Team
 
 **Mentor:** Oliwier Polak (@Kangurur)
 
-**Członkowie zespołu:**
+**Team members:**
 
 - **Karol Dziekan** (@Dariooo23)
 - **Patrycja Jaworska** (@zazu1023)
@@ -139,26 +215,6 @@ python src/data/usos/usos_client.py services/fac/fac2 --params fac_id=WMI
 - **Mikołaj Suchan** (@Wuchan33)
 - **Aleksandra Woźny** (@olkaa566)
 
-## Roadmapa
+## License
 
-**Must have**
-
-- RAG (encoder + baza danych + decoder)
-- Dane
-
-**Should have**
-
-- Prosta strona
-
-**Could have**
-
-- Ładna strona
-- Zaawansowane funkcjonalności
-- Konta użytkowników itp.
-- Automatyzacja
-
-**TODO:** zamienić na aktualną roadmapę / link do tablicy projektowej, gdy plan się rozwinie.
-
-## Licencja
-
-**TODO:** projekt nie ma jeszcze wybranej licencji.
+**TODO:** no license has been chosen yet.
