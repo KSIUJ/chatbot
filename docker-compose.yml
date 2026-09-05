@@ -1,16 +1,14 @@
 services:
+  # Lokalny model (LLM_PROVIDER=ollama, domyslny) - opcjonalny profil "ollama".
+  # Bez niego (LLM_PROVIDER=claude/cursor/openrouter) ten serwis w ogole nie
+  # startuje: `docker compose up` sam z siebie nie sciaga kilku GB modelu.
+  # Wlaczenie: `docker compose --profile ollama up -d --build`.
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
+    profiles: ["ollama"]
     volumes:
       - ollama-data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
       interval: 10s
@@ -19,8 +17,10 @@ services:
 
   # Jednorazowa "ollama pull" zanim backend wystartuje - inaczej pierwszy
   # /chat trafiaby w model, ktorego jeszcze nie ma (kilka GB pobierania).
+  # Tylko w profilu "ollama" - patrz komentarz przy serwisie ollama.
   ollama-pull:
     image: ollama/ollama:latest
+    profiles: ["ollama"]
     depends_on:
       ollama:
         condition: service_healthy
@@ -36,9 +36,6 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    depends_on:
-      ollama-pull:
-        condition: service_completed_successfully
     env_file:
       - .env
     environment:
@@ -53,13 +50,6 @@ services:
       - hf-cache:/root/.cache/huggingface
     ports:
       - "8000:8000"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s

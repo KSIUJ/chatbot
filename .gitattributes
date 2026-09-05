@@ -1,0 +1,5 @@
+# Skrypty powloki musza miec LF, nawet na Windowsie (core.autocrlf=true) -
+# CRLF w shebangu psuje "exec /entrypoint.sh" w kontenerze Linuksowym
+# ("no such file or directory", bo interpreter to de facto "/bin/sh\r").
+*.sh text eol=lf
+Dockerfile text eol=lf
