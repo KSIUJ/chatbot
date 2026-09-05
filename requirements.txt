@@ -6,6 +6,14 @@ pytest
 fastapi
 uvicorn[standard]
 
+# Claude API (src/backend/llm/claude_client.py) - opcjonalny dostawca LLM,
+# wlaczany przez LLM_PROVIDER=claude (patrz .env.example)
+anthropic
+
+# Cursor Cloud Agents API (src/backend/llm/cursor_client.py) - opcjonalny
+# dostawca LLM, wlaczany przez LLM_PROVIDER=cursor. Uzywa biblioteki requests
+# (juz wyzej), wiec nie dodaje nowej zaleznosci.
+
 # RAG retrieval (src/backend/RAG/)
 sentence-transformers
 chromadb

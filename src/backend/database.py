@@ -6,6 +6,7 @@ from collections.abc import Generator
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import func
 
 from .models import Base, Conversation, DEFAULT_CONTEXT_COUNT, Message, MessageFeedback, MessageRole, User
 
@@ -112,7 +113,6 @@ def create_user(
 def get_user(db: Session, user_id: str) -> User | None:
     return db.get(User, user_id)
 
-
 def get_user_by_email(db: Session, email: str) -> User | None:
     stmt = select(User).where(User.email == email.strip().lower())
     return db.execute(stmt).scalar_one_or_none()
@@ -127,6 +127,14 @@ def set_user_context_count(db: Session, user_id: str, context_count: int) -> Use
     db.commit()
     db.refresh(user)
     return user
+
+def count_users(db: Session) -> int:
+    return db.execute(select(func.count()).select_from(User)).scalar_one()
+
+def count_registered_users(db: Session) -> int:
+    """Liczba faktycznie zalozonych (zweryfikowanych) kont."""
+    stmt = select(func.count()).select_from(User).where(User.zweryfikowany == True)
+    return db.execute(stmt).scalar_one()
 
 
 # CONVERSATIONS
@@ -150,6 +158,14 @@ def list_conversations_for_user(db: Session, user_id: str) -> list[Conversation]
         .order_by(Conversation.created_at.desc())
     )
     return list(db.execute(stmt).scalars().all())
+
+def count_conversations(db: Session) -> int:
+    return db.execute(select(func.count()).select_from(Conversation)).scalar_one()
+
+def count_anonymous_conversations(db: Session) -> int:
+    """Liczba konwersacji zaczetych bez logowania (brak user_id)."""
+    stmt = select(func.count()).select_from(Conversation).where(Conversation.user_id.is_(None))
+    return db.execute(stmt).scalar_one()
 
 
 # MESSAGES
@@ -185,6 +201,18 @@ def get_messages(db: Session, conversation_id: str) -> list[Message]:
     )
     return list(db.execute(stmt).scalars().all())
 
+def delete_last_assistant_message(db: Session, conversation_id: str) -> bool:
+    """Kasuje ostatnia wiadomosc asystenta, jesli konwersacja konczy sie wlasnie nia.
+    Uzywane przy regeneracji, zeby odrzucona odpowiedz nie zostala w historii."""
+    messages = get_messages(db, conversation_id)
+    if not messages or messages[-1].role != MessageRole.ASSISTANT:
+        return False
+
+    db.delete(messages[-1])
+    db.commit()
+    return True
+
+
 def set_message_feedback(db: Session, message_id: str, feedback: MessageFeedback | None) -> Message:
     """Ustawia/kasuje lapke w gore lub w dol na wiadomosci. feedback=None czysci ocene."""
     message = db.get(Message, message_id)
@@ -195,3 +223,7 @@ def set_message_feedback(db: Session, message_id: str, feedback: MessageFeedback
     db.commit()
     db.refresh(message)
     return message
+
+def count_prompts(db: Session) -> int:
+    stmt = select(func.count()).select_from(Message).where(Message.role == MessageRole.USER)
+    return db.execute(stmt).scalar_one()

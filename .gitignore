@@ -70,5 +70,6 @@ src/data/mordor/check_progress.py
 src/data/usos/.last_request_time
 .superpowers/
 
+
 *.db
 mock_ollama.py
