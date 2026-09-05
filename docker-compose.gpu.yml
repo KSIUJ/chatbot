@@ -1,0 +1,27 @@
+# Override wlaczajacy GPU (NVIDIA) dla ollama i backendu (RAG_DEVICE=cuda).
+# Wymaga karty NVIDIA + zainstalowanego NVIDIA Container Toolkit na hoscie -
+# bez tego `docker compose` odmowi startu ("could not select device driver
+# nvidia"), dlatego nie jest to czesc domyslnego docker-compose.yml.
+#
+# Uzycie (doklada sie do bazowego pliku, nie zastepuje go):
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile ollama up -d --build
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  backend:
+    environment:
+      RAG_DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
