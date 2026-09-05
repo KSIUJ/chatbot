@@ -18,6 +18,7 @@
 - [O projekcie](#o-projekcie)
 - [Dlaczego ten projekt powstał](#dlaczego-ten-projekt-powstał)
 - [Architektura](#architektura)
+- [Uruchomienie przez Docker](#uruchomienie-przez-docker)
 - [Instalacja](#instalacja)
 - [Użycie](#użycie)
 - [Struktura repozytorium](#struktura-repozytorium)
@@ -58,6 +59,38 @@ System opiera się na nowoczesnym stosie technologicznym dla systemów RAG:
 - **Embeddings / Baza Danych:** (TODO: uzupełnić).
 - **Przetwarzanie dokumentów:** `pymupdf4llm`, `BeautifulSoup4`, `pypdf`, `python-docx`.
 - **Backend:** Python, (TODO: uzupełnić).
+
+## Uruchomienie przez Docker
+
+Najprostszy sposób na odpalenie całej aplikacji (frontend + backend + RAG + lokalny LLM) bez ręcznej instalacji zależności.
+
+### Wymagania
+
+- [Docker](https://docs.docker.com/engine/install/) + **Docker Compose v2** (polecenie `docker compose`, nie stary `docker-compose`) - w praktyce każda aktualna instalacja Dockera już to ma.
+- GPU NVIDIA + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) - żeby Ollama (LLM) i embeddingi RAG-a liczyły się na GPU, a nie na CPU (Qwen 14B na samym CPU jest w praktyce nieużywalny).
+
+### Kroki
+
+```bash
+# 1. Skonfiguruj zmienne środowiskowe (klucze USOS opcjonalne - potrzebne tylko do scrapowania)
+cp .env.example .env
+
+# 2. Zbuduj obrazy i odpal caly stack
+docker compose up --build
+```
+
+Przy pierwszym uruchomieniu kontener `ollama-pull` pobierze model `qwen2.5:14b` (kilka GB) zanim wystartuje backend - to jest normalne i jednorazowe (model zostaje w wolumenie `ollama-data`).
+
+Po starcie:
+
+- Frontend: http://localhost:8080
+- Backend (bezpośrednio, opcjonalnie do debugowania): http://localhost:8000/health
+
+Frontend rozmawia z backendem przez wbudowany reverse-proxy nginksa (`/api/*`), więc appka działa spod dowolnego adresu, na którym wystawisz serwer - nie trzeba niczego przebudowywać pod konkretny host.
+
+Inny model Ollamy lub inny port frontendu na hoście: ustaw `OLLAMA_MODEL=` / `FRONTEND_PORT=` w `.env` przed `docker compose up`.
+
+**Poza zakresem obecnego docker-compose** (na razie uruchamiane ręcznie, poza kontenerami - patrz [Użycie](#użycie)): scrapery (`src/data/`) i pipeline ingestu RAG (`src/backend/RAG/ingest/run_ingest.py`) - to są jednorazowe/okazjonalne zadania wsadowe, nie długo działające serwisy.
 
 ## Instalacja
 

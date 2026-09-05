@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { type ThemeKey } from './themes'; 
-import { translations, type LangKey } from './languages'; 
+import { type ThemeKey } from './themes';
+import { translations, type LangKey } from './languages';
 import type { Message } from './types';
+import { API_BASE_URL } from '../../lib/api';
 
 export function useChat(onLogout?: () => void) {
   // states
@@ -234,7 +235,7 @@ export function useChat(onLogout?: () => void) {
 
     try {
       // simulating network request / hitting python backend
-      const response = await fetch("http://127.0.0.1:8000/chat", {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

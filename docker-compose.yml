@@ -1,0 +1,77 @@
+services:
+  # Lokalny model (LLM_PROVIDER=ollama, domyslny) - opcjonalny profil "ollama".
+  # Bez niego (LLM_PROVIDER=claude/cursor/openrouter) ten serwis w ogole nie
+  # startuje: `docker compose up` sam z siebie nie sciaga kilku GB modelu.
+  # Wlaczenie: `docker compose --profile ollama up -d --build`.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    profiles: ["ollama"]
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Jednorazowa "ollama pull" zanim backend wystartuje - inaczej pierwszy
+  # /chat trafiaby w model, ktorego jeszcze nie ma (kilka GB pobierania).
+  # Tylko w profilu "ollama" - patrz komentarz przy serwisie ollama.
+  ollama-pull:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "ollama pull ${OLLAMA_MODEL:-qwen2.5:14b}"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////app/db/chatbot.db
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+      FRONTEND_ORIGINS: http://localhost:${FRONTEND_PORT:-8080}
+    volumes:
+      - chatbot-db:/app/db
+      - chatbot-dataset:/app/dataset
+      - chatbot-data:/app/data
+      - hf-cache:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  ollama-data:
+  chatbot-db:
+  chatbot-dataset:
+  chatbot-data:
+  hf-cache:

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, ArrowLeft, ArrowRight, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 import LoginBackground from './LoginBackground';
+import { API_BASE_URL } from '../../lib/api';
 
 interface RegisterScreenProps {
   onGoBackToLogin: () => void;
@@ -43,7 +44,7 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
     setError('');
     
     try {
-      const response = await fetch('http://localhost:8000/api/auth/register/send-code', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
@@ -117,7 +118,7 @@ export default function RegisterScreen({ onGoBackToLogin }: RegisterScreenProps)
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8000/api/auth/register/verify', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
