@@ -2,10 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { type ThemeKey } from './themes';
 import { translations, type LangKey } from './languages';
 import type { Message } from './types';
-
-// w Dockerze ustawiane na build-time na "/api" (proxy przez nginx frontendu),
-// lokalnie (npm run dev) domyslnie trafia wprost do backendu na 127.0.0.1:8000
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000';
+import { API_BASE_URL } from '../../lib/api';
 
 export function useChat(onLogout?: () => void) {
   // states
