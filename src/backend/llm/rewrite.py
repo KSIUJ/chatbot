@@ -40,7 +40,7 @@ def condense(query: str, history: list[dict] | None = None) -> str:
     if os.getenv("CHAT_CONDENSE", "on").strip().lower() in OFF_VALUES:
         return query
 
-    limit = int(os.getenv("CHAT_CONDENSE_QUESTIONS", DEFAULT_QUESTIONS))
+    limit = int(os.getenv("CHAT_CONDENSE_QUESTIONS") or DEFAULT_QUESTIONS)
     questions = _previous_questions(history, limit)
     if not questions:
         return query

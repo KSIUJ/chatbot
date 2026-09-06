@@ -22,7 +22,7 @@ def chat(
 ) -> str:
     import anthropic
 
-    model = model or os.getenv("CLAUDE_MODEL", DEFAULT_MODEL)
+    model = model or os.getenv("CLAUDE_MODEL") or DEFAULT_MODEL
     client = anthropic.Anthropic(timeout=timeout)
 
     # Wczesniejsze tury rozmowy (role user/assistant) trafiaja jako natywne

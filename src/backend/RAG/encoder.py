@@ -56,14 +56,14 @@ class Encoder:
     ):
         from sentence_transformers import SentenceTransformer
 
-        self.model_name = model_name or os.getenv("RAG_EMBEDDING_MODEL", DEFAULT_MODEL_NAME)
+        self.model_name = model_name or os.getenv("RAG_EMBEDDING_MODEL") or DEFAULT_MODEL_NAME
         self.query_prefix = (
-            query_prefix if query_prefix is not None else os.getenv("RAG_QUERY_PREFIX", DEFAULT_QUERY_PREFIX)
+            query_prefix if query_prefix is not None else (os.getenv("RAG_QUERY_PREFIX") or DEFAULT_QUERY_PREFIX)
         )
         self.passage_prefix = (
             passage_prefix
             if passage_prefix is not None
-            else os.getenv("RAG_PASSAGE_PREFIX", DEFAULT_PASSAGE_PREFIX)
+            else (os.getenv("RAG_PASSAGE_PREFIX") or DEFAULT_PASSAGE_PREFIX)
         )
         self.device = device or _default_device()
         print(f"[encoder] model={self.model_name} device={self.device}")

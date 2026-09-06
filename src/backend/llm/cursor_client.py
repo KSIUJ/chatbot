@@ -111,7 +111,7 @@ def chat(
     timeout: int = DEFAULT_TIMEOUT,
     poll_interval: float = DEFAULT_POLL_INTERVAL,
 ) -> str:
-    model = model or os.getenv("CURSOR_MODEL", DEFAULT_MODEL)
+    model = model or os.getenv("CURSOR_MODEL") or DEFAULT_MODEL
 
     # Cursor ma jedno pole prompt.text (brak osobnych rol i historii) - skladamy
     # instrukcje systemowa, wczesniejsze tury rozmowy i biezace pytanie w jeden
