@@ -12,7 +12,7 @@ from .models import Base, Conversation, DEFAULT_CONTEXT_COUNT, Message, MessageF
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./chatbot.db")
+DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./chatbot.db"
 
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 

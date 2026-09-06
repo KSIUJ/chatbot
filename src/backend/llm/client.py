@@ -17,9 +17,9 @@ def chat(
     timeout: int = 300,
     num_ctx: int | None = None,
 ) -> str:
-    model = model or os.getenv("OLLAMA_MODEL", DEFAULT_MODEL)
-    host = host or os.getenv("OLLAMA_HOST", DEFAULT_HOST)
-    num_ctx = num_ctx or int(os.getenv("OLLAMA_NUM_CTX", DEFAULT_NUM_CTX))
+    model = model or os.getenv("OLLAMA_MODEL") or DEFAULT_MODEL
+    host = host or os.getenv("OLLAMA_HOST") or DEFAULT_HOST
+    num_ctx = num_ctx or int(os.getenv("OLLAMA_NUM_CTX") or DEFAULT_NUM_CTX)
 
     messages = [{"role": "system", "content": system}]
     messages.extend(history or [])

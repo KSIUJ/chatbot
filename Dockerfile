@@ -14,6 +14,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
+# CPU-only torch (kilkaset MB) zamiast domyslnej paczki z PyPI, ktora na
+# Linuksie x86_64 ciagnie kilka GB bibliotek CUDA (nvidia-cublas, cudnn,
+# nvJitLink...) kompletnie zbednych bez GPU - instalowana PRZED requirements
+# tak, zeby pip przy sentence-transformers zobaczyl juz spelniona zaleznosc
+# i nie podmienil jej na wariant z CUDA.
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install -r requirements.txt
 
 COPY src/backend ./src/backend

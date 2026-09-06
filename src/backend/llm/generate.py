@@ -41,8 +41,8 @@ def _trim_history(history: list[dict] | None) -> list[dict]:
     if not history:
         return []
 
-    keep = int(os.getenv("CHAT_HISTORY_MESSAGES", DEFAULT_HISTORY_MESSAGES))
-    limit = int(os.getenv("CHAT_HISTORY_CHAR_LIMIT", DEFAULT_HISTORY_CHAR_LIMIT))
+    keep = int(os.getenv("CHAT_HISTORY_MESSAGES") or DEFAULT_HISTORY_MESSAGES)
+    limit = int(os.getenv("CHAT_HISTORY_CHAR_LIMIT") or DEFAULT_HISTORY_CHAR_LIMIT)
     if keep <= 0:
         return []
 
