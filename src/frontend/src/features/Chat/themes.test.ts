@@ -16,12 +16,14 @@ describe('parseThemePreference', () => {
   });
 
   it('keeps a theme the user picked earlier', () => {
-    expect(parseThemePreference('granatowy')).toBe('granatowy');
-    expect(parseThemePreference('różowy')).toBe('różowy');
+    expect(parseThemePreference('ciemny')).toBe('ciemny');
+    expect(parseThemePreference('jasny')).toBe('jasny');
   });
 
-  it('falls back to the default for unknown stored values', () => {
+  it('falls back to the default for unknown or removed themes', () => {
     expect(parseThemePreference('neon')).toBe('systemowy');
+    expect(parseThemePreference('granatowy')).toBe('systemowy');
+    expect(parseThemePreference('różowy')).toBe('systemowy');
   });
 });
 
@@ -32,7 +34,7 @@ describe('resolveTheme', () => {
   });
 
   it('ignores the device for an explicit choice', () => {
-    expect(resolveTheme('różowy', true)).toBe('różowy');
+    expect(resolveTheme('jasny', true)).toBe('jasny');
     expect(resolveTheme('ciemny', false)).toBe('ciemny');
   });
 });
@@ -51,10 +53,8 @@ describe('theme options', () => {
     }
   });
 
-  it('marks dark backgrounds as dark', () => {
+  it('marks only the dark theme as dark', () => {
     expect(isDarkTheme('ciemny')).toBe(true);
-    expect(isDarkTheme('granatowy')).toBe(true);
     expect(isDarkTheme('jasny')).toBe(false);
-    expect(isDarkTheme('różowy')).toBe(false);
   });
 });

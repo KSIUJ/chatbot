@@ -1,396 +1,255 @@
-import { useState, useEffect, useRef } from 'react';
-import { THEME_STORAGE_KEY, parseThemePreference, type ThemePreference } from './themes';
-import { translations, type LangKey } from './languages';
-import type { Message } from './types';
-import { apiFetch } from '../../lib/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ApiRequestError,
+  deleteConversation,
+  fetchConversationMessages,
+  fetchConversations,
+  newConversationId,
+  removeConversation,
+  sendMessage,
+  shouldRegenerate,
+  toChatMessages,
+  type ConversationList,
+  type ConversationSummary,
+} from '../../lib/conversations';
+import { ACTIVE_CONVERSATION_KEY } from '../../lib/chatStorage';
+import type { ChatMessage } from './types';
 
-export function useChat(onLogout?: () => void) {
-  // states
-  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
-  const [settingsView, setSettingsView] = useState<'main' | 'language' | 'theme' | 'rag'>('main');
-  
-  const [selectedLanguage, setSelectedLanguage] = useState<LangKey>(() => {
-    const saved = localStorage.getItem('chatLanguage');
-    return (saved as LangKey) || 'polski';
-  });
-  
-  // "systemowy" (follow the device) unless the user picked a theme before
-  const [selectedTheme, setSelectedTheme] = useState<ThemePreference>(() =>
-    parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY))
-  );
+export interface HistoryLimits {
+  maxPerUser: number;
+  retentionDays: number;
+}
 
-  const [ragCount, setRagCount] = useState<number>(() => {
-    const saved = parseInt(localStorage.getItem('chatRagCount') ?? '', 10);
-    if (!Number.isFinite(saved)) return 5;
-    return Math.min(Math.max(saved, 1), 8);
-  });
+const COPIED_FEEDBACK_MS = 2000;
 
-  // chat states
-  const [inputText, setInputText] = useState('');
-  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  
-  const [messages, setMessages] = useState<Message[]>(() => {
-    const saved = localStorage.getItem('chatMessages');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Could not load messages", e);
-      }
-    }
-    const lang = (localStorage.getItem('chatLanguage') as LangKey) || 'polski';
-    return [{ id: '1', sender: 'bot', text: translations[lang].botGreeting }];
-  });
-  
-  const [conversationId, setConversationId] = useState<string | null>(
-    () => localStorage.getItem('chatConversationId')
-  );
+let localIdCounter = 0;
+function localId(): string {
+  localIdCounter += 1;
+  return `local-${Date.now()}-${localIdCounter}`;
+}
 
-  const [copiedIds, setCopiedIds] = useState<string[]>([]);
-  const [reactions, setReactions] = useState<Record<string, 'up' | 'down'>>({});
+function isAuthError(error: unknown): boolean {
+  // apiFetch already switched the app to the login flow
+  return error instanceof ApiRequestError && (error.status === 401 || error.status === 403);
+}
 
-  // refs
-  const menuRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const streamingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+// Chat state: sidebar history from the server, the open conversation, sending,
+// stop and retry. Only the id of the open conversation is kept in localStorage.
+export function useChat() {
+  // read before the effect below overwrites it with the initial null
+  const [rememberedId] = useState(() => localStorage.getItem(ACTIVE_CONVERSATION_KEY));
+
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [limits, setLimits] = useState<HistoryLimits | null>(null);
+  const [historyError, setHistoryError] = useState(false);
+
+  // id of the open conversation; a new chat gets its id at the first send
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   const abortRef = useRef<AbortController | null>(null);
-
-  // ref to handle the initial thinking delay
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // local storage effects
-  useEffect(() => {
-    localStorage.setItem('chatLanguage', selectedLanguage);
-  }, [selectedLanguage]);
+  // bumped on every switch, so work started for a previous conversation is ignored
+  const loadTokenRef = useRef(0);
 
   useEffect(() => {
-    localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
-  }, [selectedTheme]);
+    if (activeId) localStorage.setItem(ACTIVE_CONVERSATION_KEY, activeId);
+    else localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
+  }, [activeId]);
 
-  useEffect(() => {
-    localStorage.setItem('chatRagCount', ragCount.toString());
-  }, [ragCount]);
+  const applyHistory = useCallback((list: ConversationList) => {
+    setConversations(list.conversations);
+    setLimits({ maxPerUser: list.max_per_user, retentionDays: list.retention_days });
+    setHistoryError(false);
+  }, []);
 
-  useEffect(() => {
-    if (conversationId) {
-      localStorage.setItem('chatConversationId', conversationId);
-    } else {
-      localStorage.removeItem('chatConversationId');
+  const applyHistoryError = useCallback((error: unknown) => {
+    if (!isAuthError(error)) setHistoryError(true);
+  }, []);
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      applyHistory(await fetchConversations());
+    } catch (error) {
+      applyHistoryError(error);
     }
-  }, [conversationId]);
+  }, [applyHistory, applyHistoryError]);
 
-  useEffect(() => {
-    const messagesToSave = messages.map(msg => ({
-      id: msg.id,
-      sender: msg.sender,
-      text: msg.text,
-      isStopped: msg.isStopped
-    }));
-    localStorage.setItem('chatMessages', JSON.stringify(messagesToSave));
-  }, [messages]);
-
-  // other effects
-  useEffect(() => {
-    if (messages.length === 1 && messages[0].id === '1') {
-      setMessages([{ id: '1', sender: 'bot', text: translations[selectedLanguage].botGreeting }]);
-    }
-  }, [selectedLanguage]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowSettingsMenu(false); 
-        setSettingsView('main');    
-      }
-    }
-    
-    if (showSettingsMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showSettingsMenu]); 
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
-
-  // helpers
-  const toggleSettings = () => {
-    setShowSettingsMenu(!showSettingsMenu);
-    setSettingsView('main'); 
-  };
-
-  const handleLogout = () => {
-    if (onLogout) {
-      onLogout();
-    } else {
-      window.location.reload(); 
-    }
-  };
-
-  const handleNewChat = () => {
-    if (streamingIntervalRef.current) clearInterval(streamingIntervalRef.current);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    streamingIntervalRef.current = null;
-    typingTimeoutRef.current = null;
-
-    setConversationId(null);
-    setMessages([
-      { id: Date.now().toString(), sender: 'bot', text: translations[selectedLanguage].botGreeting }
-    ]);
-    setInputText('');
-    setStagedFiles([]);
-    setCopiedIds([]); 
-    setReactions({}); 
-    setIsTyping(false);
-  };
-
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    if (!copiedIds.includes(id)) {
-      setCopiedIds(prev => [...prev, id]);
-    }
-  };
-
-  const handleReaction = (id: string, type: 'up' | 'down') => {
-    setReactions(prev => ({ ...prev, [id]: type }));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setStagedFiles(prev => [...prev, ...filesArray]);
-    }
-    e.target.value = ''; 
-  };
-
-  const removeStagedFile = (index: number) => {
-    setStagedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // stop streaming response and update message state
-  const handleStopGenerating = () => {
-    // the request is still in flight while the dots are showing - without
-    // aborting it the answer lands on screen after the user cancelled
-    const wasWaitingForResponse = !streamingIntervalRef.current;
-
+  const cancelPending = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    setIsWaiting(false);
+  }, []);
 
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-
-    // clear the streaming interval if it is already generating text
-    if (streamingIntervalRef.current) {
-      clearInterval(streamingIntervalRef.current);
-      streamingIntervalRef.current = null;
-    }
-    
-    setIsTyping(false);
-
-    const interruptedText = selectedLanguage === 'angielski' ? ' [Interrupted]' : ' [Przerwano]';
-
-    setMessages(prev => {
-      // if stopped before streaming started, the bot message wasn't added yet
-      if (wasWaitingForResponse) {
-        return [...prev, {
-          id: Date.now().toString(),
-          sender: 'bot',
-          text: interruptedText.trim(),
-          isStopped: true // triggers the retry button
-        }];
+  const openConversation = useCallback(async (id: string) => {
+    cancelPending();
+    const token = ++loadTokenRef.current;
+    setActiveId(id);
+    setMessages([]);
+    setLoadError(false);
+    setIsLoadingConversation(true);
+    try {
+      const serverMessages = await fetchConversationMessages(id);
+      if (token !== loadTokenRef.current) return;
+      if (serverMessages === null) {
+        // deleted or expired meanwhile - start fresh
+        setActiveId(null);
+        setConversations((prev) => removeConversation(prev, id));
+        return;
       }
+      setMessages(toChatMessages(serverMessages));
+    } catch (error) {
+      if (token === loadTokenRef.current && !isAuthError(error)) setLoadError(true);
+    } finally {
+      if (token === loadTokenRef.current) setIsLoadingConversation(false);
+    }
+  }, [cancelPending]);
 
-      // if stopped while typing, append the interrupted text to the current bot message
-      const newMessages = [...prev];
-      const lastMsgIndex = newMessages.length - 1;
-      
-      if (lastMsgIndex >= 0 && newMessages[lastMsgIndex].sender === 'bot') {
-        const lastMsg = newMessages[lastMsgIndex];
-        if (!lastMsg.isStopped) {
-          newMessages[lastMsgIndex] = {
-            ...lastMsg,
-            text: lastMsg.text + interruptedText,
-            isStopped: true // this triggers the retry button
-          };
+  // first load: history, then reopen the conversation that was open before
+  useEffect(() => {
+    let cancelled = false;
+    fetchConversations().then(
+      (list) => {
+        if (cancelled) return;
+        applyHistory(list);
+        if (rememberedId !== null && list.conversations.some((c) => c.id === rememberedId)) {
+          void openConversation(rememberedId);
         }
-      }
-      return newMessages;
-    });
-  };
+      },
+      (error: unknown) => {
+        if (!cancelled) applyHistoryError(error);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [applyHistory, applyHistoryError, openConversation, rememberedId]);
 
-  // start streaming response with real API fetch and error handling
-  const startStreamingResponse = async (userText: string, regenerate = false) => {
-    const botMsgId = (Date.now() + 1).toString();
+  const startNewChat = useCallback(() => {
+    cancelPending();
+    loadTokenRef.current += 1;
+    setActiveId(null);
+    setMessages([]);
+    setLoadError(false);
+    setIsLoadingConversation(false);
+  }, [cancelPending]);
+
+  const removeChat = useCallback(async (id: string) => {
+    setConversations((prev) => removeConversation(prev, id));
+    if (id === activeId) startNewChat();
+    try {
+      await deleteConversation(id);
+    } catch (error) {
+      // put the list back in sync with the server
+      if (!isAuthError(error)) void refreshHistory();
+    }
+  }, [activeId, startNewChat, refreshHistory]);
+
+  // caller creates the controller and registers it in abortRef, so stop/switch
+  // can cancel from the very first moment (retry awaits a fetch before this)
+  const ask = useCallback(async (
+    question: string,
+    conversationId: string,
+    regenerate: boolean,
+    controller: AbortController,
+  ) => {
+    try {
+      const result = await sendMessage({ message: question, conversationId, regenerate, signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setMessages((prev) => [...prev, result.reply]);
+      void refreshHistory();
+    } catch (error) {
+      if (controller.signal.aborted || isAuthError(error)) return;
+      if (error instanceof ApiRequestError && error.status === 404) {
+        // id taken by another account (practically impossible): retry under a fresh id
+        setActiveId(newConversationId());
+      }
+      setMessages((prev) => [...prev, { id: localId(), sender: 'bot', text: '', status: 'error' }]);
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setIsWaiting(false);
+      }
+    }
+  }, [refreshHistory]);
+
+  const beginRequest = useCallback((): AbortController => {
     const controller = new AbortController();
     abortRef.current = controller;
+    setIsWaiting(true);
+    return controller;
+  }, []);
 
+  const send = useCallback((text: string): boolean => {
+    const question = text.trim();
+    if (!question || isWaiting || isLoadingConversation) return false;
+    const conversationId = activeId ?? newConversationId();
+    setActiveId(conversationId);
+    setMessages((prev) => [...prev, { id: localId(), sender: 'user', text: question }]);
+    void ask(question, conversationId, false, beginRequest());
+    return true;
+  }, [activeId, ask, beginRequest, isLoadingConversation, isWaiting]);
+
+  const stop = useCallback(() => {
+    if (abortRef.current === null) return;
+    cancelPending();
+    setMessages((prev) => [...prev, { id: localId(), sender: 'bot', text: '', status: 'stopped' }]);
+    // the server keeps going and saves the answer - show the chat in the list
+    void refreshHistory();
+  }, [cancelPending, refreshHistory]);
+
+  const retry = useCallback(async () => {
+    const lastQuestion = [...messages].reverse().find((m) => m.sender === 'user');
+    if (lastQuestion === undefined || isWaiting) return;
+    const conversationId = activeId ?? newConversationId();
+    const token = loadTokenRef.current;
+    const controller = beginRequest();
+    setActiveId(conversationId);
+    setMessages((prev) => prev.filter((m) => m.status === undefined));
+
+    let regenerate = false;
     try {
-      // simulating network request / hitting python backend
-      // apiFetch sends the session cookie; a lost session (401/403) switches
-      // the whole app to the login screen via useAuth
-      const response = await apiFetch('/chat', {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: userText,
-          rag_count: ragCount,
-          conversation_id: conversationId,
-          regenerate
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error("Błąd połączenia z serwerem");
-      }
-
-      const data = await response.json();
-      if (controller.signal.aborted) return;
-
-      if (data.conversation_id) {
-        setConversationId(data.conversation_id);
-      }
-      
-      // Dopasuj do formatu zwracanego z backendu/mocka Ollamy
-      const fullReplyText = data.message?.content || data.answer || "Brak odpowiedzi";
-
-      setIsTyping(false);
-
-      setMessages(prev => [...prev, {
-        id: botMsgId,
-        sender: 'bot',
-        text: ''
-      }]);
-
-      let charIndex = 0;
-      streamingIntervalRef.current = setInterval(() => {
-        charIndex += 1;
-        const currentChunk = fullReplyText.slice(0, charIndex);
-
-        setMessages(prev => prev.map(msg => 
-          msg.id === botMsgId ? { ...msg, text: currentChunk } : msg
-        ));
-
-        if (charIndex >= fullReplyText.length) {
-          if (streamingIntervalRef.current) {
-            clearInterval(streamingIntervalRef.current);
-            streamingIntervalRef.current = null;
-          }
-          setTimeout(() => inputRef.current?.focus(), 50);
-        }
-      }, 15);
-
-    } catch (error) {
-      // cancelling is not a failure - handleStopGenerating already updated the view
-      if (controller.signal.aborted) return;
-
-      // handle network error or server crash 
-      console.error("Network error or bot failed to respond:", error);
-      setIsTyping(false);
-
-      const errorMessage = selectedLanguage === 'angielski' 
-        ? "Oops! Network error or server failure. Please try again." 
-        : "Ups! Błąd sieci lub awaria serwera. Spróbuj ponownie.";
-
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        sender: 'bot',
-        text: errorMessage,
-        isStopped: true
-      }]);
+      const serverMessages = await fetchConversationMessages(conversationId);
+      regenerate = serverMessages !== null && shouldRegenerate(serverMessages, lastQuestion.text);
+    } catch {
+      // cannot tell what the server has - keep regenerate=false: a plain send
+      // never deletes an answer
     }
-  };
+    // stopped or switched to another conversation meanwhile
+    if (controller.signal.aborted || token !== loadTokenRef.current) return;
+    void ask(lastQuestion.text, conversationId, regenerate, controller);
+  }, [activeId, ask, beginRequest, isWaiting, messages]);
 
-  // retry generating response (removes error/stopped message first to keep chat clean)
-  const handleRegenerate = () => {
-    if (streamingIntervalRef.current) clearInterval(streamingIntervalRef.current);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    
-    // remove the last message if it was an error/stopped bot message
-    setMessages(prev => {
-      const newMessages = [...prev];
-      const lastMsg = newMessages[newMessages.length - 1];
-      if (lastMsg && lastMsg.sender === 'bot' && lastMsg.isStopped) {
-        newMessages.pop();
-      }
-      return newMessages;
-    });
-
-    // Znajdujemy ostatnią wiadomość od użytkownika
-    const lastUserMsg = messages.slice().reverse().find(m => m.sender === 'user');
-    const textToRegenerate = lastUserMsg ? lastUserMsg.text : "";
-
-    // start typing animation and try generating again
-    setIsTyping(true);
-    startStreamingResponse(textToRegenerate, true);
-  };
-
-  const handleSendMessage = () => {
-    // prevent sending empty messages or whitespace only
-    if (!inputText.trim() && stagedFiles.length === 0) return; 
-
-    const userText = inputText.trim();
-
-    const newUserMsg: Message = { 
-      id: Date.now().toString(), 
-      sender: 'user', 
-      text: userText,
-      files: stagedFiles.length > 0 ? stagedFiles : undefined
-    };
-    
-    setMessages(prev => [...prev, newUserMsg]);
-    setInputText('');
-    setStagedFiles([]);
-    
-    // start typing indicator right after hitting send button
-    setIsTyping(true);
-    startStreamingResponse(userText);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter') handleSendMessage();
-  };
+  const copy = useCallback((message: ChatMessage) => {
+    navigator.clipboard.writeText(message.text).then(
+      () => {
+        setCopiedId(message.id);
+        setTimeout(() => setCopiedId((current) => (current === message.id ? null : current)), COPIED_FEEDBACK_MS);
+      },
+      // clipboard blocked (permissions / insecure context): the button just shows no confirmation
+      () => setCopiedId(null),
+    );
+  }, []);
 
   return {
-    showSettingsMenu,
-    settingsView,
-    setSettingsView,
-    selectedLanguage,
-    setSelectedLanguage,
-    selectedTheme,
-    setSelectedTheme,
-    ragCount,
-    setRagCount,
-    inputText,
-    setInputText,
-    stagedFiles,
+    conversations,
+    limits,
+    historyError,
+    activeId,
     messages,
-    copiedIds,
-    reactions,
-    isTyping, 
-    menuRef,
-    messagesEndRef,
-    toggleSettings,
-    handleLogout,
-    handleNewChat,
-    handleCopy,
-    handleReaction,
-    handleFileChange,
-    removeStagedFile,
-    handleSendMessage,
-    handleKeyDown,
-    handleStopGenerating,
-    handleRegenerate,
-    inputRef
+    isWaiting,
+    isLoadingConversation,
+    loadError,
+    copiedId,
+    openConversation,
+    startNewChat,
+    removeChat,
+    send,
+    stop,
+    retry,
+    copy,
   };
 }
