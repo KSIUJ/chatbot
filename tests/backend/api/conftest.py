@@ -21,6 +21,7 @@ from backend.auth import dependencies as auth_dependencies  # noqa: E402
 from backend.auth.oidc import OIDCClient  # noqa: E402
 from backend.auth.settings import get_auth_settings  # noqa: E402
 from backend.database import get_db  # noqa: E402
+from backend.history import get_history_settings  # noqa: E402
 from backend.models import Base, User  # noqa: E402
 
 from fake_keycloak import (  # noqa: E402
@@ -48,7 +49,10 @@ def auth_env(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv(name, value)
     for name in ("AUTH_COOKIE_SECURE", "AUTH_FRONTEND_URL", "OIDC_POST_LOGOUT_REDIRECT_URI", "OIDC_SCOPES"):
         monkeypatch.delenv(name, raising=False)
+    for name in ("CHAT_HISTORY_MAX_PER_USER", "CHAT_HISTORY_RETENTION_DAYS", "CHAT_HISTORY_PURGE_INTERVAL_HOURS"):
+        monkeypatch.delenv(name, raising=False)
     get_auth_settings.cache_clear()
+    get_history_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
     yield
@@ -95,6 +99,8 @@ def client(auth_env, keycloak: FakeKeycloak, session_factory, monkeypatch: pytes
     # startup wola init_db() na prawdziwym DATABASE_URL (lokalny chatbot.db) -
     # testy maja wlasna baze w tmp_path
     monkeypatch.setattr(main_module, "init_db", lambda: None)
+    # ani petla kasujaca stare rozmowy (dzialalaby na prawdziwej bazie)
+    monkeypatch.setattr(main_module, "start_retention_task", lambda: None)
     app = main_module.app
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[auth_dependencies.get_oidc_client] = override_oidc_client

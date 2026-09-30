@@ -27,16 +27,6 @@ class MessageRole(str, enum.Enum):
     USER = "user"
     ASSISTANT = "assistant"
 
-class MessageFeedback(str, enum.Enum):
-    """Ocena odpowiedzi asystenta - lapka w gore/dol"""
-    UP = "up"
-    DOWN = "down"
-
-
-# Domyslna liczba kontekstow jesli uzytkownik nie ustawil wlasnej
-DEFAULT_CONTEXT_COUNT = 5
-
-
 class User(Base):
     """Konto uzytkownika zakladane automatycznie przy pierwszym logowaniu przez
     Keycloak KSI (OIDC). Tozsamoscia jest `oidc_sub` - email i nazwa sa tylko
@@ -60,8 +50,6 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    context_count: Mapped[int] = mapped_column(default=DEFAULT_CONTEXT_COUNT)
-
     conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -74,11 +62,20 @@ class User(Base):
 
 
 class Conversation(Base):
+    """Rozmowa w historii uzytkownika (sidebar). Nieuzywane dluzej niz
+    CHAT_HISTORY_RETENTION_DAYS sa kasowane - patrz src/backend/history.py."""
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    # Pierwsze pytanie, skrocone - tytul na liscie w sidebarze
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Ostatnia wiadomosc: kolejnosc historii i licznik wygasania
+    last_message_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True, nullable=False
+    )
 
     user: Mapped["User | None"] = relationship(back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(
@@ -95,7 +92,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
-    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True, nullable=False)
     role: Mapped[MessageRole] = mapped_column(SAEnum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -103,12 +100,22 @@ class Message(Base):
     # Lista zrodel z RAG-a
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
 
-    feedback: Mapped[MessageFeedback | None] = mapped_column(SAEnum(MessageFeedback), nullable=True)
-
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"Message(id={self.id!r}, role={self.role!r})"
+
+
+class UsageCounter(Base):
+    """Liczniki statystyk (/api/stats), ktore nie maleja, gdy stare rozmowy
+    sa kasowane - liczenie wierszy w messages spadaloby po kazdym czyszczeniu."""
+    __tablename__ = "usage_counters"
+
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[int] = mapped_column(default=0, nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"UsageCounter(key={self.key!r}, value={self.value!r})"
 
 
 class UserSession(Base):

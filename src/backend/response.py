@@ -17,6 +17,20 @@ class ConversationResponse(BaseModel):
     messages: list[MessageResponse]
 
 
+class ConversationSummary(BaseModel):
+    """Pozycja historii w sidebarze (GET /conversations)."""
+    id: str
+    title: str | None
+    last_message_at: datetime
+
+
+class ConversationList(BaseModel):
+    """Historia + limity z env - frontend pokazuje je w notce pod lista."""
+    conversations: list[ConversationSummary]
+    max_per_user: int
+    retention_days: int
+
+
 class ChatResponse(BaseModel):
     conversation_id: str
     message: MessageResponse  # odpowiedz asystenta
