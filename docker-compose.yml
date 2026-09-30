@@ -36,13 +36,14 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    # Logowanie KSI (OIDC_*, AUTH_*) przychodzi z .env - bez OIDC_CLIENT_SECRET,
+    # OIDC_REDIRECT_URI i AUTH_SECRET_KEY backend nie wystartuje (patrz .env.example).
     env_file:
       - .env
     environment:
       DATABASE_URL: sqlite:////app/db/chatbot.db
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
-      FRONTEND_ORIGINS: http://localhost:${FRONTEND_PORT:-8080}
     volumes:
       - chatbot-db:/app/db
       - chatbot-dataset:/app/dataset

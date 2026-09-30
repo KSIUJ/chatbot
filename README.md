@@ -90,6 +90,8 @@ Frontend rozmawia z backendem przez wbudowany reverse-proxy nginksa (`/api/*`), 
 
 Inny model Ollamy lub inny port frontendu na hoście: ustaw `OLLAMA_MODEL=` / `FRONTEND_PORT=` w `.env` przed `docker compose up`.
 
+**Logowanie:** do chatbota wchodzą tylko członkowie KSI (grupa `/Członek`) przez `auth.ksi.sh` (OIDC). Przed startem uzupełnij w `.env` sekcję „Logowanie przez Keycloak KSI” — opis w [docs/AUTH.md](docs/AUTH.md).
+
 **Poza zakresem obecnego docker-compose** (na razie uruchamiane ręcznie, poza kontenerami - patrz [Użycie](#użycie)): scrapery (`src/data/`) i pipeline ingestu RAG (`src/backend/RAG/ingest/run_ingest.py`) - to są jednorazowe/okazjonalne zadania wsadowe, nie długo działające serwisy.
 
 ## Instalacja

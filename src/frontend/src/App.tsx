@@ -1,88 +1,53 @@
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import ChatScreen from './features/Chat/ChatScreen';
-import LoginScreen from './features/Auth/LoginScreen'; 
-import ProfileScreen from './features/Profile/ProfileScreen'; 
-import RegisterScreen from './features/Auth/RegisterScreen';
+import LoginScreen from './features/Auth/LoginScreen';
+import ProfileScreen from './features/Profile/ProfileScreen';
+import { useAuth } from './features/Auth/useAuth';
+
+type View = 'chat' | 'profile';
 
 export default function App() {
-  // get email from local storage to remember login state
-  const [userEmail, setUserEmail] = useState<string | null>(() => {
-    return localStorage.getItem('userEmail');
-  });
-
-  // track if user chose to continue without logging in
-  const [isGuest, setIsGuest] = useState<boolean>(() => {
-    return localStorage.getItem('isGuest') === 'true';
-  });
+  // session lives in an HttpOnly cookie - the backend is the only source of truth
+  const { state, login, logout } = useAuth();
 
   // track which screen is currently visible
-  const [activeView, setActiveView] = useState<'chat' | 'profile' | 'login' | 'register'>(() => {
-    const savedView = localStorage.getItem('activeView');
-    if (savedView === 'profile' || savedView === 'login' || savedView === 'register') {
-      return savedView;
-    }
-    return 'chat';
-  });
+  const [activeView, setActiveView] = useState<View>(() =>
+    localStorage.getItem('chatActiveView') === 'profile' ? 'profile' : 'chat'
+  );
 
   // get theme from storage to pass to profile screen
   const currentTheme = localStorage.getItem('chat-theme') || 'jasny';
 
   // save active view to memory every time it changes
   useEffect(() => {
-    localStorage.setItem('activeView', activeView);
+    localStorage.setItem('chatActiveView', activeView);
   }, [activeView]);
 
-  // fired when user logs in successfully
-  const handleLogin = (email: string) => {
-    setUserEmail(email);
-    setIsGuest(false);
-    localStorage.setItem('userEmail', email); 
-    localStorage.removeItem('isGuest'); 
-    setActiveView('chat');
-  };
-
-  // fired when user clicks continue without logging in
-  const handleContinueAsGuest = () => {
-    setIsGuest(true);
-    localStorage.setItem('isGuest', 'true');
-    setActiveView('chat');
-  };
-
-  // handle logout - clears session, guest status and resets view
   const handleLogout = () => {
-    setUserEmail(null);
-    setIsGuest(false);
     setActiveView('chat');
-    localStorage.removeItem('userEmail'); 
-    localStorage.removeItem('isGuest'); 
-    localStorage.removeItem('activeView'); 
+    void logout();
   };
 
-  // if no user email and not a guest, show login or register screen
-  if (!userEmail && !isGuest && activeView !== 'register') {
+  // checking the session with the backend
+  if (state.status === 'loading') {
     return (
-      <LoginScreen 
-        onLogin={handleLogin} 
-        onContinueAsGuest={handleContinueAsGuest} 
-        onGoToRegister={() => setActiveView('register')}
-      />
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="w-6 h-6 animate-spin text-slate-400" aria-label="Loading" />
+      </div>
     );
   }
 
-  // show register screen
-  if (activeView === 'register') {
-    return (
-      <RegisterScreen 
-        onGoBackToLogin={() => setActiveView('login')} 
-      />
-    );
+  // no session - only KSI login is possible
+  if (state.status === 'unauthenticated') {
+    return <LoginScreen error={state.error} onLogin={login} />;
   }
 
   // show profile screen if selected
   if (activeView === 'profile') {
     return (
-      <ProfileScreen 
-        email={userEmail || 'Guest'}
+      <ProfileScreen
+        user={state.user}
         onClose={() => setActiveView('chat')}
         onLogout={handleLogout}
         selectedTheme={currentTheme}
@@ -92,8 +57,8 @@ export default function App() {
 
   // default view: show main chat view
   return (
-    <ChatScreen 
-      onOpenProfile={() => setActiveView('profile')} 
+    <ChatScreen
+      onOpenProfile={() => setActiveView('profile')}
       onLogout={handleLogout}
     />
   );

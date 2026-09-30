@@ -1,16 +1,11 @@
-import os
-import random
-from datetime import datetime, timezone, timedelta
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 # import llm logic
 from .llm.generate import answer as rag_answer
 
+from .auth import get_auth_settings, require_member, router as auth_router, verify_origin
 from .config import APP_NAME, FRONTEND_ORIGINS
 from .database import (
     add_message,
@@ -20,16 +15,11 @@ from .database import (
     get_db,
     get_messages,
     init_db,
-    create_user,
-    get_user_by_email,
-    is_allowed_email,
-    verify_password,
-    hash_password,
-    count_registered_users,
+    count_users,
     count_anonymous_conversations,
     count_prompts,
 )
-from .models import Message, MessageRole, EmailCode
+from .models import Conversation, Message, MessageRole, User
 from .request import ChatRequest
 from .response import (
     ChatResponse,
@@ -39,35 +29,27 @@ from .response import (
     StatsResponse,
 )
 
-app = FastAPI(title=APP_NAME)
+# verify_origin sprawdza naglowek Origin przy kazdym POST/PUT/PATCH/DELETE
+app = FastAPI(title=APP_NAME, dependencies=[Depends(verify_origin)])
 
-# setup CORS so the frontend doesn't complain about cross-origin requests
+# CORS potrzebny tylko gdy frontend i API sa na roznych originach (w Dockerze
+# i w vite z proxy jest jeden origin). Z ciasteczkami nie wolno uzyc "*".
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=FRONTEND_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
-
-# auth schemas
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-    rememberMe: bool = False
-
-class SendCodeRequest(BaseModel):
-    email: str
-
-class VerifyAndRegisterRequest(BaseModel):
-    email: str
-    code: str
-    password: str
+app.include_router(auth_router)
 
 
 # spin up the database on app startup
 @app.on_event("startup")
 def on_startup() -> None:
+    # Brak/bledna konfiguracja OIDC zatrzymuje start z lista brakow (AuthConfigError)
+    get_auth_settings()
     init_db()
 
 
@@ -78,6 +60,15 @@ def _generate_answer(
     kwargs = {"k_mordor": rag_count, "k_other": rag_count} if rag_count else {}
     result = rag_answer(message, history=history, **kwargs)
     return result["answer"], result["files"]
+
+
+# conversation lookup limited to its owner - foreign or anonymous ones look like
+# they don't exist (404), so ids can't be probed
+def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Conversation:
+    conversation = db_get_conversation(db, conversation_id)
+    if conversation is None or conversation.user_id != user.id:
+        raise HTTPException(status_code=404, detail="conversation not found")
+    return conversation
 
 
 # helper function to map db message model to frontend response model
@@ -97,112 +88,12 @@ def health() -> HealthResponse:
     return HealthResponse()
 
 
-# endpoint to handle user login and verify password
-@app.post("/api/auth/login")
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> dict:
-    user = get_user_by_email(db, payload.email)
-    
-    # keep errors generic so we don't leak which emails are registered
-    if not user or not user.password_hash:
-        raise HTTPException(status_code=401, detail="invalid email or password")
-        
-    if not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="invalid email or password")
-        
-    return {
-        "status": "success",
-        "user_id": user.id,
-        "email": user.email
-    }
-
-
-# endpoint to generate and send a 6-digit verification code to the user's email
-@app.post("/api/auth/register/send-code")
-def send_registration_code(payload: SendCodeRequest, db: Session = Depends(get_db)) -> dict:
-    email = payload.email.strip().lower()
-    
-    # basic domain check
-    if not is_allowed_email(email):
-        raise HTTPException(status_code=400, detail="only uj.edu.pl emails are allowed")
-        
-    user = get_user_by_email(db, email)
-    
-    # if account exists and is already verified, block it
-    if user and user.zweryfikowany:
-        raise HTTPException(status_code=400, detail="account already exists")
-        
-    # if user doesn't exist at all, create a placeholder unverified user
-    if not user:
-        try:
-            user = create_user(db=db, email=email)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
-            
-    # generate a random 6-digit code
-    code = str(random.randint(100000, 999999))
-    
-    # code expires in 15 minutes
-    expires = datetime.now(timezone.utc) + timedelta(minutes=15)
-    
-    # save the code to the database linked to this user
-    email_code = EmailCode(
-        user_id=user.id,
-        kod=code,
-        typ="verify",
-        expires_at=expires
-    )
-    db.add(email_code)
-    db.commit()
-    
-    # mock sending an email (shows up in uvicorn console)
-    print(f"\n[EMAIL MOCK] Verification code for {email}: {code}\n")
-    
-    return {"status": "success", "message": "code sent"}
-
-
-# endpoint to verify the code and set the user's password
-@app.post("/api/auth/register/verify")
-def verify_and_register(payload: VerifyAndRegisterRequest, db: Session = Depends(get_db)) -> dict:
-    email = payload.email.strip().lower()
-    user = get_user_by_email(db, email)
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="user not found. request a code first.")
-        
-    if user.zweryfikowany:
-        raise HTTPException(status_code=400, detail="account is already verified.")
-        
-    # fetch the latest unused verification code for this user
-    stmt = (
-        select(EmailCode)
-        .where(EmailCode.user_id == user.id)
-        .where(EmailCode.typ == "verify")
-        .where(EmailCode.used == False)
-        .order_by(EmailCode.expires_at.desc())
-    )
-    email_code = db.execute(stmt).scalars().first()
-    
-    if not email_code or email_code.kod != payload.code:
-        raise HTTPException(status_code=400, detail="invalid code.")
-        
-    if email_code.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="code has expired.")
-        
-    # mark code as used
-    email_code.used = True
-    
-    # set the password and mark user as verified
-    user.password_hash = hash_password(payload.password)
-    user.zweryfikowany = True
-    db.commit()
-    
-    return {"status": "success", "message": "account created and verified successfully"}
-
-
 # endpoint to spin up a new, empty conversation
 @app.post("/conversations", response_model=ConversationResponse)
-def create_conversation(db: Session = Depends(get_db)) -> ConversationResponse:
-    conversation = db_create_conversation(db)
+def create_conversation(
+    db: Session = Depends(get_db), user: User = Depends(require_member)
+) -> ConversationResponse:
+    conversation = db_create_conversation(db, user_id=user.id)
     return ConversationResponse(
         id=conversation.id,
         created_at=conversation.created_at,
@@ -212,10 +103,10 @@ def create_conversation(db: Session = Depends(get_db)) -> ConversationResponse:
 
 # endpoint to grab an existing conversation along with its history
 @app.get("/conversations/{conversation_id}", response_model=ConversationResponse)
-def get_conversation(conversation_id: str, db: Session = Depends(get_db)) -> ConversationResponse:
-    conversation = db_get_conversation(db, conversation_id)
-    if conversation is None:
-        raise HTTPException(status_code=404, detail="conversation not found")
+def get_conversation(
+    conversation_id: str, db: Session = Depends(get_db), user: User = Depends(require_member)
+) -> ConversationResponse:
+    conversation = _get_owned_conversation(db, conversation_id, user)
 
     messages = get_messages(db, conversation_id)
     return ConversationResponse(
@@ -227,14 +118,14 @@ def get_conversation(conversation_id: str, db: Session = Depends(get_db)) -> Con
 
 # main chat endpoint: processes user query, hits the llm, and saves the chat history
 @app.post("/chat", response_model=ChatResponse)
-def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
-    # fetch existing conversation or create a new one if id is missing
+def chat(
+    payload: ChatRequest, db: Session = Depends(get_db), user: User = Depends(require_member)
+) -> ChatResponse:
+    # fetch the user's conversation or create a new one if id is missing
     if payload.conversation_id is not None:
-        conversation = db_get_conversation(db, payload.conversation_id)
-        if conversation is None:
-            raise HTTPException(status_code=404, detail="conversation not found")
+        conversation = _get_owned_conversation(db, payload.conversation_id, user)
     else:
-        conversation = db_create_conversation(db)
+        conversation = db_create_conversation(db, user_id=user.id)
 
     # regeneration replays the last question, so drop the rejected answer instead
     # of appending a duplicate turn that would later be fed back as history
@@ -271,7 +162,7 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
 @app.get("/api/stats", response_model=StatsResponse)
 def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
     return StatsResponse(
-        accounts_created=count_registered_users(db),
+        accounts_created=count_users(db),
         anonymous_conversations=count_anonymous_conversations(db),
         total_prompts=count_prompts(db),
     )

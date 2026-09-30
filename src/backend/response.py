@@ -27,6 +27,20 @@ class HealthResponse(BaseModel):
 
 
 class StatsResponse(BaseModel):
-    accounts_created: int
-    anonymous_conversations: int
+    accounts_created: int  # konta = osoby, ktore choc raz zalogowaly sie przez KSI
+    anonymous_conversations: int  # historyczne - od logowania przez KSI nie powstaja nowe
     total_prompts: int
+
+
+class UserResponse(BaseModel):
+    """Zalogowany czlonek KSI (GET /auth/me)."""
+    id: str
+    email: str | None
+    username: str | None
+    name: str | None
+
+
+class LogoutResponse(BaseModel):
+    # Adres wylogowania z Keycloaka - frontend przekierowuje tam przegladarke.
+    # None, gdy Keycloak jest niedostepny (sesja aplikacji i tak jest skasowana).
+    logout_url: str | None

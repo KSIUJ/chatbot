@@ -69,6 +69,12 @@ komentarzach `.env.example` — tu tylko skrót:
 | `cursor` | `CURSOR_API_KEY` | Cursor Cloud Agents — **60–90 s na odpowiedź**, provisioning VM per zapytanie |
 | `openrouter` | `OPENROUTER_API_KEY` | jedno API do wielu dostawców |
 
+Oprócz LLM `.env` musi zawierać konfigurację logowania przez Keycloak KSI
+(`OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `AUTH_SECRET_KEY`, …) — bez niej
+backend nie wystartuje, a healthcheck nie przepuści frontendu. Lokalnie
+`OIDC_REDIRECT_URI=http://localhost:8080/api/auth/callback`. Opis:
+[AUTH.md](AUTH.md).
+
 Po zmianie `.env` zawsze **zrestartuj backend**:
 `docker compose restart backend` (patrz sekcja 7 — `load_dotenv()` czyta
 plik raz, przy starcie procesu).

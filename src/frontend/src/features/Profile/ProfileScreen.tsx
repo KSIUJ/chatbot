@@ -1,23 +1,15 @@
+import type { AuthUser } from '../Auth/useAuth';
+
 interface ProfileScreenProps {
-  email: string;
+  user: AuthUser;
   onClose: () => void;
   onLogout: () => void;
   selectedTheme: string;
 }
 
-export default function ProfileScreen({ email, onClose, onLogout, selectedTheme }: ProfileScreenProps) {
-  // get name and surname from email
-  const getNameFromEmail = (mail: string) => {
-    if (!mail) return 'User';
-    const localPart = mail.split('@')[0];
-    const parts = localPart.split(/[._]/);
-    
-    return parts
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join(' ');
-  };
-
-  const fullName = getNameFromEmail(email);
+export default function ProfileScreen({ user, onClose, onLogout, selectedTheme }: ProfileScreenProps) {
+  // name comes from the KSI account (Keycloak "name" claim)
+  const fullName = user.name || user.username || user.email || 'User';
 
   // setup colors including outer page background for each theme
   const getThemeStyles = (theme: string) => {
@@ -108,7 +100,7 @@ export default function ProfileScreen({ email, onClose, onLogout, selectedTheme 
             </div>
             
             <h3 className="text-xl font-semibold mb-1">{fullName}</h3>
-            <p className={styles.muted}>{email}</p>
+            {user.email && <p className={styles.muted}>{user.email}</p>}
           </div>
 
           {/* links section */}
