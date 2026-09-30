@@ -4,6 +4,8 @@ import ChatScreen from './features/Chat/ChatScreen';
 import LoginScreen from './features/Auth/LoginScreen';
 import ProfileScreen from './features/Profile/ProfileScreen';
 import { useAuth } from './features/Auth/useAuth';
+import { THEME_STORAGE_KEY, parseThemePreference } from './features/Chat/themes';
+import { useResolvedTheme } from './features/Chat/useResolvedTheme';
 
 type View = 'chat' | 'profile';
 
@@ -16,8 +18,8 @@ export default function App() {
     localStorage.getItem('chatActiveView') === 'profile' ? 'profile' : 'chat'
   );
 
-  // get theme from storage to pass to profile screen
-  const currentTheme = localStorage.getItem('chat-theme') || 'jasny';
+  // same theme preference as the chat, resolved for the profile screen
+  const profileTheme = useResolvedTheme(parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY)));
 
   // save active view to memory every time it changes
   useEffect(() => {
@@ -29,16 +31,17 @@ export default function App() {
     void logout();
   };
 
-  // checking the session with the backend
+  // checking the session with the backend, or already redirecting to KSI login
+  // (dark: variant follows the device, so there is no white flash in dark mode)
   if (state.status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#121212]">
         <Loader2 className="w-6 h-6 animate-spin text-slate-400" aria-label="Loading" />
       </div>
     );
   }
 
-  // no session - only KSI login is possible
+  // only reached on login errors - no session alone redirects straight to KSI
   if (state.status === 'unauthenticated') {
     return <LoginScreen error={state.error} onLogin={login} />;
   }
@@ -50,7 +53,7 @@ export default function App() {
         user={state.user}
         onClose={() => setActiveView('chat')}
         onLogout={handleLogout}
-        selectedTheme={currentTheme}
+        selectedTheme={profileTheme}
       />
     );
   }

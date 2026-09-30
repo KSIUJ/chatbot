@@ -66,3 +66,34 @@ export const themeStyles = {
 };
 
 export type ThemeKey = keyof typeof themeStyles;
+
+// What the user picked in settings: a concrete theme or "follow the device".
+export type ThemePreference = ThemeKey | 'systemowy';
+
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = 'systemowy';
+
+// Order shown in the settings menu.
+export const THEME_PREFERENCES: readonly ThemePreference[] = [
+  'systemowy',
+  'jasny',
+  'ciemny',
+  'granatowy',
+  'różowy',
+];
+
+// Single localStorage key for the theme (chat and profile screens).
+export const THEME_STORAGE_KEY = 'chatTheme';
+
+export function parseThemePreference(value: string | null): ThemePreference {
+  return THEME_PREFERENCES.find((option) => option === value) ?? DEFAULT_THEME_PREFERENCE;
+}
+
+// Theme actually rendered: "systemowy" maps to light/dark by the device setting.
+export function resolveTheme(preference: ThemePreference, systemPrefersDark: boolean): ThemeKey {
+  if (preference !== 'systemowy') return preference;
+  return systemPrefersDark ? 'ciemny' : 'jasny';
+}
+
+export function isDarkTheme(theme: ThemeKey): boolean {
+  return theme === 'ciemny' || theme === 'granatowy';
+}
