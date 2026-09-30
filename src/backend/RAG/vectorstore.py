@@ -21,6 +21,17 @@ GROUP_MORDOR = {"source": "mordor"}
 GROUP_OTHER = {"source": {"$in": ["strony", "usos"]}}
 
 
+def _hit(id_: str, value: str, metadata: dict, distance: float | None) -> dict:
+    return {
+        "id": id_,
+        "value": value,
+        "content_type": metadata.get("content_type", "text"),
+        "source": metadata.get("source"),
+        "metadata": metadata,
+        "distance": distance,
+    }
+
+
 class VectorStore:
     def __init__(self, persist_dir: str = DEFAULT_PERSIST_DIR, encoder: Encoder | None = None):
         import chromadb
@@ -75,14 +86,7 @@ class VectorStore:
         got = self._collection.get(ids=ids, include=["documents", "metadatas"])
         by_id = {}
         for id_, value, metadata in zip(got["ids"], got["documents"], got["metadatas"]):
-            by_id[id_] = {
-                "id": id_,
-                "value": value,
-                "content_type": metadata.get("content_type", "text"),
-                "source": metadata.get("source"),
-                "metadata": metadata,
-                "distance": None,
-            }
+            by_id[id_] = _hit(id_, value, metadata, None)
         return [by_id[i] for i in ids if i in by_id]
 
     def _query(self, embedding: list[float], top_k: int, where: dict | None = None) -> list[dict]:
@@ -102,16 +106,7 @@ class VectorStore:
         distances = results.get("distances", [[]])[0]
 
         for id_, value, metadata, distance in zip(ids, documents, metadatas, distances):
-            hits.append(
-                {
-                    "id": id_,
-                    "value": value,
-                    "content_type": metadata.get("content_type", "text"),
-                    "source": metadata.get("source"),
-                    "metadata": metadata,
-                    "distance": distance,
-                }
-            )
+            hits.append(_hit(id_, value, metadata, distance))
         return hits
 
     def search(self, query: str, top_k: int = 5) -> list[dict]:

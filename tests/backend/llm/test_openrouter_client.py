@@ -9,6 +9,7 @@ sieciowych ani nie wymagaja klucza API.
 import json
 
 import pytest
+import requests
 
 from backend.llm import openrouter_client
 
@@ -52,7 +53,7 @@ def transport(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
     fake = FakeTransport()
-    monkeypatch.setattr(openrouter_client.requests, "request", fake)
+    monkeypatch.setattr(requests, "request", fake)
     return fake
 
 
@@ -156,7 +157,7 @@ def test_chat_raises_runtime_error_on_generic_status_error(transport):
 
 
 def test_chat_raises_runtime_error_on_connection_error(transport):
-    transport.error = openrouter_client.requests.RequestException("network down")
+    transport.error = requests.RequestException("network down")
 
     with pytest.raises(RuntimeError, match="polaczenia"):
         openrouter_client.chat(system="s", user="u")

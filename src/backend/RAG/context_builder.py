@@ -3,19 +3,15 @@ Publiczny interfejs modulu RAG dla src/backend/llm/.
 
 Jedyna funkcja, jakiej potrzebuje warstwa LLM: build_context(query, k_mordor,
 k_other) -> (prompt_z_kontekstem, lista_sciezek_do_obrazow). Reszta modulu RAG
-(encoder/vectorstore/retriever/ingest) jest szczegolem implementacyjnym.
-
-POZA ZAKRESEM tego zadania: faktyczne spiecie z src/backend/main.py (FastAPI)
-- main.py jest na razie tylko placeholderem (# TODO fastapi), a
-  src/backend/llm/ jest rownolegle rozwijane przez Mikolaja. To on decyduje,
-  jak i kiedy wywolac build_context() w docelowym flow zapytanie -> odpowiedz.
+(encoder/vectorstore/retriever) jest szczegolem implementacyjnym. Wywoluje go
+llm/generate.py przy kazdym pytaniu z /chat.
 """
 
 from .retriever import Retriever
+from .staff import DEFAULT_LIMIT as DEFAULT_STAFF_LIMIT
 
 DEFAULT_K_MORDOR = 5
 DEFAULT_K_OTHER = 5
-DEFAULT_STAFF_LIMIT = 2
 
 STAFF_HEADER = "PRACOWNIK (dane z USOS - najbardziej wiarygodne):"
 OFFICIAL_HEADER = "ZRODLA OFICJALNE (strony wydzialu, USOS - wiarygodne):"

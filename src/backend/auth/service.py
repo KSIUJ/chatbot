@@ -12,7 +12,7 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from ..database import get_user_by_oidc_sub
-from ..models import User, UserSession
+from ..models import User, UserSession, utcnow
 from .crypto import DecryptionError, TokenCipher, hash_session_token, new_session_token
 from .oidc import (
     InvalidGrantError,
@@ -39,10 +39,6 @@ _SESSION_LOCKS: tuple[threading.Lock, ...] = tuple(threading.Lock() for _ in ran
 
 def _lock_for(session_id: str) -> threading.Lock:
     return _SESSION_LOCKS[int(session_id[:8], 16) % len(_SESSION_LOCKS)]
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -120,7 +116,7 @@ def upsert_user(db: Session, sub: str, claims: JSONObject) -> User:
         user = User(oidc_sub=sub)
         db.add(user)
     _apply_profile(user, claims)
-    user.last_login_at = _utcnow()
+    user.last_login_at = utcnow()
     db.flush()
     return user
 
@@ -148,7 +144,7 @@ def create_session(
     """Zaklada sesje i zwraca surowy token do ciasteczka (w bazie jest tylko hash).
     Zawsze nowy token - brak session fixation."""
     raw_token = new_session_token()
-    now = _utcnow()
+    now = utcnow()
     session = UserSession(
         id=hash_session_token(raw_token),
         user_id=user.id,
@@ -167,7 +163,7 @@ def find_session(db: Session, raw_token: str) -> UserSession | None:
     session = db.get(UserSession, hash_session_token(raw_token))
     if session is None:
         return None
-    if _as_utc(session.expires_at) <= _utcnow():
+    if _as_utc(session.expires_at) <= utcnow():
         db.delete(session)
         db.commit()
         return None
@@ -181,7 +177,7 @@ def delete_session(db: Session, session: UserSession) -> None:
 
 def purge_expired_sessions(db: Session) -> int:
     """Sprzata wygasle sesje (wywolywane przy logowaniu)."""
-    result = db.execute(delete(UserSession).where(UserSession.expires_at <= _utcnow()))
+    result = db.execute(delete(UserSession).where(UserSession.expires_at <= utcnow()))
     db.commit()
     return int(result.rowcount or 0)
 
@@ -232,7 +228,7 @@ def _current_access_token(
     oidc: OIDCClient,
     cipher: TokenCipher,
 ) -> str:
-    if _as_utc(session.access_token_expires_at) - ACCESS_TOKEN_REFRESH_MARGIN <= _utcnow():
+    if _as_utc(session.access_token_expires_at) - ACCESS_TOKEN_REFRESH_MARGIN <= utcnow():
         return _refresh_tokens(db, session, oidc, cipher)
     try:
         return cipher.decrypt(session.access_token_enc)
@@ -297,6 +293,6 @@ def authenticate(
             raise _not_member()
 
         _apply_profile(user, claims)
-        session.last_seen_at = _utcnow()
+        session.last_seen_at = utcnow()
         db.commit()
         return user
