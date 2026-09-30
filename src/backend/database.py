@@ -4,11 +4,15 @@ import os
 from collections.abc import Generator
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import func
 
-from .models import Base, Conversation, Message, MessageFeedback, MessageRole, User
+from datetime import datetime, timezone
+
+from .history import make_title
+from .models import Base, Conversation, Message, MessageRole, UsageCounter, User
 
 load_dotenv()
 
@@ -53,17 +57,6 @@ def get_user_by_oidc_sub(db: Session, oidc_sub: str) -> User | None:
     stmt = select(User).where(User.oidc_sub == oidc_sub)
     return db.execute(stmt).scalar_one_or_none()
 
-def set_user_context_count(db: Session, user_id: str, context_count: int) -> User:
-    """Zmienia liczbe kontekstow wybrana przez uzytkownika"""
-    user = get_user(db, user_id)
-    if user is None:
-        raise KeyError(f"User {user_id} does not exist")
-
-    user.context_count = context_count
-    db.commit()
-    db.refresh(user)
-    return user
-
 def count_users(db: Session) -> int:
     """Liczba kont - kazde powstaje przy pierwszym udanym logowaniu przez KSI."""
     return db.execute(select(func.count()).select_from(User)).scalar_one()
@@ -71,8 +64,13 @@ def count_users(db: Session) -> int:
 
 # CONVERSATIONS
 
-def create_conversation(db: Session, user_id: str | None = None) -> Conversation:
+def create_conversation(
+    db: Session, user_id: str | None = None, conversation_id: str | None = None
+) -> Conversation:
+    """Zaklada rozmowe; conversation_id nadaje klient (32 hex), inaczej losowe."""
     conversation = Conversation(user_id=user_id)
+    if conversation_id is not None:
+        conversation.id = conversation_id
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
@@ -83,21 +81,38 @@ def get_conversation(db: Session, conversation_id: str) -> Conversation | None:
     return db.get(Conversation, conversation_id)
 
 
-def list_conversations_for_user(db: Session, user_id: str) -> list[Conversation]:
-    stmt = (
-        select(Conversation)
-        .where(Conversation.user_id == user_id)
-        .order_by(Conversation.created_at.desc())
+# Lista, usuwanie i wygasanie rozmow: src/backend/history.py
+
+
+# STATS
+# Liczniki w osobnej tabeli - nie maleja, gdy stare rozmowy sa kasowane.
+
+PROMPTS_COUNTER = "total_prompts"
+ANONYMOUS_CONVERSATIONS_COUNTER = "anonymous_conversations"
+
+
+def get_counter(db: Session, key: str) -> int:
+    counter = db.get(UsageCounter, key)
+    return counter.value if counter is not None else 0
+
+
+def increment_counter(db: Session, key: str, by: int = 1) -> None:
+    """Zwieksza licznik atomowo w bazie (UPDATE value = value + by), zeby
+    rownolegle zapytania nie gubily inkrementow. Bez commita - commituje
+    wolajacy razem ze swoja zmiana. Brakujacy wiersz jest zakladany."""
+    result = db.execute(
+        update(UsageCounter).where(UsageCounter.key == key).values(value=UsageCounter.value + by)
     )
-    return list(db.execute(stmt).scalars().all())
-
-def count_conversations(db: Session) -> int:
-    return db.execute(select(func.count()).select_from(Conversation)).scalar_one()
-
-def count_anonymous_conversations(db: Session) -> int:
-    """Liczba konwersacji zaczetych bez logowania (brak user_id)."""
-    stmt = select(func.count()).select_from(Conversation).where(Conversation.user_id.is_(None))
-    return db.execute(stmt).scalar_one()
+    if result.rowcount:
+        return
+    try:
+        with db.begin_nested():
+            db.add(UsageCounter(key=key, value=by))
+    except IntegrityError:
+        # ktos wlasnie zalozyl ten wiersz - wystarczy go zwiekszyc
+        db.execute(
+            update(UsageCounter).where(UsageCounter.key == key).values(value=UsageCounter.value + by)
+        )
 
 
 # MESSAGES
@@ -120,6 +135,13 @@ def add_message(
         sources=sources or [],
     )
     db.add(message)
+
+    # kazda wiadomosc odswieza pozycje rozmowy w historii i odsuwa jej wygasniecie
+    conversation.last_message_at = datetime.now(timezone.utc)
+    if role == MessageRole.USER:
+        if conversation.title is None:
+            conversation.title = make_title(content)
+        increment_counter(db, PROMPTS_COUNTER)
     db.commit()
     db.refresh(message)
     return message
@@ -143,19 +165,3 @@ def delete_last_assistant_message(db: Session, conversation_id: str) -> bool:
     db.delete(messages[-1])
     db.commit()
     return True
-
-
-def set_message_feedback(db: Session, message_id: str, feedback: MessageFeedback | None) -> Message:
-    """Ustawia/kasuje lapke w gore lub w dol na wiadomosci. feedback=None czysci ocene."""
-    message = db.get(Message, message_id)
-    if message is None:
-        raise KeyError(f"Message {message_id} does not exist")
-
-    message.feedback = feedback
-    db.commit()
-    db.refresh(message)
-    return message
-
-def count_prompts(db: Session) -> int:
-    stmt = select(func.count()).select_from(Message).where(Message.role == MessageRole.USER)
-    return db.execute(stmt).scalar_one()

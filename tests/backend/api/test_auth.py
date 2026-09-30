@@ -195,7 +195,7 @@ def test_relogin_reuses_account_and_updates_profile(client):
 def test_protected_endpoints_require_login(client):
     assert client.get("/auth/me").json()["detail"]["code"] == "not_authenticated"
     assert client.post("/chat", json={"message": "hej"}).status_code == 401
-    assert client.post("/conversations").status_code == 401
+    assert client.get("/conversations").status_code == 401
     assert client.get("/conversations/abc").status_code == 401
 
 
@@ -327,7 +327,7 @@ def test_conversations_are_private_to_their_owner(client):
 def test_new_conversation_belongs_to_user(client):
     login(client, client.keycloak, "alice")
 
-    cid = client.post("/conversations").json()["id"]
+    cid = client.post("/chat", json={"message": "pierwsze pytanie"}).json()["conversation_id"]
 
     db = client.session_factory()
     conversation = db.get(Conversation, cid)
