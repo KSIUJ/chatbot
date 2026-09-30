@@ -2,6 +2,7 @@ export const themeStyles = {
   jasny: {
     app: "bg-neutral-50",
     sidebar: "bg-white border-neutral-200",
+    border: "border-neutral-200",
     text: "text-neutral-900",
     textMuted: "text-neutral-500",
     hover: "hover:bg-neutral-100",
@@ -13,59 +14,27 @@ export const themeStyles = {
     sendBtn: "bg-neutral-800 hover:bg-neutral-900 text-white",
     popover: "bg-white border-neutral-200 shadow-xl",
     copiedIcon: "text-neutral-800",
-    chatGradient: "from-neutral-50/0 via-neutral-50/80 to-neutral-50",
   },
   ciemny: {
     app: "bg-[#121212]",
     sidebar: "bg-[#1a1a1a] border-neutral-800",
+    border: "border-neutral-800",
     text: "text-neutral-200",
     textMuted: "text-neutral-400",
     hover: "hover:bg-neutral-800",
     active: "bg-neutral-700",
     botIcon: "bg-neutral-500",
     msgBox: "bg-[#252525] border-0 text-neutral-100 shadow-md",
-    userMsgBox: "bg-[#333333] border-0 text-neutral-100 shadow-md", 
+    userMsgBox: "bg-[#333333] border-0 text-neutral-100 shadow-md",
     inputBox: "bg-[#1e1e1e] border-neutral-800 text-neutral-200 focus:ring-neutral-600/50",
     sendBtn: "bg-neutral-700 hover:bg-neutral-600 text-white",
     popover: "bg-[#2c2c2c] border-neutral-800 shadow-xl",
-    copiedIcon: "text-neutral-200", 
-    chatGradient: "from-[#121212]/0 via-[#121212]/80 to-[#121212]", 
+    copiedIcon: "text-neutral-200",
   },
-  granatowy: {
-    app: "bg-slate-900",
-    sidebar: "bg-slate-950 border-slate-800",
-    text: "text-slate-200",
-    textMuted: "text-slate-400",
-    hover: "hover:bg-slate-800",
-    active: "bg-slate-700",
-    botIcon: "bg-blue-600",
-    msgBox: "bg-slate-800 border-0 text-slate-200 shadow-md",
-    userMsgBox: "bg-blue-600 border-0 text-white shadow-md",
-    inputBox: "bg-slate-800 border-slate-700 text-slate-200 focus:ring-blue-500/50",
-    sendBtn: "bg-blue-600 hover:bg-blue-500 text-white",
-    popover: "bg-slate-800 border-slate-700 shadow-xl",
-    copiedIcon: "text-slate-200", 
-    chatGradient: "from-slate-900/0 via-slate-900/80 to-slate-900", 
-  },
-  różowy: {
-    app: "bg-pink-50",
-    sidebar: "bg-pink-100 border-pink-200",
-    text: "text-pink-950",
-    textMuted: "text-pink-600",
-    hover: "hover:bg-pink-200",
-    active: "bg-pink-300",
-    botIcon: "bg-pink-500",
-    msgBox: "bg-white border border-pink-200 text-pink-900 shadow-sm",
-    userMsgBox: "bg-pink-600 border-0 text-white shadow-sm",
-    inputBox: "bg-white border-pink-200 text-pink-900 focus:ring-pink-400/50",
-    sendBtn: "bg-pink-600 hover:bg-pink-500 text-white",
-    popover: "bg-pink-50 border-pink-200 shadow-xl",
-    copiedIcon: "text-pink-500", 
-    chatGradient: "from-pink-50/0 via-pink-50/80 to-pink-50", 
-  }
 };
 
 export type ThemeKey = keyof typeof themeStyles;
+export type ThemeStyle = (typeof themeStyles)[ThemeKey];
 
 // What the user picked in settings: a concrete theme or "follow the device".
 export type ThemePreference = ThemeKey | 'systemowy';
@@ -73,17 +42,11 @@ export type ThemePreference = ThemeKey | 'systemowy';
 export const DEFAULT_THEME_PREFERENCE: ThemePreference = 'systemowy';
 
 // Order shown in the settings menu.
-export const THEME_PREFERENCES: readonly ThemePreference[] = [
-  'systemowy',
-  'jasny',
-  'ciemny',
-  'granatowy',
-  'różowy',
-];
+export const THEME_PREFERENCES: readonly ThemePreference[] = ['systemowy', 'jasny', 'ciemny'];
 
-// Single localStorage key for the theme (chat and profile screens).
 export const THEME_STORAGE_KEY = 'chatTheme';
 
+// Unknown or removed themes (e.g. the old "granatowy") fall back to the default.
 export function parseThemePreference(value: string | null): ThemePreference {
   return THEME_PREFERENCES.find((option) => option === value) ?? DEFAULT_THEME_PREFERENCE;
 }
@@ -95,5 +58,5 @@ export function resolveTheme(preference: ThemePreference, systemPrefersDark: boo
 }
 
 export function isDarkTheme(theme: ThemeKey): boolean {
-  return theme === 'ciemny' || theme === 'granatowy';
+  return theme === 'ciemny';
 }

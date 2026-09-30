@@ -1,22 +1,30 @@
-// Klucze localStorage z trescia rozmowy (useChat). Czyszczone przy
-// wylogowaniu i przy zmianie konta, zeby na wspolnym komputerze nikt nie
-// zobaczyl cudzej rozmowy.
-const CHAT_CONTENT_KEYS = ['chatMessages', 'chatConversationId'] as const;
+// Conversations live on the server; the browser only remembers which one is
+// open. Cleared on logout and on account change, so on a shared computer the
+// next person does not land in someone else's conversation.
+export const ACTIVE_CONVERSATION_KEY = 'chatConversationId';
 
-// Kto jest wlascicielem rozmowy zapisanej w localStorage.
+// Who the remembered conversation belongs to.
 const CHAT_OWNER_KEY = 'chatOwner';
 
-// Pozostalosci po starym logowaniu haslem i trybie goscia oraz stary
-// duplikat klucza motywu (motyw jest teraz tylko w "chatTheme").
-const LEGACY_KEYS = ['userEmail', 'isGuest', 'isLoggedIn', 'activeView', 'chat-theme'] as const;
+// Leftovers of earlier versions: password login, guest mode, chat kept in
+// localStorage, RAG slider, profile view, duplicate theme key.
+const LEGACY_KEYS = [
+  'userEmail',
+  'isGuest',
+  'isLoggedIn',
+  'activeView',
+  'chatActiveView',
+  'chat-theme',
+  'chatMessages',
+  'chatRagCount',
+] as const;
 
 export function clearChatStorage(): void {
-  for (const key of CHAT_CONTENT_KEYS) localStorage.removeItem(key);
+  localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
   localStorage.removeItem(CHAT_OWNER_KEY);
 }
 
-// Wywolywane po potwierdzeniu zalogowania: jesli zapisana rozmowa nalezy
-// do kogos innego, zostaje usunieta.
+// Called once the session is confirmed: drop state that belongs to another account.
 export function claimChatStorage(userId: string): void {
   for (const key of LEGACY_KEYS) localStorage.removeItem(key);
   if (localStorage.getItem(CHAT_OWNER_KEY) !== userId) {
