@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Bot, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import type { ThemeStyle } from './themes';
 import type { Translation } from './languages';
-import type { ChatMessage } from './types';
+import type { ChatMessage } from '../../lib/conversations';
 
 interface ChatMessageListProps {
   t: ThemeStyle;

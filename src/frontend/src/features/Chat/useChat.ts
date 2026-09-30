@@ -9,11 +9,11 @@ import {
   sendMessage,
   shouldRegenerate,
   toChatMessages,
+  type ChatMessage,
   type ConversationList,
   type ConversationSummary,
 } from '../../lib/conversations';
 import { ACTIVE_CONVERSATION_KEY } from '../../lib/chatStorage';
-import type { ChatMessage } from './types';
 
 export interface HistoryLimits {
   maxPerUser: number;
