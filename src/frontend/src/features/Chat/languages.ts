@@ -3,54 +3,75 @@ export const translations = {
     appTitle: "Chatbot WMiI",
     newChat: "Nowy czat",
     recent: "Ostatnie",
-    chat1: "Zasady przyznawania stypendiów...",
-    chat2: "Regulamin studiów WMiI",
-    chat3: "Kontakt do dziekanatu",
+    noChats: "Brak rozmów",
+    untitled: "Rozmowa",
+    deleteChat: "Usuń rozmowę",
+    deleteConfirm: "Usunąć tę rozmowę?",
+    historyNote: (max: number, days: number) =>
+      `Przechowujemy ${max} ostatnich rozmów. Nieużywane usuwamy po ${days} dniach.`,
+    historyError: "Nie udało się wczytać historii.",
     language: "Język",
     theme: "Motyw",
-    ragContexts: "Fragmenty na źródło",
     settings: "Ustawienia",
-    account: "Konto",
     logout: "Wyloguj się",
-    botGreeting: "Cześć! Jestem wirtualnym asystentem Wydziału Matematyki i Informatyki. W czym mogę Ci dzisiaj pomóc?",
-    botReply: "testowa odp",
+    greeting: "Cześć! Jestem wirtualnym asystentem Wydziału Matematyki i Informatyki. W czym mogę Ci dzisiaj pomóc?",
     inputPlaceholder: "Zapytaj Chatbota",
+    waitingPlaceholder: "Odpowiada...",
+    send: "Wyślij",
+    stop: "Zatrzymaj",
     disclaimer: "Chatbot to AI i może popełniać błędy. Zweryfikuj ważne informacje na stronie wydziału.",
     copy: "Kopiuj",
     copied: "Skopiowano",
+    retry: "Ponów",
+    stopped: "Przerwano.",
+    error: "Nie udało się uzyskać odpowiedzi. Spróbuj ponownie.",
+    loadError: "Nie udało się wczytać rozmowy.",
     themeNames: {
+      systemowy: "systemowy",
       jasny: "jasny",
       ciemny: "ciemny",
-      granatowy: "granatowy",
-      różowy: "różowy"
-    }
+    },
   },
   angielski: {
     appTitle: "WMiI Chatbot",
     newChat: "New chat",
     recent: "Recent",
-    chat1: "Scholarship rules...",
-    chat2: "WMiI study regulations",
-    chat3: "Dean's office contact",
+    noChats: "No conversations",
+    untitled: "Conversation",
+    deleteChat: "Delete conversation",
+    deleteConfirm: "Delete this conversation?",
+    historyNote: (max: number, days: number) =>
+      `We keep your ${max} most recent chats. Unused ones are deleted after ${days} days.`,
+    historyError: "Could not load history.",
     language: "Language",
     theme: "Theme",
-    ragContexts: "Fragments per source",
     settings: "Settings",
-    account: "Account",
     logout: "Log out",
-    botGreeting: "Hello! I am the virtual assistant of the Faculty of Mathematics and Computer Science. How can I help you today?",
-    botReply: "test reply",
-    inputPlaceholder: "Ask Chatbot",
+    greeting: "Hi! I'm the virtual assistant of the Faculty of Mathematics and Computer Science. How can I help you today?",
+    inputPlaceholder: "Ask the Chatbot",
+    waitingPlaceholder: "Answering...",
+    send: "Send",
+    stop: "Stop",
     disclaimer: "Chatbot is an AI and may make mistakes. Verify important information on the faculty website.",
     copy: "Copy",
     copied: "Copied",
+    retry: "Retry",
+    stopped: "Stopped.",
+    error: "Could not get an answer. Please try again.",
+    loadError: "Could not load this conversation.",
     themeNames: {
+      systemowy: "system",
       jasny: "light",
       ciemny: "dark",
-      granatowy: "navy",
-      różowy: "pink"
-    }
-  }
+    },
+  },
 };
 
 export type LangKey = keyof typeof translations;
+export type Translation = (typeof translations)[LangKey];
+
+export const LANGUAGE_STORAGE_KEY = 'chatLanguage';
+
+export function parseLanguage(value: string | null): LangKey {
+  return value === 'angielski' ? 'angielski' : 'polski';
+}

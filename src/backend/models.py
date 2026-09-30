@@ -4,7 +4,7 @@ import enum
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -27,50 +27,55 @@ class MessageRole(str, enum.Enum):
     USER = "user"
     ASSISTANT = "assistant"
 
-class MessageFeedback(str, enum.Enum):
-    """Ocena odpowiedzi asystenta - lapka w gore/dol"""
-    UP = "up"
-    DOWN = "down"
-
-
-# Domyslna liczba kontekstow jesli uzytkownik nie ustawil wlasnej
-DEFAULT_CONTEXT_COUNT = 5
-
-
 class User(Base):
+    """Konto uzytkownika zakladane automatycznie przy pierwszym logowaniu przez
+    Keycloak KSI (OIDC). Tozsamoscia jest `oidc_sub` - email i nazwa sa tylko
+    kopia danych z Keycloaka, odswiezana przy kazdym zapytaniu."""
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+
+    # Claim "sub" z Keycloaka - staly identyfikator konta KSI.
+    oidc_sub: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+
+    email: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
+    # preferred_username z Keycloaka
     username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # imie i nazwisko (claim "name")
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    # Hash hasla by nie trzymac w postaci jawnej.
-    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-
+    # Lokalny wylacznik konta, niezalezny od Keycloaka.
     is_active: Mapped[bool] = mapped_column(default=True)
 
-    # Czy uzytkownik potwierdzil maila kodem wyslanym przy rejestracji
-    # (osobne od is_active - to jest "czy konto aktywne/niezablokowane")
-    zweryfikowany: Mapped[bool] = mapped_column(default=False)
-
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-
-    context_count: Mapped[int] = mapped_column(default=DEFAULT_CONTEXT_COUNT)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    sessions: Mapped[list["UserSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"User(id={self.id!r}, email={self.email!r})"
+        return f"User(id={self.id!r}, oidc_sub={self.oidc_sub!r})"
 
 
 class Conversation(Base):
+    """Rozmowa w historii uzytkownika (sidebar). Nieuzywane dluzej niz
+    CHAT_HISTORY_RETENTION_DAYS sa kasowane - patrz src/backend/history.py."""
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    # Pierwsze pytanie, skrocone - tytul na liscie w sidebarze
+    title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Ostatnia wiadomosc: kolejnosc historii i licznik wygasania
+    last_message_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True, nullable=False
+    )
 
     user: Mapped["User | None"] = relationship(back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(
@@ -87,7 +92,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
-    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True, nullable=False)
     role: Mapped[MessageRole] = mapped_column(SAEnum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -95,36 +100,50 @@ class Message(Base):
     # Lista zrodel z RAG-a
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
 
-    feedback: Mapped[MessageFeedback | None] = mapped_column(SAEnum(MessageFeedback), nullable=True)
-
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"Message(id={self.id!r}, role={self.role!r})"
 
 
-class EmailCode(Base):
-    """Kody weryfikacji maila wysylane przy rejestracji."""
-    __tablename__ = "email_codes"
+class UsageCounter(Base):
+    """Liczniki statystyk (/api/stats), ktore nie maleja, gdy stare rozmowy
+    sa kasowane - liczenie wierszy w messages spadaloby po kazdym czyszczeniu."""
+    __tablename__ = "usage_counters"
 
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
-    kod: Mapped[str] = mapped_column(String(6), nullable=False)
-    typ: Mapped[str] = mapped_column(String(20), nullable=False)  # na razie zawsze "verify"
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    used: Mapped[bool] = mapped_column(default=False)
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[int] = mapped_column(default=0, nullable=False)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"EmailCode(id={self.id!r}, user_id={self.user_id!r}, typ={self.typ!r})"
+        return f"UsageCounter(key={self.key!r}, value={self.value!r})"
 
 
-class BlacklistedToken(Base):
-    """Token uniewazniony przez logout - trzymany do naturalnego wygasniecia."""
-    __tablename__ = "blacklisted_tokens"
+class UserSession(Base):
+    """Sesja aplikacji po zalogowaniu przez Keycloak.
 
-    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
-    token: Mapped[str] = mapped_column(String(500), unique=True, index=True, nullable=False)
+    Przegladarka dostaje tylko losowy token w ciasteczku HttpOnly; w bazie jest
+    jego SHA-256 (wyciek bazy nie daje dzialajacych ciasteczek). Tokeny z
+    Keycloaka sa zaszyfrowane (Fernet, klucz z AUTH_SECRET_KEY) - backend uzywa
+    ich przy kazdym zapytaniu, zeby sprawdzic czlonkostwo w grupie przez userinfo.
+    """
+    __tablename__ = "user_sessions"
+
+    # SHA-256 (hex) tokenu z ciasteczka
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    access_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    access_token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # id_token potrzebny tylko jako id_token_hint przy wylogowaniu z Keycloaka
+    id_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="sessions")
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"BlacklistedToken(id={self.id!r})"
+        return f"UserSession(user_id={self.user_id!r}, expires_at={self.expires_at!r})"
