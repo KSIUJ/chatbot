@@ -25,3 +25,9 @@ pymupdf4llm
 # Backend API (src/backend/main.py)
 fastapi
 uvicorn[standard]
+
+# Logowanie OIDC przez Keycloak KSI (src/backend/auth/) - klient HTTP,
+# walidacja podpisanych ID tokenow (JWKS) i szyfrowanie tokenow w bazie
+httpx
+joserfc
+cryptography

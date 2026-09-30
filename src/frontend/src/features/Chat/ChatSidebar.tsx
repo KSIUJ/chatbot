@@ -1,54 +1,91 @@
-import { Plus, Settings, UserCircle, Globe, Moon, ChevronRight, ArrowLeft, Check, Sliders, LogOut } from 'lucide-react';
-import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg"; 
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Check, ChevronRight, Globe, LogOut, Moon, Plus, Settings, Trash2 } from 'lucide-react';
+import ksiLogo from '../../assets/logo-ksi-IBUoeAwm.svg';
+import type { AuthUser } from '../Auth/useAuth';
+import { conversationTitle, type ConversationSummary } from '../../lib/conversations';
+import { THEME_PREFERENCES, type ThemePreference, type ThemeStyle } from './themes';
+import type { LangKey, Translation } from './languages';
+import type { HistoryLimits } from './useChat';
+
+type SettingsView = 'closed' | 'main' | 'language' | 'theme';
+
+const LANGUAGE_OPTIONS: readonly { key: LangKey; label: string }[] = [
+  { key: 'polski', label: 'Polski' },
+  { key: 'angielski', label: 'English' },
+];
 
 interface ChatSidebarProps {
-  isDarkTheme: boolean;
-  t: any;
-  lang: any;
-  handleNewChat: () => void;
-  menuRef: React.RefObject<HTMLDivElement | null>; 
-  showSettingsMenu: boolean;
-  settingsView: string;
-  setSettingsView: any; 
-  selectedLanguage: string;
-  setSelectedLanguage: any; 
-  selectedTheme: string;
-  setSelectedTheme: any; 
-  ragCount: number;
-  setRagCount: (count: number) => void;
-  toggleSettings: () => void;
-  onOpenProfile?: () => void;
-  handleLogout: () => void;
+  t: ThemeStyle;
+  lang: Translation;
+  isDark: boolean;
+  user: AuthUser;
+  conversations: ConversationSummary[];
+  activeId: string | null;
+  limits: HistoryLimits | null;
+  historyError: boolean;
+  language: LangKey;
+  themePreference: ThemePreference;
+  onNewChat: () => void;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+  onLanguageChange: (language: LangKey) => void;
+  onThemeChange: (theme: ThemePreference) => void;
+  onLogout: () => void;
 }
 
-export default function ChatSidebar(props: ChatSidebarProps) {
-  const {
-    isDarkTheme, t, lang, handleNewChat, menuRef, showSettingsMenu, settingsView,
-    setSettingsView, selectedLanguage, setSelectedLanguage, selectedTheme, setSelectedTheme,
-    ragCount, setRagCount, toggleSettings, onOpenProfile, handleLogout
-  } = props;
+export default function ChatSidebar({
+  t, lang, isDark, user, conversations, activeId, limits, historyError, language, themePreference,
+  onNewChat, onOpen, onDelete, onLanguageChange, onThemeChange, onLogout,
+}: ChatSidebarProps) {
+  const [settingsView, setSettingsView] = useState<SettingsView>('closed');
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // close the settings popover on a click outside of it
+  useEffect(() => {
+    if (settingsView === 'closed') return;
+    const handleClick = (event: MouseEvent) => {
+      if (!settingsRef.current?.contains(event.target as Node)) setSettingsView('closed');
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [settingsView]);
+
+  const handleDelete = (id: string) => {
+    if (window.confirm(lang.deleteConfirm)) onDelete(id);
+  };
+
+  const displayName = user.name || user.username || user.email || '';
+  const menuItem = `w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`;
+
+  const submenuHeader = (title: string) => (
+    <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.border}`}>
+      <button type="button" onClick={() => setSettingsView('main')} className={`p-1 ${t.hover} rounded-full`} aria-label="Back">
+        <ArrowLeft size={16} className={t.textMuted} />
+      </button>
+      <span className="text-sm font-medium">{title}</span>
+    </div>
+  );
 
   return (
-    <div className={`hidden md:flex w-64 ${t.sidebar} flex-col border-r transition-colors duration-300`}>
-      {/* logo + new chat button */}
+    <div className={`hidden md:flex w-64 ${t.sidebar} flex-col border-r`}>
+      {/* logo + new chat */}
       <div className="p-4 space-y-4">
-        {/* clickable logo wrapper */}
-        <a 
-          href="https://ksi.sh"  // link to KSI website
-          target="_blank" 
+        <a
+          href="https://ksi.sh"
+          target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
-          title="KSI website"
+          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+          title="KSI"
         >
-          <div className={`flex items-center justify-center shrink-0 transition-colors duration-300 ${isDarkTheme ? 'bg-white rounded-full p-1 shadow-sm' : ''}`}>
-            <img src={mojeLogo} alt="Logo KSI" className="h-8 w-8 object-contain" />
+          <div className={`flex items-center justify-center shrink-0 ${isDark ? 'bg-white rounded-full p-1 shadow-sm' : ''}`}>
+            <img src={ksiLogo} alt="KSI" className="h-8 w-8 object-contain" />
           </div>
-          <span className={`font-medium ${t.text} text-base tracking-tight transition-colors`}>{lang.appTitle}</span>
+          <span className={`font-medium ${t.text} text-base tracking-tight`}>{lang.appTitle}</span>
         </a>
-        
-        {/* new chat button with onClick */}
-        <button 
-          onClick={handleNewChat}
+
+        <button
+          type="button"
+          onClick={onNewChat}
           className={`w-full flex items-center gap-2 ${t.text} ${t.hover} transition-colors font-medium py-1.5 px-2 rounded-md`}
         >
           <Plus size={16} />
@@ -56,154 +93,126 @@ export default function ChatSidebar(props: ChatSidebarProps) {
         </button>
       </div>
 
-      {/* setting and profile */}
-      <div className="p-3 space-y-0.5 mt-auto relative" ref={menuRef}>
-        
-        {/* settings menu */}
-        {showSettingsMenu && (
-          <div className={`absolute bottom-full left-3 mb-2 w-56 ${t.popover} border rounded-2xl py-2 z-50 ${t.text} transition-colors duration-200`}>
-            
+      {/* history */}
+      <nav className="flex-1 min-h-0 overflow-y-auto px-3" aria-label={lang.recent}>
+        <p className={`px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider ${t.textMuted}`}>{lang.recent}</p>
+
+        {historyError && <p className={`px-2 py-1 text-xs ${t.textMuted}`}>{lang.historyError}</p>}
+        {!historyError && conversations.length === 0 && (
+          <p className={`px-2 py-1 text-xs ${t.textMuted}`}>{lang.noChats}</p>
+        )}
+
+        <ul className="space-y-0.5">
+          {conversations.map((conversation) => {
+            const title = conversationTitle(conversation, lang.untitled);
+            const isActive = conversation.id === activeId;
+            return (
+              <li key={conversation.id} className={`group flex items-center rounded-md ${isActive ? t.active : t.hover}`}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(conversation.id)}
+                  className={`flex-1 min-w-0 text-left px-2 py-1.5 text-sm truncate ${t.text}`}
+                  title={title}
+                  aria-current={isActive ? 'true' : undefined}
+                >
+                  {title}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(conversation.id)}
+                  className={`shrink-0 p-1.5 mr-1 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity ${t.textMuted} hover:text-red-500`}
+                  title={lang.deleteChat}
+                  aria-label={`${lang.deleteChat}: ${title}`}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {limits && (
+          <p className={`px-2 pt-3 pb-2 text-[10px] leading-snug ${t.textMuted}`}>
+            {lang.historyNote(limits.maxPerUser, limits.retentionDays)}
+          </p>
+        )}
+      </nav>
+
+      {/* settings + account */}
+      <div className="p-3 space-y-0.5 relative" ref={settingsRef}>
+        {settingsView !== 'closed' && (
+          <div className={`absolute bottom-full left-3 mb-2 w-56 ${t.popover} border rounded-2xl py-2 z-50 ${t.text}`}>
             {settingsView === 'main' && (
               <>
-                <button 
-                  onClick={() => setSettingsView('language')}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`}
-                >
-                  <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setSettingsView('language')} className={menuItem}>
+                  <span className="flex items-center gap-3">
                     <Globe size={18} className={t.textMuted} />
-                    <span>{lang.language}</span>
-                  </div>
+                    {lang.language}
+                  </span>
                   <ChevronRight size={16} className={t.textMuted} />
                 </button>
-                
-                <button 
-                  onClick={() => setSettingsView('theme')}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`}
-                >
-                  <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setSettingsView('theme')} className={menuItem}>
+                  <span className="flex items-center gap-3">
                     <Moon size={18} className={t.textMuted} />
-                    <span>{lang.theme}</span>
-                  </div>
-                  <ChevronRight size={16} className={t.textMuted} />
-                </button>
-
-                <button 
-                  onClick={() => setSettingsView('rag')}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Sliders size={18} className={t.textMuted} />
-                    <span>{lang.ragContexts}</span>
-                  </div>
+                    {lang.theme}
+                  </span>
                   <ChevronRight size={16} className={t.textMuted} />
                 </button>
               </>
             )}
 
-            {/* language options */}
             {settingsView === 'language' && (
               <div className="flex flex-col">
-                <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.sidebar.includes('border') ? t.sidebar.split(' ')[1] : 'border-neutral-200'}`}>
-                  <button onClick={() => setSettingsView('main')} className={`p-1 ${t.hover} rounded-full transition-colors`}>
-                    <ArrowLeft size={16} className={t.textMuted} />
-                  </button>
-                  <span className="text-sm font-medium">{lang.language}</span>
-                </div>
-                
-                <button onClick={() => setSelectedLanguage('polski')} className={`w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`}>
-                  <span>Polski</span>
-                  {selectedLanguage === 'polski' && <Check size={16} />}
-                </button>
-                <button onClick={() => setSelectedLanguage('angielski')} className={`w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`}>
-                  <span>English</span>
-                  {selectedLanguage === 'angielski' && <Check size={16} />}
-                </button>
-              </div>
-            )}
-
-            {/* theme options */}
-            {settingsView === 'theme' && (
-              <div className="flex flex-col">
-                <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.sidebar.includes('border') ? t.sidebar.split(' ')[1] : 'border-neutral-200'}`}>
-                  <button onClick={() => setSettingsView('main')} className={`p-1 ${t.hover} rounded-full transition-colors`}>
-                    <ArrowLeft size={16} className={t.textMuted} />
-                  </button>
-                  <span className="text-sm font-medium">{lang.theme}</span>
-                </div>
-                
-                {(['jasny', 'ciemny', 'granatowy', 'różowy'] as const).map((themeOption) => (
-                  <button 
-                    key={themeOption}
-                    onClick={() => setSelectedTheme(themeOption)} 
-                    className={`w-full flex items-center justify-between px-4 py-2 ${t.hover} transition-colors text-sm text-left capitalize`}
-                  >
-                    <span>{lang.themeNames[themeOption]}</span>
-                    {selectedTheme === themeOption && <Check size={16} />}
+                {submenuHeader(lang.language)}
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <button key={option.key} type="button" onClick={() => onLanguageChange(option.key)} className={menuItem}>
+                    <span>{option.label}</span>
+                    {language === option.key && <Check size={16} />}
                   </button>
                 ))}
               </div>
             )}
 
-            {/* RAG contexts options */}
-            {settingsView === 'rag' && (
+            {settingsView === 'theme' && (
               <div className="flex flex-col">
-                <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.sidebar.includes('border') ? t.sidebar.split(' ')[1] : 'border-neutral-200'}`}>
-                  <button onClick={() => setSettingsView('main')} className={`p-1 ${t.hover} rounded-full transition-colors`}>
-                    <ArrowLeft size={16} className={t.textMuted} />
+                {submenuHeader(lang.theme)}
+                {THEME_PREFERENCES.map((option) => (
+                  <button key={option} type="button" onClick={() => onThemeChange(option)} className={`${menuItem} capitalize`}>
+                    <span>{lang.themeNames[option]}</span>
+                    {themePreference === option && <Check size={16} />}
                   </button>
-                  <span className="text-sm font-medium">{lang.ragContexts}</span>
-                </div>
-                
-                <div className="px-4 py-3 flex flex-col gap-2">
-                  <div className="flex justify-between text-xs font-medium">
-                   
-                    <span className="font-bold">{ragCount}</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="8" 
-                    value={ragCount}
-                    onChange={(e) => setRagCount(parseInt(e.target.value, 10))}
-                    className="w-full accent-neutral-500 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] opacity-60">
-                    <span>1</span>
-                    <span>5 (default)</span>
-                    <span>8</span>
-                  </div>
-                </div>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* settings button */}
-        <button 
-          onClick={toggleSettings}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium ${
-            showSettingsMenu ? `${t.active} ${t.text}` : `${t.text} ${t.hover}`
+        <button
+          type="button"
+          onClick={() => setSettingsView(settingsView === 'closed' ? 'main' : 'closed')}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs font-medium ${
+            settingsView !== 'closed' ? `${t.active} ${t.text}` : `${t.text} ${t.hover}`
           }`}
         >
-            <Settings size={15} />
-            <span>{lang.settings}</span>
-        </button>
-        
-        <button 
-          onClick={onOpenProfile}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium ${t.text} ${t.hover}`}
-        >
-            <UserCircle size={15} />
-            <span>{lang.account}</span>
+          <Settings size={15} />
+          {lang.settings}
         </button>
 
-        {/* logout button */}
-        <button 
-          onClick={handleLogout}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs text-left font-medium text-red-500 hover:bg-red-500/10`}
+        {/* who is logged in */}
+        <div className={`px-2.5 pt-2 mt-1 border-t ${t.border}`}>
+          {displayName && <p className={`text-xs font-medium truncate ${t.text}`} title={displayName}>{displayName}</p>}
+          {user.email && user.email !== displayName && (
+            <p className={`text-[11px] truncate ${t.textMuted}`} title={user.email}>{user.email}</p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onLogout}
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs font-medium text-red-500 hover:bg-red-500/10"
         >
-            <LogOut size={15} />
-            <span>{lang.logout}</span>
+          <LogOut size={15} />
+          {lang.logout}
         </button>
       </div>
     </div>

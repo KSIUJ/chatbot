@@ -61,9 +61,11 @@ npm install
 cd ../..
 ```
 
-Frontend woła backend pod `import.meta.env.VITE_API_URL` z fallbackiem na
-`http://127.0.0.1:8000` (patrz `src/frontend/src/lib/api.ts`). W trybie
-`npm run dev` fallback wystarcza — backend musi stać na porcie **8000**.
+Frontend woła backend pod `/api` na własnym originie (`src/frontend/src/lib/api.ts`).
+W trybie `npm run dev` Vite przekazuje `/api/*` do backendu na
+`http://127.0.0.1:8000` (`vite.config.ts`, inny adres: `VITE_BACKEND_URL`) —
+backend musi stać na porcie **8000**. Otwieraj **http://localhost:5173**, bo
+ciasteczko sesji jest przypisane do hosta.
 
 ---
 
@@ -78,6 +80,14 @@ wybranego dostawcy LLM (`LLM_PROVIDER`):
 LLM_PROVIDER=cursor
 CURSOR_API_KEY=<z https://cursor.com/dashboard/api>
 CURSOR_MODEL=claude-sonnet-5
+
+# logowanie przez Keycloak KSI - wymagane, bez tego backend nie wystartuje
+# (opis: docs/AUTH.md)
+OIDC_ISSUER=https://auth.ksi.sh/realms/ksi
+OIDC_CLIENT_ID=chatbot
+OIDC_CLIENT_SECRET=<od adminów KSI>
+OIDC_REDIRECT_URI=http://localhost:5173/api/auth/callback
+AUTH_SECRET_KEY=<python -c "import secrets; print(secrets.token_urlsafe(48))">
 
 # tylko jeśli będziesz od nowa scrapować USOS (rozdział 6):
 USOS_CONSUMER_KEY=<z https://apps.usos.uj.edu.pl/developers/>
@@ -174,14 +184,20 @@ Stan referencyjny: `{'mordor': 0, 'strony': 991, 'usos': 208} total 1199`.
 
 ## 8. Baza aplikacji (users / konwersacje)
 
-SQLite (`chatbot.db`) tworzy się sam przy starcie backendu — `init_db()` w
-`src/backend/database.py` woła `Base.metadata.create_all()`. Nic nie trzeba
-robić.
+Nowy `chatbot.db` tworzy się sam przy starcie backendu — `init_db()` w
+`src/backend/database.py` woła `Base.metadata.create_all()`.
 
-Migracja Alembic (`alembic/versions/`) istnieje i jest używana w obrazie
-Dockera (`entrypoint.sh` robi `alembic upgrade head`), ale do lokalnego
-SQLite nie jest potrzebna. Dla Postgresa: ustaw `DATABASE_URL` w `.env` i
-uruchom `alembic upgrade head`.
+`create_all()` nie zmienia istniejących tabel. Jeśli masz `chatbot.db` sprzed
+logowania przez KSI (tabela `users` z `password_hash`), zmigruj go jednorazowo:
+
+```bash
+python -m alembic stamp d509882390a9   # tylko gdy baza nie ma tabeli alembic_version
+python -m alembic upgrade head
+```
+
+Migracja kasuje stare konta (rozmowy zostają). W Dockerze `entrypoint.sh` robi
+`alembic upgrade head` sam. Dla Postgresa: ustaw `DATABASE_URL` w `.env` i
+uruchom `alembic upgrade head`. Szczegóły logowania: [AUTH.md](AUTH.md).
 
 ---
 

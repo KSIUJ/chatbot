@@ -92,6 +92,8 @@ The frontend talks to the backend through nginx's built-in reverse proxy (`/api/
 
 To use a different Ollama model or frontend port on the host: set `OLLAMA_MODEL=` / `FRONTEND_PORT=` in `.env` before running `docker compose up`.
 
+**Login:** only KSI members (group `/Członek`) can sign in, via `auth.ksi.sh` (OIDC). Fill in the "Logowanie przez Keycloak KSI" section of `.env` before starting — see [docs/AUTH.md](docs/AUTH.md) (Polish).
+
 **Not covered by this docker-compose yet** (still run manually, outside the containers - see [Usage](#usage)): the scrapers (`src/data/`) and the RAG ingest pipeline (`src/backend/RAG/ingest/run_ingest.py`) - these are one-off/occasional batch jobs, not long-running services.
 
 ## Installation
