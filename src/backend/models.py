@@ -19,7 +19,7 @@ def _new_id() -> str:
     return uuid4().hex
 
 
-def _utcnow() -> datetime:
+def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
@@ -47,7 +47,7 @@ class User(Base):
     # Lokalny wylacznik konta, niezalezny od Keycloaka.
     is_active: Mapped[bool] = mapped_column(default=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     conversations: Mapped[list["Conversation"]] = relationship(
@@ -68,13 +68,13 @@ class Conversation(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
     user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # Pierwsze pytanie, skrocone - tytul na liscie w sidebarze
     title: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # Ostatnia wiadomosc: kolejnosc historii i licznik wygasania
     last_message_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, index=True, nullable=False
+        DateTime(timezone=True), default=utcnow, index=True, nullable=False
     )
 
     user: Mapped["User | None"] = relationship(back_populates="conversations")
@@ -95,7 +95,7 @@ class Message(Base):
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True, nullable=False)
     role: Mapped[MessageRole] = mapped_column(SAEnum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # Lista zrodel z RAG-a
     sources: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -133,9 +133,9 @@ class UserSession(Base):
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     access_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
     access_token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

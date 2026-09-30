@@ -2,6 +2,8 @@ import os
 
 import requests
 
+from .http_api import build_messages
+
 DEFAULT_HOST = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5:14b"
 DEFAULT_NUM_CTX = 8192
@@ -21,9 +23,7 @@ def chat(
     host = host or os.getenv("OLLAMA_HOST") or DEFAULT_HOST
     num_ctx = num_ctx or int(os.getenv("OLLAMA_NUM_CTX") or DEFAULT_NUM_CTX)
 
-    messages = [{"role": "system", "content": system}]
-    messages.extend(history or [])
-    messages.append({"role": "user", "content": user})
+    messages = build_messages(system, user, history)
 
     response = requests.post(
         f"{host}/api/chat",

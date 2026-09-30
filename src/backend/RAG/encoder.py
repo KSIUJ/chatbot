@@ -10,9 +10,8 @@ zauwazalnie slabiej na polskich zdaniach - patrz benchmark PIRB
 (https://huggingface.co/spaces/sdadas/pirb), gdzie modele MMLW gora nad
 ogolnymi modelami wielojezycznymi na polskich zadaniach retrieval.
 
-Jesli materialy z mordoru okaza sie w znacznej czesci anglojezyczne (do
-zweryfikowania w kroku 0 - w momencie pisania tego modulu w data/mordor/ nie
-bylo jeszcze zadnych realnych plikow), rozsadna alternatywa to
+Jesli materialy z mordoru okaza sie w znacznej czesci anglojezyczne, rozsadna
+alternatywa to
 `intfloat/multilingual-e5-large` lub `BAAI/bge-m3` (oba wielojezyczne,
 wymagaja tego samego prefiksu query/passage co e5). Model mozna podmienic bez
 zmian w kodzie przez zmienna srodowiskowa RAG_EMBEDDING_MODEL.

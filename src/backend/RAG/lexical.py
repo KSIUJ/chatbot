@@ -43,25 +43,7 @@ class LexicalIndex:
         self._con.commit()
 
     def add_documents(self, documents: list[Document]) -> None:
-        if not documents:
-            return
-
-        ids = [d.id for d in documents]
-        placeholders = ",".join("?" * len(ids))
-        self._con.execute(f"DELETE FROM {TABLE} WHERE doc_id IN ({placeholders})", ids)
-        self._con.executemany(
-            f"INSERT INTO {TABLE} (doc_id, source, title, text) VALUES (?, ?, ?, ?)",
-            [
-                (
-                    d.id,
-                    d.source,
-                    fold(d.embed_text.split("\n", 1)[0][:TITLE_MAX_CHARS]),
-                    fold(d.embed_text),
-                )
-                for d in documents
-            ],
-        )
-        self._con.commit()
+        self.add_raw([(d.id, d.source, d.embed_text) for d in documents])
 
     def add_raw(self, rows: list[tuple[str, str, str]]) -> None:
         if not rows:
