@@ -5,19 +5,13 @@ kontenerach, z opcjonalnym lokalnym LLM (Ollama). Ten dokument opisuje
 wyłącznie uruchomienie przez Docker. Dla pracy bez Dockera (venv, `npm run
 dev`, scraping, ingest RAG) patrz [SETUP.md](SETUP.md).
 
-Stan zweryfikowany: `docker compose build` + `docker compose up -d`
-przetestowane end-to-end na tej maszynie (Windows 11 + Docker Desktop) —
-build obu obrazów, healthchecki, proxy nginksa `/api/*` → backend, i realny
-retrieval RAG po załadowaniu danych do wolumenów.
-
 ---
 
 ## 1. Wymagania
 
 - Docker Desktop (Windows/macOS) lub Docker Engine + Compose v2 (Linux).
 - Konto/klucz do wybranego dostawcy LLM (Cursor, Claude/Anthropic lub
-  OpenRouter) — **albo** chęć pobrania lokalnego modelu przez Ollamę
-  (kilka–kilkanaście GB, wolniej bez GPU).
+  OpenRouter) — lokalny model przez Ollamę.
 - Opcjonalnie: karta NVIDIA + [NVIDIA Container
   Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html),
   jeśli chcesz przyspieszyć Ollamę / encoder RAG. Bez tego wszystko działa na
