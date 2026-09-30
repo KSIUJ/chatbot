@@ -6,8 +6,9 @@ const CHAT_CONTENT_KEYS = ['chatMessages', 'chatConversationId'] as const;
 // Kto jest wlascicielem rozmowy zapisanej w localStorage.
 const CHAT_OWNER_KEY = 'chatOwner';
 
-// Pozostalosci po starym logowaniu haslem i trybie goscia.
-const LEGACY_KEYS = ['userEmail', 'isGuest', 'isLoggedIn', 'activeView'] as const;
+// Pozostalosci po starym logowaniu haslem i trybie goscia oraz stary
+// duplikat klucza motywu (motyw jest teraz tylko w "chatTheme").
+const LEGACY_KEYS = ['userEmail', 'isGuest', 'isLoggedIn', 'activeView', 'chat-theme'] as const;
 
 export function clearChatStorage(): void {
   for (const key of CHAT_CONTENT_KEYS) localStorage.removeItem(key);

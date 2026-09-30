@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { type ThemeKey } from './themes';
+import { THEME_STORAGE_KEY, parseThemePreference, type ThemePreference } from './themes';
 import { translations, type LangKey } from './languages';
 import type { Message } from './types';
 import { apiFetch } from '../../lib/api';
@@ -14,10 +14,10 @@ export function useChat(onLogout?: () => void) {
     return (saved as LangKey) || 'polski';
   });
   
-  const [selectedTheme, setSelectedTheme] = useState<ThemeKey>(() => {
-    const saved = localStorage.getItem('chatTheme');
-    return (saved as ThemeKey) || 'jasny';
-  });
+  // "systemowy" (follow the device) unless the user picked a theme before
+  const [selectedTheme, setSelectedTheme] = useState<ThemePreference>(() =>
+    parseThemePreference(localStorage.getItem(THEME_STORAGE_KEY))
+  );
 
   const [ragCount, setRagCount] = useState<number>(() => {
     const saved = parseInt(localStorage.getItem('chatRagCount') ?? '', 10);
@@ -66,7 +66,7 @@ export function useChat(onLogout?: () => void) {
   }, [selectedLanguage]);
 
   useEffect(() => {
-    localStorage.setItem('chatTheme', selectedTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
   }, [selectedTheme]);
 
   useEffect(() => {

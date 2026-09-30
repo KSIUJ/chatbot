@@ -1,19 +1,23 @@
 import { Plus, Settings, UserCircle, Globe, Moon, ChevronRight, ArrowLeft, Check, Sliders, LogOut } from 'lucide-react';
-import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg"; 
+import mojeLogo from "../../assets/logo-ksi-IBUoeAwm.svg";
+import { THEME_PREFERENCES, themeStyles, type ThemeKey, type ThemePreference } from './themes';
+import type { LangKey, translations } from './languages';
+
+type SettingsView = 'main' | 'language' | 'theme' | 'rag';
 
 interface ChatSidebarProps {
   isDarkTheme: boolean;
-  t: any;
-  lang: any;
+  t: (typeof themeStyles)[ThemeKey];
+  lang: (typeof translations)[LangKey];
   handleNewChat: () => void;
-  menuRef: React.RefObject<HTMLDivElement | null>; 
+  menuRef: React.RefObject<HTMLDivElement | null>;
   showSettingsMenu: boolean;
-  settingsView: string;
-  setSettingsView: any; 
-  selectedLanguage: string;
-  setSelectedLanguage: any; 
-  selectedTheme: string;
-  setSelectedTheme: any; 
+  settingsView: SettingsView;
+  setSettingsView: (view: SettingsView) => void;
+  selectedLanguage: LangKey;
+  setSelectedLanguage: (language: LangKey) => void;
+  selectedTheme: ThemePreference;
+  setSelectedTheme: (theme: ThemePreference) => void;
   ragCount: number;
   setRagCount: (count: number) => void;
   toggleSettings: () => void;
@@ -131,7 +135,7 @@ export default function ChatSidebar(props: ChatSidebarProps) {
                   <span className="text-sm font-medium">{lang.theme}</span>
                 </div>
                 
-                {(['jasny', 'ciemny', 'granatowy', 'różowy'] as const).map((themeOption) => (
+                {THEME_PREFERENCES.map((themeOption) => (
                   <button 
                     key={themeOption}
                     onClick={() => setSelectedTheme(themeOption)} 

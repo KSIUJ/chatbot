@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { themeStyles } from './themes';
+import { isDarkTheme, themeStyles } from './themes';
+import { useResolvedTheme } from './useResolvedTheme';
 import { translations } from './languages';
 import { useChat } from './useChat';
 
@@ -24,23 +24,21 @@ export default function ChatScreen({ onLogout, onOpenProfile }: ChatScreenProps)
     handleStopGenerating, handleRegenerate, inputRef
   } = useChat(onLogout);
 
-  // save theme to local storage
-  useEffect(() => {
-    localStorage.setItem('chat-theme', selectedTheme);
-  }, [selectedTheme]);
+  // "systemowy" becomes light/dark here, following the device
+  const theme = useResolvedTheme(selectedTheme);
 
   // get styles and texts based on states
-  const t = themeStyles[selectedTheme];
+  const t = themeStyles[theme];
   const lang = translations[selectedLanguage];
-  
+
   // check if theme is dark to add white bg to logo
-  const isDarkTheme = selectedTheme === 'ciemny' || selectedTheme === 'granatowy';
+  const isDark = isDarkTheme(theme);
 
   return (
     <div className={`flex h-screen ${t.app} font-sans transition-colors duration-300`}>
       
       <ChatSidebar 
-        isDarkTheme={isDarkTheme}
+        isDarkTheme={isDark}
         t={t}
         lang={lang}
         handleNewChat={handleNewChat}

@@ -1,10 +1,12 @@
 import type { AuthUser } from '../Auth/useAuth';
+import type { ThemeKey } from '../Chat/themes';
 
 interface ProfileScreenProps {
   user: AuthUser;
   onClose: () => void;
   onLogout: () => void;
-  selectedTheme: string;
+  // already resolved - "systemowy" is mapped to light/dark by the caller
+  selectedTheme: ThemeKey;
 }
 
 export default function ProfileScreen({ user, onClose, onLogout, selectedTheme }: ProfileScreenProps) {
@@ -12,7 +14,7 @@ export default function ProfileScreen({ user, onClose, onLogout, selectedTheme }
   const fullName = user.name || user.username || user.email || 'User';
 
   // setup colors including outer page background for each theme
-  const getThemeStyles = (theme: string) => {
+  const getThemeStyles = (theme: ThemeKey) => {
     switch (theme) {
       case 'ciemny':
         return {

@@ -19,6 +19,7 @@ export const translations = {
     copy: "Kopiuj",
     copied: "Skopiowano",
     themeNames: {
+      systemowy: "systemowy",
       jasny: "jasny",
       ciemny: "ciemny",
       granatowy: "granatowy",
@@ -45,6 +46,7 @@ export const translations = {
     copy: "Copy",
     copied: "Copied",
     themeNames: {
+      systemowy: "system",
       jasny: "light",
       ciemny: "dark",
       granatowy: "navy",
