@@ -2,7 +2,7 @@
 Testy claude_client.py - klienta Claude API (Anthropic), alternatywy dla
 lokalnego Ollamy uzywanej gdy LLM_PROVIDER=claude. Podmieniamy modul
 "anthropic" na fake'a (ten sam wzorzec co fake_sentence_transformers w
-tests/backend/RAG/test_encoder.py), zeby nie wykonywac prawdziwych zapytan
+tests/backend/rag/test_encoder.py), zeby nie wykonywac prawdziwych zapytan
 sieciowych ani wymagac klucza API w testach.
 """
 
@@ -87,7 +87,7 @@ def fake_anthropic_client(monkeypatch):
 
 
 def _import_chat():
-    from backend.llm.claude_client import chat
+    from src.backend.llm.claude_client import chat
 
     return chat
 

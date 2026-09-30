@@ -7,7 +7,6 @@ from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-# import llm logic
 from .llm.generate import answer as rag_answer
 
 from .auth import get_auth_settings, require_member, router as auth_router, verify_origin
@@ -211,7 +210,7 @@ def _continue_conversation(db: Session, conversation: Conversation, payload: Cha
     if not regenerating:
         add_message(db, conversation.id, MessageRole.USER, payload.message)
 
-    # step 2: pass the query to mikolaj's llm logic and get the answer + sources
+    # step 2: ask the RAG + LLM pipeline for the answer and its sources
     answer_text, sources = _generate_answer(payload.message, history)
 
     # step 3: save the llm's response (with its sources) back to the database

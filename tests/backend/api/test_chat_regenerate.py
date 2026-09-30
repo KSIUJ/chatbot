@@ -6,7 +6,7 @@ model jako historia.
 
 import pytest
 
-from backend.models import MessageRole
+from src.backend.models import MessageRole
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def client(client, member_override):
 def _messages(client, conversation_id):
     db = client.session_factory()
     try:
-        from backend.database import get_messages
+        from src.backend.database import get_messages
 
         return [(m.role, m.content) for m in get_messages(db, conversation_id)]
     finally:

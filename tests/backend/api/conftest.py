@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-import os
-import sys
 
 import httpx
 import pytest
@@ -13,18 +11,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-BACKEND_PARENT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-sys.path.insert(0, BACKEND_PARENT)
+from src.backend import main as main_module
+from src.backend.auth import dependencies as auth_dependencies
+from src.backend.auth.oidc import OIDCClient
+from src.backend.auth.settings import get_auth_settings
+from src.backend.database import get_db
+from src.backend.history import get_history_settings
+from src.backend.models import Base, User
 
-from backend import main as main_module  # noqa: E402
-from backend.auth import dependencies as auth_dependencies  # noqa: E402
-from backend.auth.oidc import OIDCClient  # noqa: E402
-from backend.auth.settings import get_auth_settings  # noqa: E402
-from backend.database import get_db  # noqa: E402
-from backend.history import get_history_settings  # noqa: E402
-from backend.models import Base, User  # noqa: E402
-
-from fake_keycloak import (  # noqa: E402
+from fake_keycloak import (
     CLIENT_ID,
     CLIENT_SECRET,
     ISSUER,

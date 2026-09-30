@@ -1,8 +1,7 @@
-pytest
 requests
 python-dotenv
-requests_oauthlib
-pytest
+
+# Backend API (src/backend/main.py)
 fastapi
 uvicorn[standard]
 
@@ -14,17 +13,14 @@ anthropic
 # dostawca LLM, wlaczany przez LLM_PROVIDER=cursor. Uzywa biblioteki requests
 # (juz wyzej), wiec nie dodaje nowej zaleznosci.
 
-# RAG retrieval (src/backend/RAG/)
+# RAG retrieval (src/backend/rag/) i ingest (pipeline/ingest/, uruchamiany
+# takze w kontenerze backendu)
 sentence-transformers
 chromadb
 langchain-text-splitters
 sqlalchemy
 alembic
 pymupdf4llm
-
-# Backend API (src/backend/main.py)
-fastapi
-uvicorn[standard]
 
 # Logowanie OIDC przez Keycloak KSI (src/backend/auth/) - klient HTTP,
 # walidacja podpisanych ID tokenow (JWKS) i szyfrowanie tokenow w bazie

@@ -17,64 +17,31 @@ nie dokladac nowej zaleznosci.
 
 import os
 
-import requests
+from .http_api import BearerApi, build_messages
 
-API_BASE = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "google/gemini-2.5-flash"
 DEFAULT_TIMEOUT = 300
 
-
-def _api_key() -> str:
-    key = os.getenv("OPENROUTER_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError(
-            "Brak klucza OpenRouter (OPENROUTER_API_KEY). Wygeneruj go w "
-            "https://openrouter.ai/keys i ustaw w .env."
-        )
-    return key
-
-
-def _headers() -> dict[str, str]:
-    return {
-        "Authorization": f"Bearer {_api_key()}",
-        "Content-Type": "application/json",
-    }
-
-
-def _raise_for_status(response: requests.Response) -> None:
-    if response.status_code < 400:
-        return
-    if response.status_code == 401:
-        raise RuntimeError(
-            "Nieprawidlowy lub brakujacy klucz OpenRouter (OPENROUTER_API_KEY)."
-        )
-    if response.status_code == 402:
-        raise RuntimeError(
-            "Brak srodkow na koncie OpenRouter albo model przekracza limit kredytow."
-        )
-    if response.status_code == 429:
-        raise RuntimeError("Przekroczono limit zapytan do OpenRouter.")
-    raise RuntimeError(
-        f"Blad OpenRouter (status {response.status_code}): {response.text[:500]}"
-    )
-
-
-def _request(method: str, path: str, *, timeout: float = DEFAULT_TIMEOUT, **kwargs) -> dict:
-    try:
-        response = requests.request(
-            method, f"{API_BASE}{path}", headers=_headers(), timeout=timeout, **kwargs
-        )
-    except requests.RequestException as e:
-        raise RuntimeError(f"Blad polaczenia z OpenRouter: {e}") from e
-
-    _raise_for_status(response)
-    return response.json()
+_API = BearerApi(
+    base_url="https://openrouter.ai/api/v1",
+    label="OpenRouter",
+    key_env="OPENROUTER_API_KEY",
+    missing_key_message=(
+        "Brak klucza OpenRouter (OPENROUTER_API_KEY). Wygeneruj go w "
+        "https://openrouter.ai/keys i ustaw w .env."
+    ),
+    status_messages={
+        401: "Nieprawidlowy lub brakujacy klucz OpenRouter (OPENROUTER_API_KEY).",
+        402: "Brak srodkow na koncie OpenRouter albo model przekracza limit kredytow.",
+        429: "Przekroczono limit zapytan do OpenRouter.",
+    },
+)
 
 
 def list_models() -> list[str]:
     """Zwraca ID modeli dostepnych przez OpenRouter - pomocne do ustalenia
     poprawnej wartosci OPENROUTER_MODEL."""
-    data = _request("GET", "/models")
+    data = _API.request("GET", "/models", timeout=DEFAULT_TIMEOUT)
     return [item["id"] for item in data.get("data", [])]
 
 
@@ -90,9 +57,7 @@ def chat(
     # zwraca wtedy "" i bez tego trafiloby ono do API jako nazwa modelu.
     model = model or os.getenv("OPENROUTER_MODEL", "").strip() or DEFAULT_MODEL
 
-    messages = [{"role": "system", "content": system}]
-    messages.extend(history or [])
-    messages.append({"role": "user", "content": user})
+    messages = build_messages(system, user, history)
 
     payload = {
         "model": model,
@@ -100,7 +65,7 @@ def chat(
         "temperature": temperature,
         "stream": False,
     }
-    data = _request("POST", "/chat/completions", timeout=timeout, json=payload)
+    data = _API.request("POST", "/chat/completions", timeout=timeout, json=payload)
 
     # OpenRouter potrafi odpowiedziec HTTP 200 z bledem w ciele (np. gdy padnie
     # dostawca, do ktorego routuje zapytanie) - wtedy nie ma klucza "choices".
