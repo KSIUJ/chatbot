@@ -3,15 +3,7 @@ Testy rewrite.py - kondensacja zapytania przed retrievalem. Bez wywolan
 modelu: chat() jest podmieniany na atrape.
 """
 
-import os
-import sys
-
-BACKEND_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "src", "backend")
-)
-sys.path.insert(0, BACKEND_DIR)
-
-from llm import rewrite
+from src.backend.llm import rewrite
 
 
 def test_returns_query_unchanged_without_history():

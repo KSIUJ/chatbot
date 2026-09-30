@@ -1,6 +1,7 @@
 """
-Klient Cursor Cloud Agents API - alternatywa dla lokalnego Ollamy (client.py)
-i Claude API (claude_client.py), uzywana gdy LLM_PROVIDER=cursor (patrz
+Klient Cursor Cloud Agents API - alternatywa dla lokalnego Ollamy (client.py),
+Claude API (claude_client.py) i OpenRouter (openrouter_client.py), uzywana gdy
+LLM_PROVIDER=cursor (patrz
 generate.py). Ten sam interfejs chat(system, user, history=None) -> str, zeby
 generate.py mogl przelaczac providera bez zmian w logice RAG.
 
@@ -19,9 +20,8 @@ nadpiszesz przez CURSOR_MODEL w .env.
 import os
 import time
 
-import requests
+from .http_api import BearerApi
 
-API_BASE = "https://api.cursor.com"
 DEFAULT_MODEL = "claude-haiku-4-5"
 # Calkowity budzet czasu na jedno chat() (create + polling). Cursor jest wolny:
 # samo POST /v1/agents potrafi blokowac ~60 s (czeka na zakonczenie runa).
@@ -36,54 +36,27 @@ _HTTP_TIMEOUT = 60
 _TERMINAL_STATUSES = {"FINISHED", "ERROR", "CANCELLED", "EXPIRED"}
 
 
-def _api_key() -> str:
-    key = os.getenv("CURSOR_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError(
-            "Brak klucza Cursor API (CURSOR_API_KEY). Wygeneruj go w "
-            "https://cursor.com/dashboard/api i ustaw w .env."
-        )
-    return key
-
-
-def _headers() -> dict[str, str]:
-    return {
-        "Authorization": f"Bearer {_api_key()}",
-        "Content-Type": "application/json",
-    }
-
-
-def _raise_for_status(response: requests.Response) -> None:
-    if response.status_code < 400:
-        return
-    if response.status_code == 401:
-        raise RuntimeError(
-            "Nieprawidlowy lub brakujacy klucz Cursor API (CURSOR_API_KEY)."
-        )
-    if response.status_code == 429:
-        raise RuntimeError("Przekroczono limit zapytan do Cursor API.")
-    raise RuntimeError(
-        f"Blad Cursor API (status {response.status_code}): {response.text[:500]}"
-    )
-
-
-def _request(method: str, path: str, *, timeout: float = _HTTP_TIMEOUT, **kwargs) -> dict:
-    try:
-        response = requests.request(
-            method,
-            f"{API_BASE}{path}",
-            headers=_headers(),
-            timeout=timeout,
-            **kwargs,
-        )
-    except requests.RequestException as e:
-        raise RuntimeError(f"Blad polaczenia z Cursor API: {e}") from e
+_API = BearerApi(
+    base_url="https://api.cursor.com",
+    label="Cursor API",
+    key_env="CURSOR_API_KEY",
+    missing_key_message=(
+        "Brak klucza Cursor API (CURSOR_API_KEY). Wygeneruj go w "
+        "https://cursor.com/dashboard/api i ustaw w .env."
+    ),
+    status_messages={
+        401: "Nieprawidlowy lub brakujacy klucz Cursor API (CURSOR_API_KEY).",
+        429: "Przekroczono limit zapytan do Cursor API.",
+    },
     # Cursor zwraca JSON bez charset w Content-Type - bez tego autodetekcja
     # requests/charset-normalizer myli polski UTF-8 z CP1250 (mojibake w
     # odpowiedziach: "mogę" -> "mogÄ™").
-    response.encoding = "utf-8"
-    _raise_for_status(response)
-    return response.json()
+    force_utf8=True,
+)
+
+
+def _request(method: str, path: str, *, timeout: float = _HTTP_TIMEOUT, **kwargs) -> dict:
+    return _API.request(method, path, timeout=timeout, **kwargs)
 
 
 def _extract_result_text(result) -> str:

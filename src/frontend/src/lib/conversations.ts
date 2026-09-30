@@ -1,8 +1,16 @@
 import { apiFetch } from './api';
-import type { ChatMessage } from '../features/Chat/types';
 
 // Chat API: history list, single conversation, delete, send. The server is the
 // source of truth for conversations; the browser only remembers the open one.
+
+// One chat bubble. Messages from the server have no status; "stopped" and
+// "error" are local markers shown with a retry button.
+export type ChatMessage = {
+  id: string;
+  sender: 'user' | 'bot';
+  text: string;
+  status?: 'stopped' | 'error';
+};
 
 export interface ConversationSummary {
   id: string;
@@ -109,7 +117,7 @@ export async function deleteConversation(id: string): Promise<void> {
   if (response.status !== 404) await expectOk(response);
 }
 
-export interface SendMessageInput {
+interface SendMessageInput {
   message: string;
   conversationId: string;
   regenerate: boolean;

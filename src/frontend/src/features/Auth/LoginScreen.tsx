@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
 import LoginBackground from './LoginBackground';
 import LoginHeader from './LoginHeader';
-import type { LoginError } from './useAuth';
+import type { LoginError } from './redirect';
 
 // Shown only when an automatic redirect to KSI login would not help (errors,
 // loop guard) - a visitor without a session goes straight to Keycloak.

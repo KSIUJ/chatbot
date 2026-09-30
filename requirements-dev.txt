@@ -1,0 +1,4 @@
+# Lokalny development i testy: zaleznosci produkcyjne + narzedzia testowe.
+# Obraz Dockera instaluje tylko requirements.txt.
+-r requirements.txt
+pytest

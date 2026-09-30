@@ -50,9 +50,6 @@ def get_db() -> Generator[Session, None, None]:
 # USERS
 # Konta zaklada i aktualizuje logowanie OIDC - patrz src/backend/auth/service.py
 
-def get_user(db: Session, user_id: str) -> User | None:
-    return db.get(User, user_id)
-
 def get_user_by_oidc_sub(db: Session, oidc_sub: str) -> User | None:
     stmt = select(User).where(User.oidc_sub == oidc_sub)
     return db.execute(stmt).scalar_one_or_none()

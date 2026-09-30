@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTO_REDIRECT_COOLDOWN_MS,
+  AUTO_REDIRECT_GUARD_KEY,
   clearRedirectMark,
   markRedirect,
   readLastRedirect,
@@ -70,7 +71,7 @@ describe('redirect mark', () => {
 
   it('treats a corrupted mark as missing', () => {
     const storage = new MemoryStorage();
-    storage.setItem('authAutoRedirectAt', 'not-a-number');
+    storage.setItem(AUTO_REDIRECT_GUARD_KEY, 'not-a-number');
     expect(readLastRedirect(storage)).toBeNull();
   });
 });

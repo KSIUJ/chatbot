@@ -5,8 +5,8 @@ srodowiskowej LLM_PROVIDER. Reszta generate.py (budowanie promptu z RAG,
 main()) nie ma dotad testow i pozostaje poza zakresem tej zmiany.
 """
 
-from backend.llm import claude_client, generate, openrouter_client
-from backend.llm import client as ollama_client
+from src.backend.llm import claude_client, generate, openrouter_client
+from src.backend.llm import client as ollama_client
 
 
 def test_defaults_to_ollama_when_env_var_missing(monkeypatch):

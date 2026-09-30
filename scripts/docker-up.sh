@@ -1,6 +1,6 @@
 #!/bin/sh
 # Buduje i uruchamia caly stos (backend + frontend, opcjonalnie Ollama) przez
-# Docker Compose. Patrz docs/DOCKER.md po pelny opis, flagi i troubleshooting.
+# Docker Compose. Patrz README.md, sekcja "Uruchomienie przez Docker".
 #
 # Uzycie:
 #   ./scripts/docker-up.sh              # backend + frontend, LLM_PROVIDER z .env (claude/cursor/openrouter)
@@ -44,6 +44,6 @@ echo "  Frontend: http://localhost:$FRONTEND_PORT_VALUE"
 echo "  Backend:  http://localhost:8000/health"
 echo
 echo "[docker-up] Baza RAG w nowych wolumenach jest PUSTA. Jesli masz juz"
-echo "[docker-up] lokalnie data/ i dataset/ (docs/SETUP.md), zaladuj je teraz:"
+echo "[docker-up] lokalnie data/ i dataset/ (README.md), zaladuj je teraz:"
 echo "  ./scripts/docker-seed-data.sh"
-echo "[docker-up] W przeciwnym razie patrz docs/DOCKER.md, sekcja 'Dane RAG'."
+echo "[docker-up] W przeciwnym razie patrz README.md, sekcja 'Dane RAG'."
