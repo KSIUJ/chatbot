@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import func
 
-from .models import Base, Conversation, DEFAULT_CONTEXT_COUNT, Message, MessageFeedback, MessageRole, User
+from .models import Base, Conversation, Message, MessageFeedback, MessageRole, User
 
 load_dotenv()
 
@@ -43,78 +43,14 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-# Konta / logowanie - na razie tylko maile z domeny uj.edu.pl
-
-ALLOWED_EMAIL_DOMAIN = "uj.edu.pl"
-
-
-class EmailNotAllowedError(Exception):
-    """Email does not end with @uj.edu.pl"""
-
-
-class EmailAlreadyRegisteredError(Exception):
-    """Account with this email already exists"""
-
-
-def is_allowed_email(email: str) -> bool:
-    """Sprawdza czy mail jest z UJ"""
-    email = email.strip().lower()
-    return email.endswith("@" + ALLOWED_EMAIL_DOMAIN) or email.endswith("." + ALLOWED_EMAIL_DOMAIN)
-
-
-# hashowanie hasla
-
-import hashlib
-import hmac
-
-
-def hash_password(password: str) -> str:
-    salt = os.urandom(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 200_000)
-    return salt.hex() + "$" + digest.hex()
-
-
-def verify_password(password: str, password_hash: str) -> bool:
-    salt_hex, digest_hex = password_hash.split("$")
-    salt = bytes.fromhex(salt_hex)
-    new_digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 200_000)
-    return hmac.compare_digest(new_digest.hex(), digest_hex)
-
-
 # USERS
-
-def create_user(
-    db: Session,
-    email: str,
-    username: str | None = None,
-    password: str | None = None,
-    context_count: int | None = None,
-) -> User:
-    """Zaklada konto. Rzuca EmailNotAllowedError / EmailAlreadyRegisteredError
-    jesli cos jest nie tak"""
-    if not is_allowed_email(email):
-        raise EmailNotAllowedError(f"Email {email!r} is not from the uj.edu.pl domain")
-
-    if get_user_by_email(db, email) is not None:
-        raise EmailAlreadyRegisteredError(f"An account for {email!r} already exists")
-
-    user = User(
-        email=email.strip().lower(),
-        username=username,
-        password_hash=hash_password(password) if password else None,
-        context_count=context_count if context_count is not None else DEFAULT_CONTEXT_COUNT,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
+# Konta zaklada i aktualizuje logowanie OIDC - patrz src/backend/auth/service.py
 
 def get_user(db: Session, user_id: str) -> User | None:
     return db.get(User, user_id)
 
-def get_user_by_email(db: Session, email: str) -> User | None:
-    stmt = select(User).where(User.email == email.strip().lower())
+def get_user_by_oidc_sub(db: Session, oidc_sub: str) -> User | None:
+    stmt = select(User).where(User.oidc_sub == oidc_sub)
     return db.execute(stmt).scalar_one_or_none()
 
 def set_user_context_count(db: Session, user_id: str, context_count: int) -> User:
@@ -129,12 +65,8 @@ def set_user_context_count(db: Session, user_id: str, context_count: int) -> Use
     return user
 
 def count_users(db: Session) -> int:
+    """Liczba kont - kazde powstaje przy pierwszym udanym logowaniu przez KSI."""
     return db.execute(select(func.count()).select_from(User)).scalar_one()
-
-def count_registered_users(db: Session) -> int:
-    """Liczba faktycznie zalozonych (zweryfikowanych) kont."""
-    stmt = select(func.count()).select_from(User).where(User.zweryfikowany == True)
-    return db.execute(stmt).scalar_one()
 
 
 # CONVERSATIONS

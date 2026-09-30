@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { type ThemeKey } from './themes';
 import { translations, type LangKey } from './languages';
 import type { Message } from './types';
-import { API_BASE_URL } from '../../lib/api';
+import { apiFetch } from '../../lib/api';
 
 export function useChat(onLogout?: () => void) {
   // states
@@ -126,7 +126,6 @@ export function useChat(onLogout?: () => void) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
     if (onLogout) {
       onLogout();
     } else {
@@ -235,7 +234,9 @@ export function useChat(onLogout?: () => void) {
 
     try {
       // simulating network request / hitting python backend
-      const response = await fetch(`${API_BASE_URL}/chat`, {
+      // apiFetch sends the session cookie; a lost session (401/403) switches
+      // the whole app to the login screen via useAuth
+      const response = await apiFetch('/chat', {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

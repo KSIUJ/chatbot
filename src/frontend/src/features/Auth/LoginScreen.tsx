@@ -1,47 +1,74 @@
+import { useState } from 'react';
+import { AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
 import LoginBackground from './LoginBackground';
 import LoginHeader from './LoginHeader';
-import LoginForm from './LoginForm';
+import type { AuthErrorCode } from '../../lib/api';
 
 interface LoginScreenProps {
-  onLogin: (email: string) => void;
-  onContinueAsGuest: () => void;
-  onGoToRegister: () => void;
+  error: AuthErrorCode | null;
+  onLogin: () => void;
 }
 
-export default function LoginScreen({ onLogin, onContinueAsGuest, onGoToRegister }: LoginScreenProps) {
+const ERROR_MESSAGES: Record<AuthErrorCode, string> = {
+  not_authenticated: 'Please log in with your KSI account.',
+  session_expired: 'Your session has expired. Please log in again.',
+  not_member: 'The chatbot is available to KSI members only (group Członek).',
+  provider_unavailable: 'The KSI login server is unavailable. Please try again in a moment.',
+  access_denied: 'Login was cancelled.',
+  invalid_state: 'Login took too long or was started in another tab. Please try again.',
+  login_failed: 'Login failed. Please try again.',
+  forbidden_origin: 'Request was rejected. Please reload the page.',
+};
+
+export default function LoginScreen({ error, onLogin }: LoginScreenProps) {
+  // the page navigates away to Keycloak, so the spinner never has to be reset
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const handleLogin = () => {
+    setIsRedirecting(true);
+    onLogin();
+  };
+
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 bg-white overflow-hidden">
-      
+
       {/* background component */}
       <LoginBackground />
-      
+
       {/* main login page container */}
       <div className="relative z-10 max-w-xs w-full bg-white/95 backdrop-blur-sm rounded-3xl shadow-xl p-5 space-y-5 border border-slate-100">
         <LoginHeader />
-        <LoginForm onLogin={onLogin} />
-        
-        {/* register link */}
-        <div className="text-center pt-4 pb-2 border-b border-slate-100">
-          <p className="text-sm text-slate-600">
-            Don't have an account?{' '}
-            <button 
-              onClick={onGoToRegister}
-              className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
-            >
-              Sign up
-            </button>
-          </p>
-        </div>
 
-        {/* continue as guest button */}
-        <div className="text-center pt-2">
-          <button 
-            onClick={onContinueAsGuest}
-            className="text-sm text-slate-500 hover:text-slate-700 underline transition-colors cursor-pointer"
-          >
-            Continue without logging in
-          </button>
-        </div>
+        {/* error message display */}
+        {error && (
+          <div role="alert" className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <p>{ERROR_MESSAGES[error]}</p>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleLogin}
+          disabled={isRedirecting}
+          className="w-full group rounded-xl bg-blue-700/80 px-4 py-2.5 font-bold text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-sm border border-transparent text-sm cursor-pointer"
+        >
+          {isRedirecting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-white/90" />
+              Redirecting...
+            </>
+          ) : (
+            <>
+              Log in with KSI
+              <ArrowRight className="w-4 h-4 text-white/90 group-hover:translate-x-1.5 transition-transform" />
+            </>
+          )}
+        </button>
+
+        <p className="text-center text-xs text-slate-500 pb-1">
+          Access is limited to KSI members.
+        </p>
       </div>
 
     </div>
