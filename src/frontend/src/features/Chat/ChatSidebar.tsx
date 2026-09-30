@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, Globe, LogOut, Moon, Plus, Settings, Trash2 } from 'lucide-react';
-import ksiLogo from '../../assets/logo-ksi-IBUoeAwm.svg';
+import ksiLogo from '../../assets/logo-ksi.svg';
 import type { AuthUser } from '../Auth/useAuth';
 import { conversationTitle, type ConversationSummary } from '../../lib/conversations';
 import { THEME_PREFERENCES, type ThemePreference, type ThemeStyle } from './themes';

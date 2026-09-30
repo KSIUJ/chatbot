@@ -25,9 +25,8 @@ export interface AuthUser {
   name: string | null;
 }
 
-export type { LoginError };
 
-export type AuthState =
+type AuthState =
   | { status: 'loading' }
   | { status: 'authenticated'; user: AuthUser }
   | { status: 'unauthenticated'; error: LoginError | null };
