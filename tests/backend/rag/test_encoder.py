@@ -41,7 +41,7 @@ def fake_sentence_transformers(monkeypatch):
 
 
 def _import_encoder():
-    from RAG.encoder import Encoder
+    from src.backend.rag.encoder import Encoder
 
     return Encoder
 

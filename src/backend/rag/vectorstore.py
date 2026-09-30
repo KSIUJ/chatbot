@@ -12,7 +12,7 @@ przygotowany w repo pod docelowy znormalizowany dataset - patrz README).
 import os
 
 from .encoder import Encoder
-from .ingest.schema import Document
+from .schema import Document
 
 DEFAULT_PERSIST_DIR = os.path.join("dataset", "vectorstore")
 COLLECTION_NAME = "chatbot_wmi"

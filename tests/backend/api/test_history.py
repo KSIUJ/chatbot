@@ -9,9 +9,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
-from backend.history import HistorySettings, get_history_settings, purge_expired_conversations
-from backend.main import app
-from backend.models import Conversation, Message
+from src.backend.history import HistorySettings, get_history_settings, purge_expired_conversations
+from src.backend.main import app
+from src.backend.models import Conversation, Message
 
 from fake_keycloak import login
 
@@ -281,7 +281,7 @@ def test_failed_first_answer_neither_evicts_nor_leaves_empty_conversation(client
     login(client, client.keycloak, "alice")
     ids = [_ask(client, f"pytanie {i}") for i in range(3)]
 
-    from backend import main as main_module
+    from src.backend import main as main_module
 
     def broken_llm(message, history=None, **kwargs):
         raise RuntimeError("LLM down")

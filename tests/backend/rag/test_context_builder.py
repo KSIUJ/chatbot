@@ -4,7 +4,7 @@ Uzywa fake'owego retrievera (bez encodera/vectorstore), zeby izolowac tylko
 logike formatowania promptu i wyodrebniania sciezek do obrazow.
 """
 
-from RAG.context_builder import MORDOR_HEADER, OFFICIAL_HEADER, STAFF_HEADER, build_context
+from src.backend.rag.context_builder import MORDOR_HEADER, OFFICIAL_HEADER, STAFF_HEADER, build_context
 
 
 class FakeRetriever:

@@ -3,10 +3,10 @@ Testy hybrydowego retrievalu w retriever.py - przeplatanie trafien BM25
 i wektorowych oraz filtr tokenow po czestosci w indeksie leksykalnym.
 """
 
-from RAG.ingest.schema import Document
-from RAG.lexical import LexicalIndex
-from RAG.retriever import Retriever
-from RAG.vectorstore import VectorStore
+from src.backend.rag.schema import Document
+from src.backend.rag.lexical import LexicalIndex
+from src.backend.rag.retriever import Retriever
+from src.backend.rag.vectorstore import VectorStore
 
 
 def _doc(id_, source, text):

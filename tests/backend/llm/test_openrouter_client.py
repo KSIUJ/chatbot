@@ -11,7 +11,7 @@ import json
 import pytest
 import requests
 
-from backend.llm import openrouter_client
+from src.backend.llm import openrouter_client
 
 
 class FakeResponse:

@@ -1,32 +1,22 @@
 """
-Konwersja danych z src/data/mordor/ do wspolnego schematu Document.
+Konwersja plikow z data/mordor/ (pobranych przez
+pipeline/scrapers/mordor/files_downloader.py) do wspolnego schematu Document.
 
-ZALOZENIA (do zweryfikowania, patrz PR):
-- src/data/mordor/mordor_scraper.py w obecnym stanie NIE zapisuje wygenerowanych
-  chunkow nigdzie (jest tam "# TODO : Save chunks to a database or file for
-  later use") i przetwarza tylko pierwsze 5 plikow (kod testowy: files[:5]).
-  Nie modyfikujemy tego pliku (zgodnie z zasada "tylko czytaj z tego modulu"),
-  wiec ten modul NIE importuje scrape_mordor() - zamiast tego samodzielnie
-  przechodzi po data/mordor/ i chunkuje WSZYSTKIE pliki, uzywajac dokladnie
-  tego samego podejscia (pymupdf4llm.to_markdown + RecursiveCharacterTextSplitter,
-  te same chunk_size/chunk_overlap) i tych samych kluczy metadanych
-  (source_file, file_type, directory), zeby latwo bylo przelaczyc sie na
-  wczytywanie zapisanych chunkow, gdy mordor_scraper.py zostanie dokonczony.
-- src/data/mordor/files_downloader.py pobiera oprocz pdf/docx/txt takze obrazy
-  (.jpg/.jpeg/.png - np. skany, plany, zdjecia notatek). Te pliki nie da sie
-  sensownie zamienic na tekst przez pymupdf4llm, wiec traktujemy je jako
-  osobne dokumenty typu "image" (content_type="image", value=sciezka do pliku),
-  z embed_text zbudowanym z nazwy pliku i katalogu nadrzednego (jedyny dostepny
-  kontekst tekstowy) - to prowizorka do czasu, az ktos doda realne opisy/OCR.
+- Pliki tekstowe (pdf z warstwa tekstu, docx, txt) sa zamieniane na markdown
+  (pymupdf4llm.to_markdown) i dzielone RecursiveCharacterTextSplitterem, z
+  metadanymi source_file, file_type, directory.
+- Obrazy (.jpg/.jpeg/.png) i pdf-y bez warstwy tekstu (skany) nie daja sie
+  sensownie zamienic na tekst, wiec sa osobnymi dokumentami typu "image"
+  (content_type="image", value=sciezka do pliku), z embed_text zbudowanym z
+  nazwy pliku i katalogu nadrzednego - prowizorka do czasu dodania OCR/opisow.
 """
 
 import os
 
-from ..ingest.schema import Document, make_id
+from src.backend.rag.schema import Document, make_id
 
 BASE_DIR = os.path.join("data", "mordor")
 
-TEXT_EXTENSIONS = {".pdf", ".docx", ".txt"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 CHUNK_SIZE = 1000

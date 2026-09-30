@@ -1,7 +1,7 @@
 """
-Konwersja danych z src/data/strony/scraper.py do wspolnego schematu Document.
+Konwersja danych z pipeline/scrapers/strony/scraper.py do wspolnego schematu Document.
 
-ZALOZENIA (do zweryfikowania, patrz PR):
+ZALOZENIA:
 - scraper.py zapisuje WSZYSTKIE zescrapowane strony/pliki (pdf/docx/txt) i
   Wikipedie do jednego plaskiego pliku tekstowego
   (data/strony/webiste_data.txt - literowka "webiste" jest w oryginalnym
@@ -22,7 +22,7 @@ import os
 import re
 from urllib.parse import urlparse
 
-from ..ingest.schema import Document, make_id
+from src.backend.rag.schema import Document, make_id
 
 OUTPUT_FILE = os.path.join("data", "strony", "webiste_data.txt")
 

@@ -2,7 +2,7 @@
 Wspolny, znormalizowany schemat dokumentu uzywany przez caly RAG.
 
 Kazde z trzech zrodel danych (mordor, strony, usos) ma wlasny format wyjsciowy
-(patrz from_mordor.py / from_strony.py / from_usos.py) - to jedyne miejsca,
+(patrz pipeline/ingest/from_*.py) - to jedyne miejsca,
 ktore znaja te specyfike. Reszta pipeline'u (encoder, vectorstore, retriever)
 operuje wylacznie na obiektach Document ponizej.
 """

@@ -3,9 +3,9 @@ Testy retriever.py - sklejenie Encoder + VectorStore. Uzywa FakeEncoder
 (fixture fake_encoder, patrz conftest.py), zeby nie pobierac realnego modelu.
 """
 
-from RAG.ingest.schema import Document
-from RAG.retriever import Retriever
-from RAG.vectorstore import VectorStore
+from src.backend.rag.schema import Document
+from src.backend.rag.retriever import Retriever
+from src.backend.rag.vectorstore import VectorStore
 
 
 def _make_retriever(tmp_path, encoder):

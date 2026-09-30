@@ -23,6 +23,9 @@ RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install -r requirements.txt
 
 COPY src/backend ./src/backend
+# ingest danych do bazy RAG (python -m pipeline.ingest.run_ingest); scrapery
+# (pipeline/scrapers) uruchamia sie lokalnie, poza obrazem
+COPY pipeline/ingest ./pipeline/ingest
 COPY alembic.ini ./
 COPY alembic ./alembic
 
