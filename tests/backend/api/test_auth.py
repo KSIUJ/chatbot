@@ -8,8 +8,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from sqlalchemy import select
 
-from backend.auth.crypto import hash_session_token
-from backend.models import Conversation, User, UserSession
+from src.backend.auth.crypto import hash_session_token
+from src.backend.models import Conversation, User, UserSession
 
 from fake_keycloak import CLIENT_ID, MEMBER_GROUP, login
 

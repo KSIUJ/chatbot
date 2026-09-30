@@ -1,17 +1,4 @@
-import os
-import sys
-
 import pytest
-
-# src/backend/RAG jest prawdziwym pakietem Pythona (ma __init__.py na kazdym
-# poziomie), w odroznieniu od modulow w src/data/usos/, ktore sa plaskimi
-# plikami importowanymi bez pakietu. Dodajemy wiec katalog nadrzedny wobec
-# RAG (src/backend), zeby moc importowac "RAG.xxx" - analogicznie do
-# tests/data/usos/conftest.py, ktory dodaje katalog danego modulu do sys.path.
-BACKEND_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "src", "backend")
-)
-sys.path.insert(0, BACKEND_DIR)
 
 
 class FakeEncoder:

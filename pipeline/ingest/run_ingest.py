@@ -1,10 +1,11 @@
 """
 CLI: uruchamia ingest wszystkich trzech zrodel danych i zapisuje je do
-wspolnego vectorstore (patrz src/backend/RAG/vectorstore.py).
+wspolnego vectorstore i indeksu leksykalnego (src/backend/rag/).
+Uruchamiane z katalogu glownego repo (sciezki data/ i dataset/ sa wzgledne).
 
 Uzycie:
-    python -m src.backend.RAG.ingest.run_ingest
-    python -m src.backend.RAG.ingest.run_ingest --source mordor
+    python -m pipeline.ingest.run_ingest
+    python -m pipeline.ingest.run_ingest --source mordor
 """
 
 import argparse
@@ -24,8 +25,8 @@ BATCH_SIZE = 256
 def run_ingest(
     sources: list[str] | None = None, batch_size: int = BATCH_SIZE, purge: bool = False
 ) -> dict[str, int]:
-    from ..lexical import LexicalIndex
-    from ..vectorstore import VectorStore
+    from src.backend.rag.lexical import LexicalIndex
+    from src.backend.rag.vectorstore import VectorStore
 
     sources = sources or list(SOURCE_LOADERS.keys())
     store = VectorStore()
@@ -62,8 +63,8 @@ def run_ingest(
 
 
 def rebuild_lexical(batch_size: int = 5000) -> int:
-    from ..lexical import LexicalIndex
-    from ..vectorstore import VectorStore
+    from src.backend.rag.lexical import LexicalIndex
+    from src.backend.rag.vectorstore import VectorStore
 
     collection = VectorStore().collection
     lexical = LexicalIndex()

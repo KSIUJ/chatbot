@@ -1,8 +1,8 @@
 """
-Konwersja danych z src/data/usos/scrape_staff.py do wspolnego schematu Document.
+Konwersja danych z pipeline/scrapers/usos/scrape_staff.py do wspolnego schematu Document.
 
 ZALOZENIA (zweryfikowane na realnym przebiegu scrape_staff.py z 2026-07-29,
-208 pracownikow WMI - patrz PR):
+208 pracownikow WMI):
 - scrape_staff.py zapisuje jeden plik JSON na uruchomienie:
   data/usos/staff/staff_{fac_id}_{znacznik_czasu}.json - lista rekordow
   pracownikow w ksztalcie zwracanym przez normalize_employee(). Poniewaz
@@ -31,7 +31,7 @@ import json
 import os
 import re
 
-from ..ingest.schema import Document, make_id
+from src.backend.rag.schema import Document, make_id
 
 STAFF_DIR = os.path.join("data", "usos", "staff")
 STAFF_FILE_GLOB = "staff_*.json"

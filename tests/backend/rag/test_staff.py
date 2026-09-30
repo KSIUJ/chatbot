@@ -3,9 +3,9 @@ Testy staff.py - wyszukiwarka pracownikow (BM25 zawezony do zrodla usos)
 wraz z bramka slownikowa decydujaca, czy zapytanie dotyczy pracownika.
 """
 
-from RAG.ingest.schema import Document
-from RAG.lexical import LexicalIndex
-from RAG.staff import StaffIndex
+from src.backend.rag.schema import Document
+from src.backend.rag.lexical import LexicalIndex
+from src.backend.rag.staff import StaffIndex
 
 PEOPLE = {
     "usos_kawa": ("Rafał Kawa", "dr Rafał Kawa\nStanowisko: starszy wykladowca\nPokoj: 2168"),

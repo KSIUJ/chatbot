@@ -116,7 +116,7 @@ def _get_access_token_credentials() -> tuple[str, str]:
     """Zwraca (access_token, access_token_secret) z .env.
 
     Podnosi UsosCredentialsError, jesli ktorykolwiek brakuje. Te wartosci sa
-    zapisywane automatycznie przez src/data/usos/usos_login.py po przejsciu
+    zapisywane automatycznie przez pipeline/scrapers/usos/usos_login.py po przejsciu
     logowania (3-legged OAuth1).
     """
     access_token = os.getenv("USOS_ACCESS_TOKEN")
@@ -124,7 +124,7 @@ def _get_access_token_credentials() -> tuple[str, str]:
     if not access_token or not access_token_secret:
         raise UsosCredentialsError(
             "Brak USOS_ACCESS_TOKEN/USOS_ACCESS_TOKEN_SECRET w .env. Uruchom "
-            "najpierw src/data/usos/usos_login.py, zeby zalogowac sie do USOS "
+            "najpierw pipeline/scrapers/usos/usos_login.py, zeby zalogowac sie do USOS "
             "i uzyskac access token."
         )
     return access_token, access_token_secret
@@ -162,7 +162,7 @@ def usos_call_authenticated(method_path: str, params: dict[str, str] | None = No
     scope'ow przypisanych do usera (np. email pod scope'em other_emails).
     Wymaga USOS_CONSUMER_KEY/USOS_CONSUMER_SECRET oraz USOS_ACCESS_TOKEN/
     USOS_ACCESS_TOKEN_SECRET w .env - ten drugi para zapisywana jest
-    automatycznie przez src/data/usos/usos_login.py.
+    automatycznie przez pipeline/scrapers/usos/usos_login.py.
     """
     consumer_key, consumer_secret = _get_consumer_credentials()
     access_token, access_token_secret = _get_access_token_credentials()

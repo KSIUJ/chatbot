@@ -1,6 +1,6 @@
 import os
 
-from ..RAG.context_builder import build_context
+from ..rag.context_builder import build_context
 from . import claude_client
 from . import client as ollama_client
 from . import cursor_client

@@ -2,18 +2,13 @@
 Testy jednostkowe konfiguracji logowania (env), kryptografii i dopasowania grup.
 """
 
-import os
-import sys
 import unicodedata
 
 import pytest
 
-BACKEND_PARENT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-sys.path.insert(0, BACKEND_PARENT)
-
-from backend.auth.crypto import DecryptionError, LoginState, TokenCipher, pkce_challenge  # noqa: E402
-from backend.auth.service import is_member  # noqa: E402
-from backend.auth.settings import AuthConfigError, load_auth_settings  # noqa: E402
+from src.backend.auth.crypto import DecryptionError, LoginState, TokenCipher, pkce_challenge
+from src.backend.auth.service import is_member
+from src.backend.auth.settings import AuthConfigError, load_auth_settings
 
 BASE_ENV = {
     "OIDC_ISSUER": "https://auth.ksi.sh/realms/ksi",

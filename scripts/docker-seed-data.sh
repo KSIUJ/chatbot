@@ -39,4 +39,4 @@ echo "[seed] Gotowe. Restartuje backend, zeby na pewno zaladowal swieze dane..."
 docker compose restart backend
 
 echo "[seed] Sprawdz liczby w bazie:"
-echo "  docker compose exec backend python -c \"from src.backend.RAG.vectorstore import VectorStore; c=VectorStore().collection; print({s: len(c.get(where={'source': s})['ids']) for s in ['mordor','strony','usos']}, 'total', c.count())\""
+echo "  docker compose exec backend python -c \"from src.backend.rag.vectorstore import VectorStore; c=VectorStore().collection; print({s: len(c.get(where={'source': s})['ids']) for s in ['mordor','strony','usos']}, 'total', c.count())\""

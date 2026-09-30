@@ -4,8 +4,8 @@ conftest.py) - realna ChromaDB, ale bez pobierania modelu embeddingowego -
 oraz tymczasowego katalogu na dane.
 """
 
-from RAG.ingest.schema import Document
-from RAG.vectorstore import VectorStore
+from src.backend.rag.schema import Document
+from src.backend.rag.vectorstore import VectorStore
 
 
 def _make_store(tmp_path, encoder):
