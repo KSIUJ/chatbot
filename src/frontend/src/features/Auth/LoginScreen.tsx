@@ -2,14 +2,17 @@ import { useState } from 'react';
 import { AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
 import LoginBackground from './LoginBackground';
 import LoginHeader from './LoginHeader';
-import type { AuthErrorCode } from '../../lib/api';
+import type { LoginError } from './useAuth';
 
+// Shown only when an automatic redirect to KSI login would not help (errors,
+// loop guard) - a visitor without a session goes straight to Keycloak.
 interface LoginScreenProps {
-  error: AuthErrorCode | null;
+  error: LoginError | null;
   onLogin: () => void;
 }
 
-const ERROR_MESSAGES: Record<AuthErrorCode, string> = {
+const ERROR_MESSAGES: Record<LoginError, string> = {
+  login_incomplete: 'Login did not complete. Make sure cookies are enabled for this site and try again.',
   not_authenticated: 'Please log in with your KSI account.',
   session_expired: 'Your session has expired. Please log in again.',
   not_member: 'The chatbot is available to KSI members only (group Członek).',
@@ -23,6 +26,8 @@ const ERROR_MESSAGES: Record<AuthErrorCode, string> = {
 export default function LoginScreen({ error, onLogin }: LoginScreenProps) {
   // the page navigates away to Keycloak, so the spinner never has to be reset
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const buttonLabel = error ? 'Try again' : 'Log in with KSI';
 
   const handleLogin = () => {
     setIsRedirecting(true);
@@ -60,15 +65,11 @@ export default function LoginScreen({ error, onLogin }: LoginScreenProps) {
             </>
           ) : (
             <>
-              Log in with KSI
+              {buttonLabel}
               <ArrowRight className="w-4 h-4 text-white/90 group-hover:translate-x-1.5 transition-transform" />
             </>
           )}
         </button>
-
-        <p className="text-center text-xs text-slate-500 pb-1">
-          Access is limited to KSI members.
-        </p>
       </div>
 
     </div>
