@@ -5,7 +5,7 @@
 # wydziale, bo wolumeny sa puste przy pierwszym "docker compose up".
 #
 # Zalozenie: masz juz lokalnie zescrapowane/zingestowane dane (patrz
-# docs/SETUP.md, sekcje 6-7) - ten skrypt tylko je przenosi do Dockera,
+# README.md, sekcja "Dane: scraping i ingest") - ten skrypt tylko je przenosi do Dockera,
 # NIE scrapuje ani nie ingestuje niczego sam.
 #
 # Uzycie (z katalogu glownego repo, stos musi byc juz zbudowany):
@@ -21,8 +21,8 @@ cd "$(dirname "$0")/.."
 
 if [ ! -d data ] && [ ! -d dataset ]; then
     echo "[seed] Brak lokalnych data/ i dataset/ - nie ma czego kopiowac."
-    echo "[seed] Zescrapuj i zingestuj dane lokalnie (docs/SETUP.md, sekcje 6-7)"
-    echo "[seed] albo uruchom ingest bezposrednio w kontenerze - patrz docs/DOCKER.md."
+    echo "[seed] Zescrapuj i zingestuj dane lokalnie (README.md, sekcja 'Dane: scraping i ingest')"
+    echo "[seed] albo uruchom ingest bezposrednio w kontenerze - patrz README.md, sekcja 'Dane RAG'."
     exit 1
 fi
 
