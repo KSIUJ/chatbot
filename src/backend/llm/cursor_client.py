@@ -1,6 +1,7 @@
 """
 Klient Cursor Cloud Agents API, uzywany gdy LLM_PROVIDER=cursor. Ten sam
-interfejs chat(system, user, history=None) -> str co ollama_client.py.
+interfejs chat(system, user, history=None) -> str co ollama_client.py;
+stream_chat oddaje cala odpowiedz jednym kawalkiem (brak API strumieniowego).
 
 Cursor nie ma synchronicznego API inferencji: kazde chat() tworzy nowego
 agenta bez repo i odpytuje o wynik runa. Odpowiedz trwa dziesiatki sekund, a
@@ -9,6 +10,7 @@ demo z jednym uzytkownikiem naraz. Model ustawia CURSOR_MODEL.
 """
 
 import time
+from collections.abc import Iterator
 
 from .http_api import BearerApi
 from .provider import env_setting
@@ -101,3 +103,14 @@ def chat(
             )
 
         time.sleep(poll_interval)
+
+
+def stream_chat(
+    system: str,
+    user: str,
+    history: list[dict[str, str]] | None = None,
+) -> Iterator[str]:
+    """Cursor nie strumieniuje - cala odpowiedz z chat() jako jeden kawalek."""
+    reply = chat(system=system, user=user, history=history)
+    if reply:
+        yield reply

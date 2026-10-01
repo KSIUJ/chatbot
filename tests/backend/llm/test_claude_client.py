@@ -33,6 +33,33 @@ class FakeMessagesResource:
             raise self._client.error_to_raise
         return self._client.response_to_return
 
+    def stream(self, **kwargs):
+        self._client.last_stream_kwargs = kwargs
+        stream = FakeMessageStream(FakeAnthropicClient.next_stream_texts, self._client.error_to_raise)
+        self._client.last_stream = stream
+        return stream
+
+
+class FakeMessageStream:
+    """Atrapa MessageStream z anthropic: context manager z text_stream."""
+
+    def __init__(self, texts, error):
+        self._texts = list(texts)
+        self._error = error
+        self.closed = False
+
+    def __enter__(self):
+        if self._error is not None:
+            raise self._error
+        return self
+
+    def __exit__(self, *exc_info):
+        self.closed = True
+
+    @property
+    def text_stream(self):
+        yield from self._texts
+
 
 class FakeAnthropicClient:
     """Podmiana anthropic.Anthropic - zapamietuje kwargs wywolania create() i
@@ -42,6 +69,7 @@ class FakeAnthropicClient:
     last_instance = None
     next_response = None
     next_error = None
+    next_stream_texts = ("domyslna ", "odpowiedz")
 
     def __init__(self, **kwargs):
         self.init_kwargs = kwargs
@@ -50,6 +78,8 @@ class FakeAnthropicClient:
         )
         self.error_to_raise = FakeAnthropicClient.next_error
         self.last_create_kwargs = None
+        self.last_stream_kwargs = None
+        self.last_stream = None
         self.messages = FakeMessagesResource(self)
         FakeAnthropicClient.last_instance = self
 
@@ -191,3 +221,52 @@ def test_chat_raises_runtime_error_on_generic_api_status_error(fake_anthropic_cl
 
     with pytest.raises(RuntimeError, match="503"):
         chat(system="s", user="u")
+
+
+def _import_stream_chat():
+    from src.backend.llm.claude_client import stream_chat
+
+    return stream_chat
+
+
+def test_stream_chat_yields_text_pieces(fake_anthropic_client, monkeypatch):
+    monkeypatch.delenv("CLAUDE_MODEL", raising=False)
+    monkeypatch.setattr(fake_anthropic_client, "next_stream_texts", ("Dzie", "kanat"))
+    stream_chat = _import_stream_chat()
+    history = [{"role": "user", "content": "hej"}, {"role": "assistant", "content": "czesc"}]
+
+    chunks = list(stream_chat(system="Jestes asystentem.", user="pytanie", history=history))
+
+    client = fake_anthropic_client.last_instance
+    assert chunks == ["Dzie", "kanat"]
+    assert client.last_stream_kwargs["model"] == "claude-sonnet-5"
+    assert client.last_stream_kwargs["system"] == "Jestes asystentem."
+    assert client.last_stream_kwargs["messages"] == [*history, {"role": "user", "content": "pytanie"}]
+    assert client.last_stream.closed
+
+
+def test_stream_chat_maps_api_errors(fake_anthropic_client, monkeypatch):
+    monkeypatch.setattr(fake_anthropic_client, "next_error", FakeRateLimitError("slow down"))
+    stream_chat = _import_stream_chat()
+
+    with pytest.raises(RuntimeError, match="limit"):
+        list(stream_chat(system="s", user="u"))
+
+
+def test_stream_chat_requires_api_key(fake_anthropic_client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    stream_chat = _import_stream_chat()
+
+    with pytest.raises(RuntimeError, match="Brak klucza Claude API"):
+        list(stream_chat(system="s", user="u"))
+
+
+def test_closing_stream_early_closes_message_stream(fake_anthropic_client, monkeypatch):
+    monkeypatch.setattr(fake_anthropic_client, "next_stream_texts", ("a", "b", "c"))
+    stream_chat = _import_stream_chat()
+
+    stream = stream_chat(system="s", user="u")
+    assert next(stream) == "a"
+    stream.close()
+
+    assert fake_anthropic_client.last_instance.last_stream.closed

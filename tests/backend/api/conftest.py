@@ -14,8 +14,9 @@ from src.backend import main as main_module
 from src.backend.auth import dependencies as auth_dependencies
 from src.backend.auth.oidc import OIDCClient
 from src.backend.auth.settings import get_auth_settings
-from src.backend.database import get_db
+from src.backend.database import get_db, get_session_factory
 from src.backend.history import get_history_settings
+from src.backend.llm.generate import AnswerStream
 from src.backend.models import Base, User
 
 from fake_keycloak import (
@@ -26,6 +27,12 @@ from fake_keycloak import (
     REDIRECT_URI,
     FakeKeycloak,
 )
+
+# zrodla, ktore atrapa LLM dolacza do kazdej odpowiedzi
+FAKE_SOURCES = [
+    {"kind": "strony", "title": "matinf.uj.edu.pl/dziekanat", "url": "https://matinf.uj.edu.pl/dziekanat"},
+    {"kind": "mordor", "title": "regulamin.pdf", "url": None},
+]
 
 TEST_ENV = {
     "OIDC_ISSUER": ISSUER,
@@ -58,6 +65,11 @@ def auth_env(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
+def fake_sources() -> list[dict[str, str | None]]:
+    return FAKE_SOURCES
+
+
+@pytest.fixture
 def keycloak() -> FakeKeycloak:
     return FakeKeycloak()
 
@@ -87,15 +99,23 @@ def client(auth_env, keycloak: FakeKeycloak, session_factory, monkeypatch: pytes
 
     calls: list[dict[str, object]] = []
 
-    def fake_answer(message, history=None, **kwargs):
-        calls.append({"message": message, "history": list(history or [])})
-        return {"answer": f"odpowiedz na: {message}", "files": []}
+    def fake_answer(message, history=None, language="pl", **kwargs):
+        calls.append({"message": message, "history": list(history or []), "language": language})
+        return {"answer": f"odpowiedz na: {message}", "files": [], "sources": list(FAKE_SOURCES)}
+
+    def fake_stream(message, history=None, language="pl", **kwargs):
+        calls.append({"message": message, "history": list(history or []), "language": language})
+        return AnswerStream(
+            chunks=iter(["odpowiedz ", "na: ", message]), files=[], sources=list(FAKE_SOURCES)
+        )
 
     monkeypatch.setattr(main_module, "rag_answer", fake_answer)
+    monkeypatch.setattr(main_module, "rag_stream", fake_stream)
     # petla kasujaca stare rozmowy dzialalaby na prawdziwej bazie (DATABASE_URL)
     monkeypatch.setattr(main_module, "start_retention_task", lambda: None)
     app = main_module.app
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
     app.dependency_overrides[auth_dependencies.get_oidc_client] = override_oidc_client
 
     with TestClient(app, base_url="https://chat.test") as test_client:
