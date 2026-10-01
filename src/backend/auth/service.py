@@ -176,7 +176,7 @@ def delete_session(db: Session, session: UserSession) -> None:
 
 
 def purge_expired_sessions(db: Session) -> int:
-    """Sprzata wygasle sesje (wywolywane przy logowaniu)."""
+    """Sprzata wygasle sesje (przy logowaniu i w petli sprzatajacej w tle)."""
     result = db.execute(delete(UserSession).where(UserSession.expires_at <= utcnow()))
     db.commit()
     return int(result.rowcount or 0)
