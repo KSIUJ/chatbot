@@ -152,23 +152,31 @@ def purge_expired_conversations(db: Session, retention_days: int) -> int:
     return int(result.rowcount or 0)
 
 
-def _purge_once(session_factory: Callable[[], Session], retention_days: int) -> None:
-    db = session_factory()
-    try:
-        deleted = purge_expired_conversations(db, retention_days)
-        if deleted:
-            logger.info("history retention: deleted %d conversation(s) older than %d days", deleted, retention_days)
-    except Exception:
-        # nie zabijamy petli - sprobujemy przy nastepnym obrocie
-        logger.exception("history retention purge failed")
-        db.rollback()
-    finally:
-        db.close()
+# Zadanie sprzatajace: dostaje sesje bazy, zwraca liczbe usunietych wierszy.
+CleanupJob = Callable[[Session], int]
 
 
-async def retention_loop(session_factory: Callable[[], Session], settings: HistorySettings) -> None:
-    """Czysci wygasle rozmowy przy starcie i potem co purge_interval_hours.
-    Backend chodzi na jednym workerze, wiec petla dziala raz na instancje."""
+def run_cleanup(session_factory: Callable[[], Session], jobs: Mapping[str, CleanupJob]) -> None:
+    """Uruchamia zadania sprzatajace, kazde w osobnej sesji bazy - blad jednego
+    nie zatrzymuje pozostalych (sprobuja ponownie przy nastepnym obrocie)."""
+    for name, job in jobs.items():
+        db = session_factory()
+        try:
+            deleted = job(db)
+            if deleted:
+                logger.info("cleanup %s: deleted %d row(s)", name, deleted)
+        except Exception:
+            logger.exception("cleanup %s failed", name)
+            db.rollback()
+        finally:
+            db.close()
+
+
+async def retention_loop(
+    session_factory: Callable[[], Session], interval_hours: float, jobs: Mapping[str, CleanupJob]
+) -> None:
+    """Sprzata przy starcie i potem co interval_hours. Backend chodzi na
+    jednym workerze, wiec petla dziala raz na instancje."""
     while True:
-        await asyncio.to_thread(_purge_once, session_factory, settings.retention_days)
-        await asyncio.sleep(settings.purge_interval_hours * 3600)
+        await asyncio.to_thread(run_cleanup, session_factory, jobs)
+        await asyncio.sleep(interval_hours * 3600)
