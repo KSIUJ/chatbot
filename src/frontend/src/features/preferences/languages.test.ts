@@ -9,6 +9,7 @@ describe('parseLanguage', () => {
   it('keeps a language the user picked earlier', () => {
     expect(parseLanguage('angielski')).toBe('angielski');
     expect(parseLanguage('polski')).toBe('polski');
+    expect(parseLanguage('francuski')).toBe('francuski');
   });
 
   it('falls back to Polish for unknown values', () => {
