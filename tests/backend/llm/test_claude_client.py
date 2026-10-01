@@ -81,6 +81,7 @@ def fake_anthropic_client(monkeypatch):
     fake_module.APIConnectionError = FakeAPIConnectionError
     fake_module.APIStatusError = FakeAPIStatusError
     monkeypatch.setitem(sys.modules, "anthropic", fake_module)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(FakeAnthropicClient, "next_response", None, raising=False)
     monkeypatch.setattr(FakeAnthropicClient, "next_error", None, raising=False)
     return FakeAnthropicClient
@@ -133,6 +134,29 @@ def test_chat_joins_multiple_text_blocks_from_response(fake_anthropic_client, mo
     result = chat(system="s", user="u")
 
     assert result == "pierwsza czesc druga czesc"
+
+
+def test_chat_passes_api_key_from_env_to_client(fake_anthropic_client):
+    chat = _import_chat()
+
+    chat(system="s", user="u")
+
+    assert fake_anthropic_client.last_instance.init_kwargs["api_key"] == "test-key"
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_chat_raises_runtime_error_when_api_key_missing(fake_anthropic_client, monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", value)
+    monkeypatch.setattr(fake_anthropic_client, "last_instance", None)
+    chat = _import_chat()
+
+    with pytest.raises(RuntimeError, match="Brak klucza Claude API"):
+        chat(system="s", user="u")
+
+    assert fake_anthropic_client.last_instance is None
 
 
 def test_chat_raises_runtime_error_on_authentication_error(fake_anthropic_client, monkeypatch):

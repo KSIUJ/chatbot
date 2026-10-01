@@ -1,29 +1,14 @@
 """
 Konwersja danych z pipeline/scrapers/usos/scrape_staff.py do wspolnego schematu Document.
 
-ZALOZENIA (zweryfikowane na realnym przebiegu scrape_staff.py z 2026-07-29,
-208 pracownikow WMI):
-- scrape_staff.py zapisuje jeden plik JSON na uruchomienie:
-  data/usos/staff/staff_{fac_id}_{znacznik_czasu}.json - lista rekordow
-  pracownikow w ksztalcie zwracanym przez normalize_employee(). Poniewaz
-  kazde uruchomienie tworzy NOWY plik z wlasnym znacznikiem czasu, domyslnie
-  bierzemy NAJNOWSZY plik pasujacy do wzorca (sortowanie po nazwie dziala,
-  bo znacznik czasu jest w formacie ISO-podobnym %Y%m%dT%H%M%SZ) - nie
-  laczymy danych z wielu przebiegow.
-- Jeden pracownik = jeden Document (rekordy sa krotkie, nie wymagaja
-  dzielenia na chunki jak dokumenty tekstowe z mordoru/stron).
-- `titles` to NIE plaski string/lista, tylko dict {"before": "dr hab.",
-  "after": "prof. UJ"} (oba pola bywaja null) - formatujemy jako
-  "before after" pomijajac puste.
-- `room` to NIE string, tylko dict {"number": ..., "building_name": {"pl":
-  ..., "en": ...}, ...} albo null (u ~połowy pracownikow) - bierzemy numer +
-  polska nazwa budynku.
-- `employment_positions` to lista dictow {"position": {"name": {"pl": ...}},
-  "faculty": {"name": {"pl": ...}}} (czasem >1 wpis - pracownik na kilku
-  etatach/jednostkach) - formatujemy kazdy jako "stanowisko (jednostka)".
-- `office_hours_text` bywa surowym HTML-em (np. "<b>Dyzur w sesji
-  letniej</b>") - usuwamy tagi przed wrzuceniem do embed_text, zeby nie
-  zaburzaly wyszukiwania/promptu.
+- Kazde uruchomienie scrapera zapisuje nowy plik
+  data/usos/staff/staff_{fac_id}_{%Y%m%dT%H%M%SZ}.json; ingest bierze tylko
+  najnowszy (sortowanie po nazwie), bez laczenia przebiegow.
+- Jeden pracownik = jeden Document (rekordy sa krotkie, bez chunkowania).
+- Ksztalt pol z normalize_employee(): `titles` to {"before", "after"},
+  `room` to {"number", "building_name": {"pl", ...}} albo null,
+  `employment_positions` to lista {"position": {"name": {"pl"}}, "faculty":
+  {"name": {"pl"}}}; `office_hours_text` bywa HTML-em, wiec tagi sa usuwane.
 """
 
 import glob
@@ -51,7 +36,7 @@ def _strip_html(text: str) -> str:
     return " ".join(text.split())
 
 
-def _format_titles(titles: dict | None) -> str:
+def _format_titles(titles: dict[str, str | None] | None) -> str:
     if not titles:
         return ""
     parts = [titles.get("before"), titles.get("after")]
@@ -67,7 +52,7 @@ def _format_room(room: dict | None) -> str:
     return ", ".join(p for p in parts if p)
 
 
-def _format_positions(positions: list | None) -> str:
+def _format_positions(positions: list[dict] | None) -> str:
     if not positions:
         return ""
     formatted = []
@@ -81,7 +66,7 @@ def _format_positions(positions: list | None) -> str:
     return "; ".join(formatted)
 
 
-def _format_phones(phones: list | None) -> str:
+def _format_phones(phones: list[str] | None) -> str:
     if not phones:
         return ""
     return ", ".join(str(p).strip() for p in phones if str(p).strip())

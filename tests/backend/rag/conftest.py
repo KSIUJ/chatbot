@@ -13,9 +13,6 @@ class FakeEncoder:
 
     DIM = 32
 
-    def embed(self, text: str) -> list[float]:
-        return self.embed_batch([text])[0]
-
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [self._hash_embed(t) for t in texts]
 
@@ -36,10 +33,6 @@ class FakeEncoder:
 
 @pytest.fixture
 def fake_encoder():
-    """Fixture zamiast bezposredniego 'from conftest import FakeEncoder' -
-    ten drugi wzorzec psuje sie, gdy pytest zbiera testy z wielu katalogow
-    naraz (tests/data/usos/conftest.py i ten plik maja ta sama nazwe modulu
-    "conftest" bez __init__.py po drodze, wiec importy kolidują w
-    sys.modules). Fixture jest rozwiazywana przez mechanizm DI pytest, nie
-    przez zwykly import, wiec nie ma tego problemu."""
+    """FakeEncoder jako fixture - import z modulu "conftest" koliduje, gdy
+    pytest zbiera kilka katalogow z wlasnym conftest.py bez __init__.py."""
     return FakeEncoder()

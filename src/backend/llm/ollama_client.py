@@ -1,8 +1,9 @@
-import os
+"""Klient lokalnego Ollamy (POST /api/chat), domyslny dostawca (LLM_PROVIDER=ollama)."""
 
 import requests
 
 from .http_api import build_messages
+from .provider import env_setting
 
 DEFAULT_HOST = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5:14b"
@@ -12,24 +13,23 @@ DEFAULT_NUM_CTX = 8192
 def chat(
     system: str,
     user: str,
-    history: list[dict] | None = None,
+    history: list[dict[str, str]] | None = None,
     model: str | None = None,
     host: str | None = None,
     temperature: float = 0.2,
     timeout: int = 300,
     num_ctx: int | None = None,
 ) -> str:
-    model = model or os.getenv("OLLAMA_MODEL") or DEFAULT_MODEL
-    host = host or os.getenv("OLLAMA_HOST") or DEFAULT_HOST
-    num_ctx = num_ctx or int(os.getenv("OLLAMA_NUM_CTX") or DEFAULT_NUM_CTX)
-
-    messages = build_messages(system, user, history)
+    """Wysyla rozmowe do Ollamy i zwraca tekst odpowiedzi."""
+    model = model or env_setting("OLLAMA_MODEL", DEFAULT_MODEL)
+    host = host or env_setting("OLLAMA_HOST", DEFAULT_HOST)
+    num_ctx = num_ctx or int(env_setting("OLLAMA_NUM_CTX", str(DEFAULT_NUM_CTX)))
 
     response = requests.post(
         f"{host}/api/chat",
         json={
             "model": model,
-            "messages": messages,
+            "messages": build_messages(system, user, history),
             "stream": False,
             "options": {"temperature": temperature, "num_ctx": num_ctx},
         },

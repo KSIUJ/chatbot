@@ -1,10 +1,12 @@
+"""Generowanie odpowiedzi: kondensacja pytania, kontekst z RAG i wywolanie LLM."""
+
 import os
+from collections.abc import Callable
+from typing import TypedDict
 
 from ..rag.context_builder import build_context
-from . import claude_client
-from . import client as ollama_client
-from . import cursor_client
-from . import openrouter_client
+from . import claude_client, cursor_client, ollama_client, openrouter_client
+from .provider import current_provider
 from .rewrite import condense
 
 SYSTEM_PROMPT = (
@@ -27,17 +29,32 @@ SYSTEM_PROMPT = (
     "uzytkownikowi po nazwie - nawet jesli nie znasz ich tresci. To czesto "
     "skany zadan/notatek, wiec sam plik jest odpowiedzia i zostanie dolaczony.\n"
     "6. Dopiero jesli naprawde nic nie pasuje, powiedz krotko, ze nie masz tego "
-    "w materialach. Odpowiadaj rzeczowo i zwiezle."
-    "7. Nie zmyślaj, nie konfabuluj, nie wymyślaj odpowiedzi jak nie wiesz o co chodzi.\n"
-    "Szczególnie nie wymyślaj nazwisk, stanowisk, numerów pokoi, godzin dyżurów, ani innych danych kontaktowych.\n"
+    "w materialach. Odpowiadaj rzeczowo i zwiezle.\n"
+    "7. Nie zmyslaj, nie konfabuluj i nie wymyslaj odpowiedzi, gdy nie wiesz, o "
+    "co chodzi. Szczegolnie nie wymyslaj nazwisk, stanowisk, numerow pokoi, "
+    "godzin dyzurow ani innych danych kontaktowych.\n"
 )
-
 
 DEFAULT_HISTORY_MESSAGES = 4
 DEFAULT_HISTORY_CHAR_LIMIT = 600
 
+ChatFn = Callable[..., str]
 
-def _trim_history(history: list[dict] | None) -> list[dict]:
+_CHAT_FUNCTIONS: dict[str, ChatFn] = {
+    "ollama": ollama_client.chat,
+    "claude": claude_client.chat,
+    "cursor": cursor_client.chat,
+    "openrouter": openrouter_client.chat,
+}
+
+
+class Answer(TypedDict):
+    answer: str
+    files: list[str]
+
+
+def _trim_history(history: list[dict[str, str]] | None) -> list[dict[str, str]]:
+    """Ostatnie CHAT_HISTORY_MESSAGES wiadomosci, kazda obcieta do CHAT_HISTORY_CHAR_LIMIT."""
     if not history:
         return []
 
@@ -64,25 +81,18 @@ def _format_files(files: list[str]) -> str:
     return "\n".join(lines)
 
 
-def _resolve_chat_fn():
-    """Wybiera implementacje chat() na podstawie LLM_PROVIDER (domyslnie
-    lokalny Ollama; "claude" -> Claude API (claude_client.py); "cursor" ->
-    Cursor Cloud Agents API (cursor_client.py); "openrouter" -> OpenRouter API
-    (openrouter_client.py)). Wszystkie maja ten sam interfejs
-    chat(system, user, history=None) -> str."""
-    provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
-    if provider == "claude":
-        return claude_client.chat
-    if provider == "cursor":
-        return cursor_client.chat
-    if provider == "openrouter":
-        return openrouter_client.chat
-    return ollama_client.chat
+def _resolve_chat_fn() -> ChatFn:
+    """chat() dostawcy wybranego przez LLM_PROVIDER (patrz provider.py)."""
+    return _CHAT_FUNCTIONS[current_provider()]
 
 
 def answer(
-    query: str, k_mordor: int = 5, k_other: int = 5, history: list[dict] | None = None
-) -> dict:
+    query: str,
+    k_mordor: int = 5,
+    k_other: int = 5,
+    history: list[dict[str, str]] | None = None,
+) -> Answer:
+    """Odpowiada na pytanie z uzyciem RAG; zwraca tekst i sciezki dolaczanych plikow."""
     search_query = condense(query, history)
     context, files = build_context(search_query, k_mordor=k_mordor, k_other=k_other)
 
@@ -99,26 +109,7 @@ def answer(
 
     user_message = "\n\n".join(parts) + f"\n\nPYTANIE: {query}\n\nOdpowiedz po polsku."
 
-    chat_fn = _resolve_chat_fn()
-    reply = chat_fn(
+    reply = _resolve_chat_fn()(
         system=SYSTEM_PROMPT, user=user_message, history=_trim_history(history)
     )
-    return {"answer": reply, "files": files, "search_query": search_query}
-
-
-def main() -> None:
-    import sys
-
-    query = " ".join(sys.argv[1:]).strip() or "jakie sa zasady zaliczenia?"
-    result = answer(query)
-
-    print("\n=== ODPOWIEDZ ===\n")
-    print(result["answer"])
-    if result["files"]:
-        print("\n=== DOLACZONE PLIKI ===")
-        for path in result["files"]:
-            print(f" - {path}")
-
-
-if __name__ == "__main__":
-    main()
+    return {"answer": reply, "files": files}

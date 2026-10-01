@@ -4,10 +4,11 @@ Wspolne wywolania HTTP dla klientow LLM z kluczem w naglowku Bearer
 i zamiana bledow HTTP/sieci na RuntimeError z czytelnym komunikatem.
 """
 
-import os
 from dataclasses import dataclass, field
 
 import requests
+
+from .provider import env_setting
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class BearerApi:
     force_utf8: bool = False
 
     def api_key(self) -> str:
-        key = os.getenv(self.key_env, "").strip()
+        key = env_setting(self.key_env, "")
         if not key:
             raise RuntimeError(self.missing_key_message)
         return key
@@ -59,7 +60,9 @@ class BearerApi:
         return response.json()
 
 
-def build_messages(system: str, user: str, history: list[dict] | None) -> list[dict]:
+def build_messages(
+    system: str, user: str, history: list[dict[str, str]] | None
+) -> list[dict[str, str]]:
     """Lista wiadomosci w formacie chat completions: system, historia, pytanie."""
     messages = [{"role": "system", "content": system}]
     messages.extend(history or [])

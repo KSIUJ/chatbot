@@ -1,7 +1,8 @@
 """
 Jednorazowy, interaktywny login do USOS API UJ (pelny 3-legged OAuth1).
 
-Uzycie: python usos_login.py
+Uzycie (z katalogu glownego repo - .env jest zapisywany w biezacym katalogu):
+    python pipeline/scrapers/usos/usos_login.py
 
 Wymaga USOS_CONSUMER_KEY/USOS_CONSUMER_SECRET juz ustawionych w .env (patrz
 .env.example). Po pomyslnym zalogowaniu zapisuje USOS_ACCESS_TOKEN i
@@ -16,10 +17,9 @@ ktory trzeba wpisac w tym skrypcie.
 
 from urllib.parse import parse_qs
 
-import requests
 from requests_oauthlib import OAuth1
 
-from usos_api import BASE_URL, UsosApiError, _get_consumer_credentials, _respect_rate_limit
+from usos_api import build_url, get_consumer_credentials, usos_get
 
 SCOPES = "other_emails|offline_access"
 
@@ -32,7 +32,7 @@ def parse_oauth_response(text: str) -> dict[str, str]:
 
 def build_authorize_url(oauth_token: str) -> str:
     """Buduje URL, ktory uzytkownik ma otworzyc w przegladarce, zeby sie zalogowac."""
-    return f"{BASE_URL.rstrip('/')}/services/oauth/authorize?oauth_token={oauth_token}"
+    return f"{build_url('services/oauth/authorize')}?oauth_token={oauth_token}"
 
 
 def update_env_file(path: str, updates: dict[str, str]) -> None:
@@ -59,17 +59,10 @@ def update_env_file(path: str, updates: dict[str, str]) -> None:
 
 def get_request_token() -> tuple[str, str]:
     """Pobiera niezautoryzowany request token, podpisany kluczem consumer."""
-    consumer_key, consumer_secret = _get_consumer_credentials()
+    consumer_key, consumer_secret = get_consumer_credentials()
     auth = OAuth1(consumer_key, consumer_secret, callback_uri="oob")
 
-    _respect_rate_limit()
-
-    url = BASE_URL.rstrip("/") + "/services/oauth/request_token"
-    response = requests.get(url, params={"scopes": SCOPES}, auth=auth, timeout=30)
-
-    if response.status_code != 200:
-        raise UsosApiError(response.status_code, response.text)
-
+    response = usos_get("services/oauth/request_token", {"scopes": SCOPES}, auth)
     parsed = parse_oauth_response(response.text)
     return parsed["oauth_token"], parsed["oauth_token_secret"]
 
@@ -78,7 +71,7 @@ def exchange_for_access_token(
     oauth_token: str, oauth_token_secret: str, oauth_verifier: str
 ) -> tuple[str, str]:
     """Wymienia autoryzowany request token + PIN na docelowy access token."""
-    consumer_key, consumer_secret = _get_consumer_credentials()
+    consumer_key, consumer_secret = get_consumer_credentials()
     auth = OAuth1(
         consumer_key,
         consumer_secret,
@@ -87,14 +80,7 @@ def exchange_for_access_token(
         verifier=oauth_verifier,
     )
 
-    _respect_rate_limit()
-
-    url = BASE_URL.rstrip("/") + "/services/oauth/access_token"
-    response = requests.get(url, auth=auth, timeout=30)
-
-    if response.status_code != 200:
-        raise UsosApiError(response.status_code, response.text)
-
+    response = usos_get("services/oauth/access_token", auth=auth)
     parsed = parse_oauth_response(response.text)
     return parsed["oauth_token"], parsed["oauth_token_secret"]
 

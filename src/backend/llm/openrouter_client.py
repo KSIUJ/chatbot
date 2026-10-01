@@ -1,23 +1,14 @@
 """
-Klient OpenRouter API - alternatywa dla lokalnego Ollamy (client.py), Claude
-API (claude_client.py) i Cursor Cloud Agents (cursor_client.py), uzywana gdy
-LLM_PROVIDER=openrouter (patrz generate.py). Ten sam interfejs
-chat(system, user, history=None) -> str, zeby generate.py mogl przelaczac
-providera bez zmian w logice RAG.
+Klient OpenRouter API, uzywany gdy LLM_PROVIDER=openrouter. Ten sam interfejs
+chat(system, user, history=None) -> str co ollama_client.py.
 
-OpenRouter wystawia jedno API zgodne z formatem chat completions OpenAI i
-routuje zapytanie do wybranego dostawcy (Anthropic, Google, Meta, Qwen...),
-wiec model podmienia sie sama zmienna OPENROUTER_MODEL - bez zmian w kodzie.
-Pelna lista ID: GET https://openrouter.ai/api/v1/models (bez klucza) albo
-list_models() ponizej.
-
-Uzywamy biblioteki requests (jak cursor_client.py) zamiast SDK openai, zeby
-nie dokladac nowej zaleznosci.
+OpenRouter wystawia API zgodne z chat completions OpenAI i routuje zapytanie
+do wybranego dostawcy, wiec model zmienia sie sama zmienna OPENROUTER_MODEL.
+Klient uzywa requests (bez SDK openai).
 """
 
-import os
-
 from .http_api import BearerApi, build_messages
+from .provider import env_setting
 
 DEFAULT_MODEL = "google/gemini-2.5-flash"
 DEFAULT_TIMEOUT = 300
@@ -38,30 +29,20 @@ _API = BearerApi(
 )
 
 
-def list_models() -> list[str]:
-    """Zwraca ID modeli dostepnych przez OpenRouter - pomocne do ustalenia
-    poprawnej wartosci OPENROUTER_MODEL."""
-    data = _API.request("GET", "/models", timeout=DEFAULT_TIMEOUT)
-    return [item["id"] for item in data.get("data", [])]
-
-
 def chat(
     system: str,
     user: str,
-    history: list[dict] | None = None,
+    history: list[dict[str, str]] | None = None,
     model: str | None = None,
     temperature: float = 0.2,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> str:
-    # Puste OPENROUTER_MODEL= w .env to nie to samo co brak zmiennej: getenv
-    # zwraca wtedy "" i bez tego trafiloby ono do API jako nazwa modelu.
-    model = model or os.getenv("OPENROUTER_MODEL", "").strip() or DEFAULT_MODEL
-
-    messages = build_messages(system, user, history)
+    """Wysyla rozmowe do OpenRouter i zwraca tekst pierwszego wyboru."""
+    model = model or env_setting("OPENROUTER_MODEL", DEFAULT_MODEL)
 
     payload = {
         "model": model,
-        "messages": messages,
+        "messages": build_messages(system, user, history),
         "temperature": temperature,
         "stream": False,
     }
