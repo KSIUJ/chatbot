@@ -1,3 +1,5 @@
+"""Indeks leksykalny BM25 (SQLite FTS5, dataset/lexical.db) dzialajacy obok vectorstore."""
+
 import os
 import re
 import sqlite3

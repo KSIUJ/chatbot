@@ -1,3 +1,1 @@
-from dotenv import load_dotenv
-
-load_dotenv()
+"""Warstwa LLM: wybor dostawcy, kondensacja zapytania i generowanie odpowiedzi."""

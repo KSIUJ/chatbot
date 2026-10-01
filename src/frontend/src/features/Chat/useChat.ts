@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ApiRequestError, isSessionLost } from '../../lib/api';
+import { ACTIVE_CONVERSATION_KEY, rememberActiveConversation } from '../../lib/chatStorage';
 import {
-  ApiRequestError,
   deleteConversation,
   fetchConversationMessages,
   fetchConversations,
   newConversationId,
-  removeConversation,
   sendMessage,
   shouldRegenerate,
   toChatMessages,
   type ChatMessage,
   type ConversationList,
   type ConversationSummary,
-} from '../../lib/conversations';
-import { ACTIVE_CONVERSATION_KEY } from '../../lib/chatStorage';
+} from './conversations';
 
 export interface HistoryLimits {
   maxPerUser: number;
@@ -28,16 +27,15 @@ function localId(): string {
   return `local-${Date.now()}-${localIdCounter}`;
 }
 
-function isAuthError(error: unknown): boolean {
-  // apiFetch already switched the app to the login flow
-  return error instanceof ApiRequestError && (error.status === 401 || error.status === 403);
-}
-
 // Chat state: sidebar history from the server, the open conversation, sending,
 // stop and retry. Only the id of the open conversation is kept in localStorage.
 export function useChat() {
-  // read before the effect below overwrites it with the initial null
+  // the conversation that was open before the reload
   const [rememberedId] = useState(() => localStorage.getItem(ACTIVE_CONVERSATION_KEY));
+  // Storage mirrors activeId only once the initial load succeeded (or the user
+  // started a new chat): a failed /conversations at startup must not forget
+  // the remembered conversation while activeId is still the initial null.
+  const [isRestored, setIsRestored] = useState(false);
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [limits, setLimits] = useState<HistoryLimits | null>(null);
@@ -56,9 +54,8 @@ export function useChat() {
   const loadTokenRef = useRef(0);
 
   useEffect(() => {
-    if (activeId) localStorage.setItem(ACTIVE_CONVERSATION_KEY, activeId);
-    else localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
-  }, [activeId]);
+    rememberActiveConversation(activeId, isRestored);
+  }, [activeId, isRestored]);
 
   const applyHistory = useCallback((list: ConversationList) => {
     setConversations(list.conversations);
@@ -67,7 +64,8 @@ export function useChat() {
   }, []);
 
   const applyHistoryError = useCallback((error: unknown) => {
-    if (!isAuthError(error)) setHistoryError(true);
+    // a lost session already switched the app to the login flow
+    if (!isSessionLost(error)) setHistoryError(true);
   }, []);
 
   const refreshHistory = useCallback(async () => {
@@ -97,12 +95,12 @@ export function useChat() {
       if (serverMessages === null) {
         // deleted or expired meanwhile - start fresh
         setActiveId(null);
-        setConversations((prev) => removeConversation(prev, id));
+        setConversations((prev) => prev.filter((c) => c.id !== id));
         return;
       }
       setMessages(toChatMessages(serverMessages));
     } catch (error) {
-      if (token === loadTokenRef.current && !isAuthError(error)) setLoadError(true);
+      if (token === loadTokenRef.current && !isSessionLost(error)) setLoadError(true);
     } finally {
       if (token === loadTokenRef.current) setIsLoadingConversation(false);
     }
@@ -115,6 +113,7 @@ export function useChat() {
       (list) => {
         if (cancelled) return;
         applyHistory(list);
+        setIsRestored(true);
         if (rememberedId !== null && list.conversations.some((c) => c.id === rememberedId)) {
           void openConversation(rememberedId);
         }
@@ -131,6 +130,7 @@ export function useChat() {
   const startNewChat = useCallback(() => {
     cancelPending();
     loadTokenRef.current += 1;
+    setIsRestored(true);
     setActiveId(null);
     setMessages([]);
     setLoadError(false);
@@ -138,13 +138,13 @@ export function useChat() {
   }, [cancelPending]);
 
   const removeChat = useCallback(async (id: string) => {
-    setConversations((prev) => removeConversation(prev, id));
+    setConversations((prev) => prev.filter((c) => c.id !== id));
     if (id === activeId) startNewChat();
     try {
       await deleteConversation(id);
     } catch (error) {
       // put the list back in sync with the server
-      if (!isAuthError(error)) void refreshHistory();
+      if (!isSessionLost(error)) void refreshHistory();
     }
   }, [activeId, startNewChat, refreshHistory]);
 
@@ -157,12 +157,12 @@ export function useChat() {
     controller: AbortController,
   ) => {
     try {
-      const result = await sendMessage({ message: question, conversationId, regenerate, signal: controller.signal });
+      const reply = await sendMessage({ message: question, conversationId, regenerate, signal: controller.signal });
       if (controller.signal.aborted) return;
-      setMessages((prev) => [...prev, result.reply]);
+      setMessages((prev) => [...prev, reply]);
       void refreshHistory();
     } catch (error) {
-      if (controller.signal.aborted || isAuthError(error)) return;
+      if (controller.signal.aborted || isSessionLost(error)) return;
       if (error instanceof ApiRequestError && error.status === 404) {
         // id taken by another account (practically impossible): retry under a fresh id
         setActiveId(newConversationId());

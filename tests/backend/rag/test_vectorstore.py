@@ -12,7 +12,7 @@ def _make_store(tmp_path, encoder):
     return VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=encoder)
 
 
-def test_add_and_search_returns_matching_document(tmp_path, fake_encoder):
+def test_add_and_search_split_returns_matching_document(tmp_path, fake_encoder):
     store = _make_store(tmp_path, fake_encoder)
     documents = [
         Document(
@@ -36,7 +36,7 @@ def test_add_and_search_returns_matching_document(tmp_path, fake_encoder):
     store.add_documents(documents)
     assert store.count() == 2
 
-    hits = store.search("regulamin studiow zaliczenia", top_k=1)
+    hits = store.search_split("regulamin studiow zaliczenia", k_mordor=1, k_other=0)["mordor"]
 
     assert len(hits) == 1
     assert hits[0]["id"] == "mordor_1"
@@ -66,7 +66,7 @@ def test_upsert_overwrites_existing_id(tmp_path, fake_encoder):
     store.add_documents([doc_v2])
 
     assert store.count() == 1
-    hits = store.search("nowa tresc", top_k=1)
+    hits = store.search_split("nowa tresc", k_mordor=0, k_other=1)["other"]
     assert hits[0]["value"] == "nowa tresc"
 
 
@@ -82,7 +82,7 @@ def test_search_includes_image_content_type(tmp_path, fake_encoder):
     )
     store.add_documents([image_doc])
 
-    hits = store.search("plan budynku", top_k=1)
+    hits = store.search_split("plan budynku", k_mordor=1, k_other=0)["mordor"]
 
     assert hits[0]["content_type"] == "image"
     assert hits[0]["value"] == "data/mordor/mapy/plan_budynku.png"
@@ -119,3 +119,34 @@ def test_search_split_gives_each_group_its_own_slots(tmp_path, fake_encoder):
     assert all(h["source"] == "mordor" for h in groups["mordor"])
     assert len(groups["other"]) == 1
     assert groups["other"][0]["value"] == "Jan Kowalski, pokoj 101."
+
+
+def test_get_by_ids_keeps_requested_order_and_skips_missing(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
+    store.add_documents(
+        [
+            Document(
+                id=f"strony_{i}", source="strony", embed_text=f"tresc {i}",
+                content_type="text", value=f"tresc {i}", metadata={"url": f"https://{i}"},
+            )
+            for i in range(3)
+        ]
+    )
+
+    hits = store.get_by_ids(["strony_2", "brak", "strony_0"])
+
+    assert [h["id"] for h in hits] == ["strony_2", "strony_0"]
+    assert hits[0]["metadata"]["url"] == "https://2"
+    assert hits[0]["distance"] is None
+    assert store.get_by_ids([]) == []
+
+
+def test_filter_new_and_delete_source(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
+    old = Document(id="usos_1", source="usos", embed_text="a", content_type="text", value="a")
+    new = Document(id="usos_2", source="usos", embed_text="b", content_type="text", value="b")
+    store.add_documents([old])
+
+    assert store.filter_new([old, new]) == [new]
+    assert store.delete_source("usos") == 1
+    assert store.count() == 0

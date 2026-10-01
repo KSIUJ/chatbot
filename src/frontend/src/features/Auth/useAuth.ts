@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   API_BASE_URL,
+  ApiRequestError,
   SESSION_LOST_EVENT,
-  apiFetch,
+  apiJson,
   isAuthErrorCode,
-  readAuthErrorCode,
   type AuthErrorCode,
 } from '../../lib/api';
 import { claimChatStorage, clearChatStorage } from '../../lib/chatStorage';
@@ -15,6 +15,7 @@ import {
   markRedirect,
   readLastRedirect,
   shouldAutoRedirect,
+  visibleLoginError,
   type LoginError,
 } from './redirect';
 
@@ -25,18 +26,19 @@ export interface AuthUser {
   name: string | null;
 }
 
-
 type AuthState =
   | { status: 'loading' }
   | { status: 'authenticated'; user: AuthUser }
   | { status: 'unauthenticated'; error: LoginError | null };
 
+type ResolvedAuthState = Exclude<AuthState, { status: 'loading' }>;
+
 interface LogoutResponse {
   logout_url: string | null;
 }
 
-// ?auth_error=... dopisywane przez backend po nieudanym logowaniu -
-// odczytujemy raz i usuwamy z paska adresu.
+// ?auth_error=... is added by the backend after a failed login - read it once
+// and remove it from the address bar.
 function takeAuthErrorFromUrl(): AuthErrorCode | null {
   const url = new URL(window.location.href);
   const code = url.searchParams.get('auth_error');
@@ -59,23 +61,15 @@ function authErrorFromUrlOnce(): AuthErrorCode | null {
 // fresh mark and report "login did not complete").
 let redirecting = false;
 
-type ResolvedAuthState = Exclude<AuthState, { status: 'loading' }>;
-
 async function fetchCurrentUser(): Promise<ResolvedAuthState> {
   try {
-    const response = await apiFetch('/auth/me');
-    if (response.ok) {
-      const user = (await response.json()) as AuthUser;
-      return { status: 'authenticated', user };
-    }
-    const code = await readAuthErrorCode(response);
-    if (response.status === 401) {
-      // brak sesji przy starcie to normalny stan, nie blad do pokazania
-      return { status: 'unauthenticated', error: code === 'not_authenticated' ? null : code };
-    }
-    return { status: 'unauthenticated', error: code ?? 'provider_unavailable' };
-  } catch {
-    return { status: 'unauthenticated', error: 'provider_unavailable' };
+    const user = await apiJson<AuthUser>('/auth/me');
+    return { status: 'authenticated', user };
+  } catch (error) {
+    if (!(error instanceof ApiRequestError)) return { status: 'unauthenticated', error: 'provider_unavailable' };
+    // no session at startup is the normal state, not an error to show
+    if (error.status === 401) return { status: 'unauthenticated', error: visibleLoginError(error.code) };
+    return { status: 'unauthenticated', error: error.code ?? 'provider_unavailable' };
   }
 }
 
@@ -94,7 +88,7 @@ function redirectOrShow(error: LoginError | null): ResolvedAuthState | null {
   const storage = getSessionStorage();
   if (storage === null) {
     // no sessionStorage = no loop guard, so never redirect on our own
-    return { status: 'unauthenticated', error: error === 'not_authenticated' ? null : error };
+    return { status: 'unauthenticated', error: visibleLoginError(error) };
   }
   if (shouldAutoRedirect(error, readLastRedirect(storage), Date.now())) {
     goToLogin();
@@ -103,14 +97,22 @@ function redirectOrShow(error: LoginError | null): ResolvedAuthState | null {
   return { status: 'unauthenticated', error: NO_SESSION_ERRORS.has(error) ? 'login_incomplete' : error };
 }
 
+// Session state from the backend (HttpOnly cookie) plus login and logout.
 export function useAuth() {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
+  // the session-lost event only matters once the chat is open; at startup the
+  // initial /auth/me result decides (it may carry ?auth_error= to show)
+  const isAuthenticatedRef = useRef(false);
+
+  useEffect(() => {
+    isAuthenticatedRef.current = state.status === 'authenticated';
+  }, [state.status]);
 
   useEffect(() => {
     let cancelled = false;
     const urlError = authErrorFromUrlOnce();
 
-    fetchCurrentUser().then((result) => {
+    void fetchCurrentUser().then((result) => {
       if (cancelled) return;
       if (result.status === 'authenticated') {
         const storage = getSessionStorage();
@@ -129,9 +131,11 @@ export function useAuth() {
     };
   }, []);
 
-  // backend odrzucil sesje w trakcie pracy (wygasla / usuniety z grupy)
+  // the backend rejected the session mid-use (expired / removed from the group)
   useEffect(() => {
     const onSessionLost = (event: Event) => {
+      if (!isAuthenticatedRef.current) return;
+      isAuthenticatedRef.current = false;
       const code = (event as CustomEvent<AuthErrorCode>).detail;
       if (code === 'not_member') clearChatStorage();
       // expired session: back through Keycloak (usually invisible thanks to SSO)
@@ -151,28 +155,22 @@ export function useAuth() {
     return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
-  const login = useCallback(() => {
-    goToLogin();
-  }, []);
-
   const logout = useCallback(async () => {
+    isAuthenticatedRef.current = false;
     clearChatStorage();
     let logoutUrl: string | null = null;
     try {
-      const response = await apiFetch('/auth/logout', { method: 'POST' });
-      if (response.ok) {
-        logoutUrl = ((await response.json()) as LogoutResponse).logout_url;
-      }
+      logoutUrl = (await apiJson<LogoutResponse>('/auth/logout', { method: 'POST' })).logout_url;
     } catch {
-      // sesja i tak jest bezuzyteczna po stronie przegladarki
+      // the session is unusable in this browser either way
     }
     if (logoutUrl) {
-      // konczy tez sesje w Keycloaku i wraca na strone glowna
+      // also ends the Keycloak session and comes back to the home page
       window.location.assign(logoutUrl);
       return;
     }
     setState({ status: 'unauthenticated', error: null });
   }, []);
 
-  return { state, login, logout };
+  return { state, login: goToLogin, logout };
 }

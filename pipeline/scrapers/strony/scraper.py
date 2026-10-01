@@ -1,22 +1,28 @@
-import time
+"""
+Crawler stron wydzialowych (START_URLS) i Wikipedii. Tekst stron oraz
+whitelistowanych plikow (pdf/docx/txt) trafia do data/strony/website_data.txt
+w formacie "
+
+URL: <adres>
+
+<tresc>", czytanym przez
+pipeline/ingest/from_strony.py.
+
+Uzycie:
+    python pipeline/scrapers/strony/scraper.py
+"""
+
 import io
+import re
+import time
+from collections import Counter, deque
+from pathlib import Path
+from urllib.parse import unquote, urljoin, urlparse
+
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse, unquote
-from collections import deque, Counter
-from pathlib import Path
-import re
-
-# wymagane dodatkowe biblioteki do obslugi plikow: pip install pypdf python-docx
-try:
-    from pypdf import PdfReader
-except ImportError:
-    PdfReader = None
-
-try:
-    from docx import Document
-except ImportError:
-    Document = None
+from docx import Document
+from pypdf import PdfReader
 
 
 START_URLS = [
@@ -29,7 +35,7 @@ START_URLS = [
 
 ALLOWED_DOMAINS = {urlparse(u).netloc for u in START_URLS}
 REPO_ROOT = Path(__file__).resolve().parents[3]
-OUTPUT_FILE = REPO_ROOT / "data" / "strony" / "webiste_data.txt"
+OUTPUT_FILE = REPO_ROOT / "data" / "strony" / "website_data.txt"
 DELAY = 0.2
 MAX_PAGES = 3000
 
@@ -80,7 +86,7 @@ LINE_STOPLIST = {
 BOILERPLATE_RATIO = 0.3
 BOILERPLATE_MAX_WORDS = 6
 
-# zmienne do usuwania menu ktore sie powialy na min ilosci stron
+# zmienne do usuwania menu, ktore pojawily sie na min. ilosci stron
 MENU_ITEM_MAX_WORDS = 4
 MENU_ITEM_MIN_PAGES = 3
 
@@ -196,7 +202,7 @@ def detect_file_ext(url: str, content_type: str):
 
 
 def is_file_link(url: str) -> bool:
-    # rozpoznaje link do pliku (pdf/docx/txt) po rozszerzeniu w ścieżce URL
+    # rozpoznaje link do pliku (pdf/docx/txt) po rozszerzeniu w sciezce URL
     path = urlparse(url).path.lower()
     segments = path.split("/")
     return any(seg.endswith(ext) for seg in segments for ext in FILE_EXTENSIONS)
@@ -308,9 +314,10 @@ def extract_text(soup: BeautifulSoup):
 
     content = strip_noise(content)
 
-    table_lines = extract_tables_as_sentences(content)   # <-- nowe, PRZED get_block_text
-    lines = get_block_text(content)
-    lines = table_lines + lines                          # albo wstaw w odpowiednim miejscu, jesli zalezy Ci na kolejnosci
+    # Tabele najpierw: extract_tables_as_sentences usuwa je z drzewa, wiec
+    # get_block_text nie dubluje komorek.
+    table_lines = extract_tables_as_sentences(content)
+    lines = table_lines + get_block_text(content)
 
     lines = [line for line in lines if line.lower() not in LINE_STOPLIST]
     lines = dedupe_repeated_blocks(lines)
@@ -347,9 +354,6 @@ def extract_wikipedia_text(soup: BeautifulSoup):
 
 def extract_pdf_bytes(content: bytes):
     # wyciaga tekst z pliku pdf strona po stronie
-    if PdfReader is None:
-        print("[BŁĄD - brak biblioteki pypdf, pomijam pliki PDF]")
-        return None
     try:
         reader = PdfReader(io.BytesIO(content))
         pages_text = []
@@ -366,9 +370,6 @@ def extract_pdf_bytes(content: bytes):
 
 def extract_docx_bytes(content: bytes):
     # wyciaga tekst z akapitow oraz tabel pliku docx
-    if Document is None:
-        print("[BŁĄD - brak biblioteki python-docx, pomijam pliki DOCX]")
-        return None
     try:
         doc = Document(io.BytesIO(content))
         lines = []

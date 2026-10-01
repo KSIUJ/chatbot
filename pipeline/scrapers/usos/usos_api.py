@@ -1,6 +1,6 @@
 """
-Wspolny rdzen klienta USOS API UJ - uzywany zarowno przez eksploracyjny
-CLI (usos_client.py) jak i przez wlasciwy scraper (scrape_staff.py).
+Wspolny rdzen klienta USOS API UJ dla scrape_staff.py i usos_login.py:
+podpisywanie zapytan (OAuth1), limit tempa zapytan i zapis surowych odpowiedzi.
 """
 
 import json
@@ -15,6 +15,7 @@ from requests_oauthlib import OAuth1
 load_dotenv()
 
 BASE_URL = "https://apps.usos.uj.edu.pl/"
+REQUEST_TIMEOUT = 30
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RATE_LIMIT_FILE = os.path.join(SCRIPT_DIR, ".last_request_time")
@@ -33,14 +34,13 @@ class UsosApiError(Exception):
 
 
 class UsosCredentialsError(RuntimeError):
-    """Podniesiony, gdy brakuje USOS_CONSUMER_KEY/USOS_CONSUMER_SECRET w .env."""
+    """Podniesiony, gdy w .env brakuje kluczy USOS."""
 
 
-def _respect_rate_limit() -> None:
+def respect_rate_limit() -> None:
     """Wymusza minimum MIN_REQUEST_INTERVAL_SECONDS odstepu miedzy zapytaniami.
 
-    Stan trzymany jest w pliku (nie tylko w pamieci procesu), bo skrypty
-    korzystajace z tego modulu sa uruchamiane jako osobne procesy CLI.
+    Stan jest w pliku, bo skrypty uzywajace modulu to osobne procesy CLI.
     """
     last_request = None
 
@@ -62,6 +62,23 @@ def _respect_rate_limit() -> None:
         f.write(str(time.time()))
 
 
+def build_url(method_path: str) -> str:
+    """Pelny adres metody API, np. "services/users/user"."""
+    return BASE_URL.rstrip("/") + "/" + method_path.lstrip("/")
+
+
+def usos_get(
+    method_path: str, params: dict[str, str] | None = None, auth: OAuth1 | None = None
+) -> requests.Response:
+    """GET do USOS API z limitem tempa; status inny niz 200 -> UsosApiError."""
+    respect_rate_limit()
+    url = build_url(method_path)
+    response = requests.get(url, params=params or {}, auth=auth, timeout=REQUEST_TIMEOUT)
+    if response.status_code != 200:
+        raise UsosApiError(response.status_code, response.text)
+    return response
+
+
 def save_response(method_path: str, payload: dict, output_dir: str) -> str:
     """Zapisuje surowa odpowiedz JSON do pliku i zwraca jego sciezke."""
     os.makedirs(output_dir, exist_ok=True)
@@ -77,30 +94,8 @@ def save_response(method_path: str, payload: dict, output_dir: str) -> str:
     return filepath
 
 
-def usos_call_anonymous(method_path: str, params: dict[str, str] | None = None) -> dict:
-    """Wykonuje anonimowe (bez klucza/OAuth) zapytanie GET do USOS API.
-
-    Zwraca sparsowany JSON. Jesli serwer odpowie statusem innym niz 200,
-    podnosi UsosApiError zamiast po cichu polykac blad.
-    """
-    _respect_rate_limit()
-
-    url = BASE_URL.rstrip("/") + "/" + method_path.lstrip("/")
-
-    print(f"[request] GET {url} params={params or {}}")
-    response = requests.get(url, params=params or {}, timeout=30)
-
-    if response.status_code != 200:
-        raise UsosApiError(response.status_code, response.text)
-
-    return response.json()
-
-
-def _get_consumer_credentials() -> tuple[str, str]:
-    """Zwraca (consumer_key, consumer_secret) z .env.
-
-    Podnosi UsosCredentialsError, jesli ktorykolwiek brakuje.
-    """
+def get_consumer_credentials() -> tuple[str, str]:
+    """Zwraca (consumer_key, consumer_secret) z .env albo podnosi UsosCredentialsError."""
     consumer_key = os.getenv("USOS_CONSUMER_KEY")
     consumer_secret = os.getenv("USOS_CONSUMER_SECRET")
     if not consumer_key or not consumer_secret:
@@ -113,12 +108,7 @@ def _get_consumer_credentials() -> tuple[str, str]:
 
 
 def _get_access_token_credentials() -> tuple[str, str]:
-    """Zwraca (access_token, access_token_secret) z .env.
-
-    Podnosi UsosCredentialsError, jesli ktorykolwiek brakuje. Te wartosci sa
-    zapisywane automatycznie przez pipeline/scrapers/usos/usos_login.py po przejsciu
-    logowania (3-legged OAuth1).
-    """
+    """Zwraca (access_token, access_token_secret) zapisane w .env przez usos_login.py."""
     access_token = os.getenv("USOS_ACCESS_TOKEN")
     access_token_secret = os.getenv("USOS_ACCESS_TOKEN_SECRET")
     if not access_token or not access_token_secret:
@@ -131,56 +121,25 @@ def _get_access_token_credentials() -> tuple[str, str]:
 
 
 def usos_call_signed(method_path: str, params: dict[str, str] | None = None) -> dict:
-    """Wykonuje zapytanie GET podpisane kluczem consumer (2-legged OAuth1).
-
-    To NIE jest pelny 3-legged flow - nie loguje zadnego uzytkownika, tylko
-    podpisuje zapytanie kluczem consumer/secret zarejestrowanej aplikacji.
-    Wymaga USOS_CONSUMER_KEY i USOS_CONSUMER_SECRET w .env (patrz
-    .env.example).
-    """
-    consumer_key, consumer_secret = _get_consumer_credentials()
-
-    _respect_rate_limit()
-
-    url = BASE_URL.rstrip("/") + "/" + method_path.lstrip("/")
-    auth = OAuth1(consumer_key, consumer_secret)
-
-    print(f"[request][signed] GET {url} params={params or {}}")
-    response = requests.get(url, params=params or {}, auth=auth, timeout=30)
-
-    if response.status_code != 200:
-        raise UsosApiError(response.status_code, response.text)
-
-    return response.json()
+    """GET podpisany kluczem consumer (2-legged OAuth1, bez logowania uzytkownika)."""
+    consumer_key, consumer_secret = get_consumer_credentials()
+    print(f"[request][signed] GET {build_url(method_path)} params={params or {}}")
+    return usos_get(method_path, params, OAuth1(consumer_key, consumer_secret)).json()
 
 
 def usos_call_authenticated(method_path: str, params: dict[str, str] | None = None) -> dict:
-    """Wykonuje zapytanie GET podpisane pelnym 3-legged OAuth1.
+    """GET podpisany pelnym 3-legged OAuth1 (consumer + access token uzytkownika).
 
-    Podpisuje kluczem consumer ORAZ access tokenem konkretnego zalogowanego
-    uzytkownika USOS - to jedyny tryb, ktory odblokowuje pola wymagajace
-    scope'ow przypisanych do usera (np. email pod scope'em other_emails).
-    Wymaga USOS_CONSUMER_KEY/USOS_CONSUMER_SECRET oraz USOS_ACCESS_TOKEN/
-    USOS_ACCESS_TOKEN_SECRET w .env - ten drugi para zapisywana jest
-    automatycznie przez pipeline/scrapers/usos/usos_login.py.
+    Jedyny tryb, ktory odblokowuje pola wymagajace scope'ow uzytkownika (np.
+    email pod scope'em other_emails).
     """
-    consumer_key, consumer_secret = _get_consumer_credentials()
+    consumer_key, consumer_secret = get_consumer_credentials()
     access_token, access_token_secret = _get_access_token_credentials()
-
-    _respect_rate_limit()
-
-    url = BASE_URL.rstrip("/") + "/" + method_path.lstrip("/")
     auth = OAuth1(
         consumer_key,
         consumer_secret,
         resource_owner_key=access_token,
         resource_owner_secret=access_token_secret,
     )
-
-    print(f"[request][authenticated] GET {url} params={params or {}}")
-    response = requests.get(url, params=params or {}, auth=auth, timeout=30)
-
-    if response.status_code != 200:
-        raise UsosApiError(response.status_code, response.text)
-
-    return response.json()
+    print(f"[request][authenticated] GET {build_url(method_path)} params={params or {}}")
+    return usos_get(method_path, params, auth).json()

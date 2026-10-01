@@ -1,27 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  conversationTitle,
+  deleteConversation,
+  fetchConversationMessages,
   newConversationId,
-  removeConversation,
   shouldRegenerate,
   toChatMessages,
   type ApiMessage,
-  type ConversationSummary,
 } from './conversations';
 
-const msg = (role: ApiMessage['role'], content: string, id = content): ApiMessage => ({
-  id,
-  role,
-  content,
-  created_at: '2026-10-01T10:00:00Z',
-  sources: [],
-});
-
-const summary = (id: string, title: string | null = id): ConversationSummary => ({
-  id,
-  title,
-  last_message_at: '2026-10-01T10:00:00Z',
-});
+const msg = (role: ApiMessage['role'], content: string, id = content): ApiMessage => ({ id, role, content });
 
 describe('toChatMessages', () => {
   it('maps server roles to chat senders and keeps order', () => {
@@ -31,24 +18,6 @@ describe('toChatMessages', () => {
       { id: 'Kiedy sesja?', sender: 'user', text: 'Kiedy sesja?' },
       { id: 'W lutym.', sender: 'bot', text: 'W lutym.' },
     ]);
-  });
-});
-
-describe('removeConversation', () => {
-  it('drops only the given conversation without mutating the list', () => {
-    const list = [summary('a'), summary('b'), summary('c')];
-
-    const result = removeConversation(list, 'b');
-
-    expect(result.map((c) => c.id)).toEqual(['a', 'c']);
-    expect(list).toHaveLength(3);
-  });
-});
-
-describe('conversationTitle', () => {
-  it('falls back when a conversation has no title', () => {
-    expect(conversationTitle(summary('a', null), 'Nowa rozmowa')).toBe('Nowa rozmowa');
-    expect(conversationTitle(summary('a', 'Sesja'), 'Nowa rozmowa')).toBe('Sesja');
   });
 });
 
@@ -74,5 +43,45 @@ describe('shouldRegenerate', () => {
     // regenerating here would delete the previous, unrelated answer
     expect(shouldRegenerate([msg('user', 'stare'), msg('assistant', 'stara odp')], 'nowe pytanie')).toBe(false);
     expect(shouldRegenerate([], 'pytanie')).toBe(false);
+  });
+});
+
+describe('conversation requests', () => {
+  const respondWith = (status: number, body: unknown = null) => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(body), { status })));
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns the messages of an existing conversation', async () => {
+    respondWith(200, { messages: [msg('user', 'pytanie')] });
+
+    await expect(fetchConversationMessages('abc')).resolves.toEqual([msg('user', 'pytanie')]);
+  });
+
+  it('returns null for a conversation that no longer exists', async () => {
+    respondWith(404);
+
+    await expect(fetchConversationMessages('abc')).resolves.toBeNull();
+  });
+
+  it('rethrows other failures', async () => {
+    respondWith(500);
+
+    await expect(fetchConversationMessages('abc')).rejects.toMatchObject({ status: 500 });
+  });
+
+  it('treats deleting an already deleted conversation as success', async () => {
+    respondWith(404);
+
+    await expect(deleteConversation('abc')).resolves.toBeUndefined();
+  });
+
+  it('reports a failed delete', async () => {
+    respondWith(502);
+
+    await expect(deleteConversation('abc')).rejects.toMatchObject({ status: 502 });
   });
 });

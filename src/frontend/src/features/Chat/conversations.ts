@@ -1,16 +1,16 @@
-import { apiFetch } from './api';
+import { ApiRequestError, apiFetch, apiJson } from '../../lib/api';
 
 // Chat API: history list, single conversation, delete, send. The server is the
 // source of truth for conversations; the browser only remembers the open one.
 
 // One chat bubble. Messages from the server have no status; "stopped" and
 // "error" are local markers shown with a retry button.
-export type ChatMessage = {
+export interface ChatMessage {
   id: string;
   sender: 'user' | 'bot';
   text: string;
   status?: 'stopped' | 'error';
-};
+}
 
 export interface ConversationSummary {
   id: string;
@@ -28,33 +28,14 @@ export interface ApiMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  created_at: string;
-  sources: string[];
 }
 
 interface ConversationDetail {
-  id: string;
-  created_at: string;
   messages: ApiMessage[];
 }
 
 interface ChatReply {
-  conversation_id: string;
   message: ApiMessage;
-}
-
-export class ApiRequestError extends Error {
-  readonly status: number;
-
-  constructor(status: number) {
-    super(`API request failed with HTTP ${status}`);
-    this.status = status;
-  }
-}
-
-async function expectOk(response: Response): Promise<Response> {
-  if (!response.ok) throw new ApiRequestError(response.status);
-  return response;
 }
 
 // Same limit as the backend (request.py MAX_MESSAGE_LENGTH).
@@ -76,17 +57,6 @@ export function toChatMessages(messages: readonly ApiMessage[]): ChatMessage[] {
   }));
 }
 
-export function removeConversation(
-  list: readonly ConversationSummary[],
-  id: string,
-): ConversationSummary[] {
-  return list.filter((c) => c.id !== id);
-}
-
-export function conversationTitle(conversation: ConversationSummary, fallback: string): string {
-  return conversation.title ?? fallback;
-}
-
 // Retrying a failed/stopped question: regenerate only if the server already
 // has that question as the last exchange. If the request never reached the
 // server, regenerating would delete the previous (unrelated) answer instead.
@@ -98,23 +68,32 @@ export function shouldRegenerate(serverMessages: readonly ApiMessage[], question
   return beforeLast?.role === 'user' && beforeLast.content === question;
 }
 
-export async function fetchConversations(): Promise<ConversationList> {
-  const response = await expectOk(await apiFetch('/conversations'));
-  return (await response.json()) as ConversationList;
+function isNotFound(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.status === 404;
+}
+
+export function fetchConversations(): Promise<ConversationList> {
+  return apiJson<ConversationList>('/conversations');
 }
 
 // null = the conversation no longer exists (deleted, expired or someone else's)
 export async function fetchConversationMessages(id: string): Promise<ApiMessage[] | null> {
-  const response = await apiFetch(`/conversations/${encodeURIComponent(id)}`);
-  if (response.status === 404) return null;
-  await expectOk(response);
-  return ((await response.json()) as ConversationDetail).messages;
+  try {
+    const detail = await apiJson<ConversationDetail>(`/conversations/${encodeURIComponent(id)}`);
+    return detail.messages;
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
 }
 
 export async function deleteConversation(id: string): Promise<void> {
-  const response = await apiFetch(`/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  // already gone counts as deleted
-  if (response.status !== 404) await expectOk(response);
+  try {
+    await apiFetch(`/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  } catch (error) {
+    // already gone counts as deleted
+    if (!isNotFound(error)) throw error;
+  }
 }
 
 interface SendMessageInput {
@@ -124,20 +103,18 @@ interface SendMessageInput {
   signal: AbortSignal;
 }
 
-export async function sendMessage(input: SendMessageInput): Promise<{ conversationId: string; reply: ChatMessage }> {
-  const response = await expectOk(
-    await apiFetch('/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: input.message,
-        conversation_id: input.conversationId,
-        regenerate: input.regenerate,
-      }),
-      signal: input.signal,
+// Returns the assistant's answer as a chat bubble.
+export async function sendMessage(input: SendMessageInput): Promise<ChatMessage> {
+  const data = await apiJson<ChatReply>('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: input.message,
+      conversation_id: input.conversationId,
+      regenerate: input.regenerate,
     }),
-  );
-  const data = (await response.json()) as ChatReply;
+    signal: input.signal,
+  });
   const [reply] = toChatMessages([data.message]);
-  return { conversationId: data.conversation_id, reply };
+  return reply;
 }

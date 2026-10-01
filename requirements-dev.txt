@@ -1,4 +1,8 @@
-# Lokalny development i testy: zaleznosci produkcyjne + narzedzia testowe.
+# Lokalny development: zaleznosci backendu + testy + scrapery (pipeline/scrapers).
 # Obraz Dockera instaluje tylko requirements.txt.
 -r requirements.txt
 pytest
+beautifulsoup4
+pypdf
+python-docx
+requests_oauthlib

@@ -6,32 +6,27 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# build-essential: część zaleznosci RAG (np. chromadb/hnswlib) potrafi
-# wymagac kompilacji przy braku gotowego wheela dla danej platformy.
-# curl: healthcheck w docker-compose.
+# build-essential: czesc zaleznosci RAG (np. chromadb/hnswlib) moze wymagac
+# kompilacji, gdy brakuje gotowego wheela. curl: healthcheck w docker-compose.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
-# CPU-only torch (kilkaset MB) zamiast domyslnej paczki z PyPI, ktora na
-# Linuksie x86_64 ciagnie kilka GB bibliotek CUDA (nvidia-cublas, cudnn,
-# nvJitLink...) kompletnie zbednych bez GPU - instalowana PRZED requirements
-# tak, zeby pip przy sentence-transformers zobaczyl juz spelniona zaleznosc
-# i nie podmienil jej na wariant z CUDA.
+# Torch w wersji CPU instalowany PRZED requirements - inaczej
+# sentence-transformers pociagnie kilka GB bibliotek CUDA.
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install -r requirements.txt
 
 COPY src/backend ./src/backend
-# ingest danych do bazy RAG (python -m pipeline.ingest.run_ingest); scrapery
-# (pipeline/scrapers) uruchamia sie lokalnie, poza obrazem
+# ingest do bazy RAG (python -m pipeline.ingest.run_ingest); scrapery
+# uruchamia sie lokalnie, poza obrazem
 COPY pipeline/ingest ./pipeline/ingest
 COPY alembic.ini ./
 COPY alembic ./alembic
 
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 EXPOSE 8000
 
-ENTRYPOINT ["/entrypoint.sh"]
+# Migracje bazy, potem API. Tylko jeden worker - blokady sesji i rozmow
+# dzialaja w obrebie jednego procesu.
+CMD ["sh", "-c", "python -m alembic upgrade head && exec uvicorn src.backend.main:app --host 0.0.0.0 --port 8000"]

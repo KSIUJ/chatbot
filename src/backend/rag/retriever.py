@@ -1,8 +1,10 @@
 """
-Retriever: laczy Encoder + VectorStore i zwraca top-k pasujacych fragmentow
-dla danego zapytania. To warstwa posrednia miedzy vectorstore.py a
-context_builder.py (publicznym interfejsem dla src/backend/llm/).
+Retriever: hybrydowe wyszukiwanie (wektory z VectorStore + BM25 z LexicalIndex)
+oraz wyszukiwarka pracownikow (StaffIndex). Uzywany przez context_builder.py.
 """
+
+import threading
+import time
 
 from .encoder import Encoder
 from .lexical import LexicalIndex, tokenize
@@ -13,6 +15,8 @@ from .vectorstore import VectorStore
 OTHER_SOURCES = ("strony", "usos")
 MORDOR_SOURCES = ("mordor",)
 POOL_FACTOR = 3
+# Co ile sekund ponawiac ladowanie indeksu leksykalnego/pracownikow, gdy byl pusty.
+RELOAD_INTERVAL = 30.0
 
 
 class Retriever:
@@ -22,37 +26,44 @@ class Retriever:
         vectorstore: VectorStore | None = None,
         staff: StaffIndex | None = None,
         lexical: LexicalIndex | None = None,
+        reload_interval: float = RELOAD_INTERVAL,
     ):
         self.encoder = encoder or Encoder()
         self.vectorstore = vectorstore or VectorStore(encoder=self.encoder)
         self._lexical = lexical
-        self._lexical_loaded = lexical is not None
         self._staff = staff
-        self._staff_loaded = staff is not None
+        self._lexical_probe: LexicalIndex | None = None
+        self._reload_interval = reload_interval
+        self._next_load = 0.0
+        self._load_lock = threading.Lock()
 
-    def retrieve(self, query: str, top_k: int = 5) -> list[dict]:
-        """Zwraca liste top-k trafien: dict z kluczami id/value/content_type/
-        source/metadata/distance (patrz VectorStore.search)."""
-        return self.vectorstore.search(query, top_k=top_k)
+    def _load_indexes(self) -> None:
+        """Laduje brakujace indeksy z dysku.
 
-    def _get_lexical(self) -> LexicalIndex | None:
-        if not self._lexical_loaded:
-            self._lexical_loaded = True
-            index = LexicalIndex()
-            if index.count():
-                self._lexical = index
-        return self._lexical
+        Pusty indeks (np. ingest jeszcze nie przeszedl) nie jest zapamietywany:
+        kolejna proba nastepuje najwczesniej po reload_interval sekundach.
+        """
+        if self._lexical is not None and self._staff is not None:
+            return
+        # /chat dziala w puli watkow - indeksy laduje jeden watek naraz
+        with self._load_lock:
+            now = time.monotonic()
+            if now < self._next_load:
+                return
+            self._next_load = now + self._reload_interval
 
-    def _get_staff(self) -> StaffIndex | None:
-        if not self._staff_loaded:
-            self._staff_loaded = True
-            index = self._get_lexical()
-            if index is not None and index.count("usos"):
-                self._staff = StaffIndex.from_collection(self.vectorstore.collection, index)
-        return self._staff
+            if self._lexical is None:
+                if self._lexical_probe is None:
+                    self._lexical_probe = LexicalIndex()
+                if self._lexical_probe.count():
+                    self._lexical = self._lexical_probe
+
+            if self._staff is None and self._lexical is not None and self._lexical.count("usos"):
+                self._staff = StaffIndex.from_collection(self.vectorstore.collection, self._lexical)
 
     def _lexical_hits(self, tokens: list[str], sources: tuple[str, ...], limit: int) -> list[dict]:
-        index = self._get_lexical()
+        self._load_indexes()
+        index = self._lexical
         if index is None or limit <= 0:
             return []
         return self.vectorstore.get_by_ids(
@@ -61,6 +72,8 @@ class Retriever:
 
     @staticmethod
     def _interleave(vector_hits: list[dict], lexical_hits: list[dict], k: int) -> list[dict]:
+        """Laczy trafienia: polowa miejsc (zaokraglona w gore) dla BM25, reszta
+        dla wektorow, bez duplikatow; nadmiarowe trafienia BM25 uzupelniaja koniec."""
         if k <= 0:
             return []
 
@@ -80,6 +93,7 @@ class Retriever:
     def retrieve_split(
         self, query: str, k_mordor: int = 5, k_other: int = 5
     ) -> dict[str, list[dict]]:
+        """Top-k trafien osobno dla mordoru i dla zrodel oficjalnych (strony, usos)."""
         vectors = self.vectorstore.search_split(
             query, k_mordor=k_mordor * POOL_FACTOR, k_other=k_other * POOL_FACTOR
         )
@@ -99,7 +113,8 @@ class Retriever:
         }
 
     def retrieve_staff(self, query: str, limit: int = DEFAULT_STAFF_LIMIT) -> list[dict]:
-        staff = self._get_staff()
-        if staff is None or limit <= 0:
+        """Wpisy USOS pracownikow wymienionych w zapytaniu (pusto, gdy brak nazwiska)."""
+        self._load_indexes()
+        if self._staff is None or limit <= 0:
             return []
-        return self.vectorstore.get_by_ids(staff.lookup(query, limit=limit))
+        return self.vectorstore.get_by_ids(self._staff.lookup(query, limit=limit))
