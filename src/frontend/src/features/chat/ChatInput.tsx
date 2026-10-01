@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { Send, Square } from 'lucide-react';
+import { SendHorizontal, Square } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
 import type { ThemeStyle } from '../preferences/themes';
 import { MAX_MESSAGE_LENGTH } from './conversations';
@@ -80,7 +80,7 @@ export default function ChatInput({ t, lang, isWaiting, onSend, onStop }: ChatIn
             title={lang.send}
             aria-label={lang.send}
           >
-            <Send size={18} className="-translate-x-px translate-y-px" />
+            <SendHorizontal size={18} />
           </button>
         )}
       </div>
