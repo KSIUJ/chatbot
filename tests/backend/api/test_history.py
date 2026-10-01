@@ -9,9 +9,14 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
-from src.backend.history import HistorySettings, get_history_settings, purge_expired_conversations
-from src.backend.main import app
-from src.backend.models import Conversation, Message
+from src.backend.history import (
+    HistorySettings,
+    get_history_settings,
+    purge_expired_conversations,
+    run_cleanup,
+)
+from src.backend.main import app, cleanup_jobs
+from src.backend.models import Conversation, Message, User, UserSession
 
 from fake_keycloak import login
 
@@ -233,6 +238,68 @@ def test_purge_handles_backlog_larger_than_sqlite_parameter_limit(client):
         db.close()
 
     assert deleted == 1500
+    assert _conversations(client) == []
+
+
+# --- sprzatanie w tle: rozmowy i wygasle sesje ------------------------------------
+
+def _add_session(db, user: User, session_id: str, expires_in: timedelta) -> None:
+    now = datetime.now(timezone.utc)
+    db.add(
+        UserSession(
+            id=session_id,
+            user_id=user.id,
+            expires_at=now + expires_in,
+            access_token_enc="x",
+            access_token_expires_at=now,
+        )
+    )
+
+
+def _session_ids(client) -> set[str]:
+    db = client.session_factory()
+    try:
+        return set(db.execute(select(UserSession.id)).scalars())
+    finally:
+        db.close()
+
+
+def test_cleanup_removes_expired_sessions_and_old_conversations(client):
+    db = client.session_factory()
+    try:
+        user = User(oidc_sub="cleanup-user")
+        db.add(user)
+        db.flush()
+        _add_session(db, user, "a" * 64, timedelta(hours=-1))
+        _add_session(db, user, "b" * 64, timedelta(hours=1))
+        db.add(Conversation(user_id=user.id, last_message_at=datetime.now(timezone.utc) - timedelta(days=31)))
+        db.commit()
+    finally:
+        db.close()
+    settings = HistorySettings(max_per_user=10, retention_days=30, purge_interval_hours=6)
+
+    run_cleanup(client.session_factory, cleanup_jobs(settings))
+
+    assert _session_ids(client) == {"b" * 64}
+    assert _conversations(client) == []
+
+
+def test_failing_cleanup_job_does_not_stop_the_others(client):
+    db = client.session_factory()
+    try:
+        db.add(Conversation(user_id=None, last_message_at=datetime.now(timezone.utc) - timedelta(days=60)))
+        db.commit()
+    finally:
+        db.close()
+
+    def broken(_db) -> int:
+        raise RuntimeError("boom")
+
+    run_cleanup(
+        client.session_factory,
+        {"broken": broken, "conversations": lambda d: purge_expired_conversations(d, retention_days=30)},
+    )
+
     assert _conversations(client) == []
 
 
