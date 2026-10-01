@@ -28,6 +28,8 @@ export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
     };
     const handleKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      // handled: the mobile drawer around this menu stays open
+      event.preventDefault();
       setView('closed');
       buttonRef.current?.focus();
     };
