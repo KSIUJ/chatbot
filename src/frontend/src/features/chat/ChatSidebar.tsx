@@ -1,4 +1,5 @@
-import { LogOut, Plus, Trash2 } from 'lucide-react';
+import type { RefObject } from 'react';
+import { LogOut, Plus, Trash2, X } from 'lucide-react';
 import ksiLogo from '../../assets/logo-ksi.svg';
 import type { AuthUser } from '../auth/useAuth';
 import { isDarkTheme, type ThemeStyle } from '../preferences/themes';
@@ -19,6 +20,11 @@ interface ChatSidebarProps {
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onLogout: () => void;
+  // below md the sidebar is an off-canvas drawer
+  drawerId: string;
+  isDrawerOpen: boolean;
+  closeButtonRef: RefObject<HTMLButtonElement | null>;
+  onCloseDrawer: () => void;
 }
 
 export default function ChatSidebar({
@@ -33,6 +39,10 @@ export default function ChatSidebar({
   onOpen,
   onDelete,
   onLogout,
+  drawerId,
+  isDrawerOpen,
+  closeButtonRef,
+  onCloseDrawer,
 }: ChatSidebarProps) {
   const { lang } = preferences;
   const isDark = isDarkTheme(preferences.theme);
@@ -44,21 +54,44 @@ export default function ChatSidebar({
   const displayName = user.name || user.username || user.email || '';
 
   return (
-    <div className={`hidden md:flex w-64 ${t.sidebar} flex-col border-r`}>
+    // mobile: fixed drawer, slid out and invisible (hidden from focus and
+    // screen readers) while closed; md+: the static column as before
+    <div
+      id={drawerId}
+      role={isDrawerOpen ? 'dialog' : undefined}
+      aria-modal={isDrawerOpen || undefined}
+      aria-label={isDrawerOpen ? lang.appTitle : undefined}
+      className={`fixed inset-y-0 left-0 z-40 w-64 max-w-[85vw] flex ${t.sidebar} flex-col border-r
+        transition-[translate,visibility] duration-200 motion-reduce:transition-none
+        ${isDrawerOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'}
+        md:static md:z-auto md:max-w-none md:translate-x-0 md:visible md:transition-none`}
+    >
       {/* logo + new chat */}
       <div className="p-4 space-y-4">
-        <a
-          href="https://ksi.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
-          title={lang.ksiWebsite}
-        >
-          <div className={`flex items-center justify-center shrink-0 ${isDark ? 'bg-white rounded-full p-1 shadow-sm' : ''}`}>
-            <img src={ksiLogo} alt="KSI" className="h-8 w-8 object-contain" />
-          </div>
-          <span className={`font-medium ${t.text} text-base tracking-tight`}>{lang.appTitle}</span>
-        </a>
+        <div className="flex items-center justify-between gap-2">
+          <a
+            href="https://ksi.sh"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 min-w-0 flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+            title={lang.ksiWebsite}
+          >
+            <div className={`flex items-center justify-center shrink-0 ${isDark ? 'bg-white rounded-full p-1 shadow-sm' : ''}`}>
+              <img src={ksiLogo} alt="KSI" className="h-8 w-8 object-contain" />
+            </div>
+            <span className={`font-medium ${t.text} text-base tracking-tight`}>{lang.appTitle}</span>
+          </a>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onCloseDrawer}
+            className={`md:hidden p-1.5 rounded-md ${t.textMuted} ${t.hover}`}
+            title={lang.closeMenu}
+            aria-label={lang.closeMenu}
+          >
+            <X size={18} />
+          </button>
+        </div>
 
         <button
           type="button"

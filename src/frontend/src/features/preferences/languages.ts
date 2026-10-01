@@ -1,9 +1,13 @@
 import type { LoginError } from '../auth/redirect';
 import type { ThemePreference } from './themes';
+import type { SourceKind } from '../chat/sources';
+
+// Interface language code: <html lang> and the answer language sent to the API.
+export type HtmlLang = 'pl' | 'en' | 'fr';
 
 export interface Translation {
   // value of <html lang>
-  htmlLang: string;
+  htmlLang: HtmlLang;
   // name of the language in itself, for the settings menu
   languageName: string;
   appTitle: string;
@@ -30,6 +34,8 @@ export interface Translation {
   settings: string;
   back: string;
   logout: string;
+  openMenu: string;
+  closeMenu: string;
   // conversation
   greeting: string;
   inputPlaceholder: string;
@@ -43,6 +49,8 @@ export interface Translation {
   stopped: string;
   error: string;
   loadError: string;
+  sources: (count: number) => string;
+  sourceKinds: Record<SourceKind, string>;
 }
 
 const APP_TITLE = 'Chatbot WMiI UJ';
@@ -87,6 +95,8 @@ const polski: Translation = {
   settings: 'Ustawienia',
   back: 'Wstecz',
   logout: 'Wyloguj się',
+  openMenu: 'Otwórz menu',
+  closeMenu: 'Zamknij menu',
   greeting: 'Cześć! Jestem wirtualnym asystentem Wydziału Matematyki i Informatyki. W czym mogę Ci dzisiaj pomóc?',
   inputPlaceholder: 'Zapytaj Chatbota',
   waitingPlaceholder: 'Odpowiada...',
@@ -99,6 +109,12 @@ const polski: Translation = {
   stopped: 'Przerwano.',
   error: 'Nie udało się uzyskać odpowiedzi. Spróbuj ponownie.',
   loadError: 'Nie udało się wczytać rozmowy.',
+  sources: (count) => `Źródła (${count})`,
+  sourceKinds: {
+    strony: 'Strona wydziału',
+    usos: 'USOS',
+    mordor: 'Mordor (materiały studenckie)',
+  },
 };
 
 const angielski: Translation = {
@@ -140,6 +156,8 @@ const angielski: Translation = {
   settings: 'Settings',
   back: 'Back',
   logout: 'Log out',
+  openMenu: 'Open menu',
+  closeMenu: 'Close menu',
   greeting: "Hi! I'm the virtual assistant of the Faculty of Mathematics and Computer Science. How can I help you today?",
   inputPlaceholder: 'Ask the Chatbot',
   waitingPlaceholder: 'Answering...',
@@ -152,6 +170,12 @@ const angielski: Translation = {
   stopped: 'Stopped.',
   error: 'Could not get an answer. Please try again.',
   loadError: 'Could not load this conversation.',
+  sources: (count) => `Sources (${count})`,
+  sourceKinds: {
+    strony: 'Faculty website',
+    usos: 'USOS',
+    mordor: 'Mordor (student materials)',
+  },
 };
 
 const francuski: Translation = {
@@ -195,6 +219,8 @@ const francuski: Translation = {
   settings: 'Paramètres',
   back: 'Retour',
   logout: 'Se déconnecter',
+  openMenu: 'Ouvrir le menu',
+  closeMenu: 'Fermer le menu',
   greeting:
     "Bonjour ! Je suis l'assistant virtuel de la Faculté de mathématiques et d'informatique. Comment puis-je vous aider aujourd'hui ?",
   inputPlaceholder: 'Posez une question au Chatbot',
@@ -209,6 +235,12 @@ const francuski: Translation = {
   stopped: 'Interrompu.',
   error: "Impossible d'obtenir une réponse. Réessayez.",
   loadError: 'Impossible de charger cette conversation.',
+  sources: (count) => `Sources (${count})`,
+  sourceKinds: {
+    strony: 'Site de la faculté',
+    usos: 'USOS',
+    mordor: 'Mordor (documents étudiants)',
+  },
 };
 
 // Keys are the values stored in localStorage - keep them unchanged.

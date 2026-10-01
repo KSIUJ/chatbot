@@ -92,8 +92,9 @@ class Message(Base):
     content: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    # Lista zrodel z RAG-a
-    sources: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # Zrodla z RAG-a: {"kind", "title", "url"}; starsze wiadomosci maja tu
+    # sciezki plikow (napisy) - API je pomija
+    sources: Mapped[list[dict[str, str | None] | str]] = mapped_column(JSON, default=list)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 

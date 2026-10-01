@@ -1,11 +1,15 @@
 """
 Klient OpenRouter API, uzywany gdy LLM_PROVIDER=openrouter. Ten sam interfejs
-chat(system, user, history=None) -> str co ollama_client.py.
+chat(system, user, history=None) -> str i stream_chat(...) -> kawalki tekstu
+co ollama_client.py.
 
 OpenRouter wystawia API zgodne z chat completions OpenAI i routuje zapytanie
 do wybranego dostawcy, wiec model zmienia sie sama zmienna OPENROUTER_MODEL.
 Klient uzywa requests (bez SDK openai).
 """
+
+import json
+from collections.abc import Iterator
 
 from .http_api import BearerApi, build_messages
 from .provider import env_setting
@@ -50,13 +54,51 @@ def chat(
 
     # OpenRouter potrafi odpowiedziec HTTP 200 z bledem w ciele (np. gdy padnie
     # dostawca, do ktorego routuje zapytanie) - wtedy nie ma klucza "choices".
-    error = data.get("error")
-    if error:
-        message = error.get("message") if isinstance(error, dict) else str(error)
-        raise RuntimeError(f"Blad OpenRouter: {message}")
+    _raise_on_error(data)
 
     choices = data.get("choices") or []
     if not choices:
         raise RuntimeError("OpenRouter zwrocil odpowiedz bez zadnego wyboru (choices).")
 
     return (choices[0].get("message", {}).get("content") or "").strip()
+
+
+def stream_chat(
+    system: str,
+    user: str,
+    history: list[dict[str, str]] | None = None,
+    model: str | None = None,
+    temperature: float = 0.2,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> Iterator[str]:
+    """Jak chat(), ale oddaje kawalki odpowiedzi na biezaco (SSE z OpenRouter).
+    Zamkniecie generatora zamyka polaczenie."""
+    payload = {
+        "model": model or env_setting("OPENROUTER_MODEL", DEFAULT_MODEL),
+        "messages": build_messages(system, user, history),
+        "temperature": temperature,
+        "stream": True,
+    }
+    with _API.stream("POST", "/chat/completions", timeout=timeout, json=payload) as response:
+        for raw in response.iter_lines():
+            # linie zaczynajace sie od ":" to komentarze podtrzymujace polaczenie
+            line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+            if not line.startswith("data:"):
+                continue
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                return
+            event = json.loads(data)
+            # blad w trakcie odpowiedzi przychodzi jako zwykle zdarzenie z "error"
+            _raise_on_error(event)
+            choices = event.get("choices") or []
+            text = (choices[0].get("delta") or {}).get("content") if choices else None
+            if text:
+                yield text
+
+
+def _raise_on_error(data: dict) -> None:
+    error = data.get("error")
+    if error:
+        message = error.get("message") if isinstance(error, dict) else str(error)
+        raise RuntimeError(f"Blad OpenRouter: {message}")

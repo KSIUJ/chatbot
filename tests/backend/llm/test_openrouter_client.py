@@ -176,3 +176,92 @@ def test_chat_raises_runtime_error_on_empty_choices(transport):
     with pytest.raises(RuntimeError, match="choices"):
         openrouter_client.chat(system="s", user="u")
 
+
+
+# --- strumieniowanie (SSE) -----------------------------------------------------
+
+
+class FakeStreamResponse:
+    """Odpowiedz z stream=True: linie SSE, zapamietuje zamkniecie."""
+
+    def __init__(self, lines, status_code=200, text=""):
+        self.lines = lines
+        self.status_code = status_code
+        self.text = text
+        self.encoding = None
+        self.closed = False
+
+    def iter_lines(self):
+        yield from self.lines
+
+    def close(self):
+        self.closed = True
+
+
+def _sse(payload) -> bytes:
+    return b"data: " + json.dumps(payload).encode()
+
+
+def _delta(content: str) -> dict:
+    return {"choices": [{"delta": {"role": "assistant", "content": content}}]}
+
+
+def test_stream_chat_yields_deltas_until_done(transport):
+    transport.response = FakeStreamResponse(
+        [
+            b": OPENROUTER PROCESSING",
+            b"",
+            _sse(_delta("Dzie")),
+            _sse({"choices": [{"delta": {"role": "assistant"}}]}),
+            _sse(_delta("kanat ąę")),
+            _sse({"choices": []}),
+            b"data: [DONE]",
+            _sse(_delta("po koncu")),
+        ]
+    )
+
+    chunks = list(openrouter_client.stream_chat(system="s", user="u"))
+
+    assert chunks == ["Dzie", "kanat ąę"]
+    assert transport.payload["stream"] is True
+    assert transport.last_call["stream"] is True
+    assert transport.last_call["headers"]["Authorization"] == "Bearer test-key"
+    assert transport.response.closed
+
+
+def test_stream_chat_raises_on_error_event(transport):
+    transport.response = FakeStreamResponse(
+        [_sse(_delta("cz")), _sse({"error": {"message": "provider padl"}, "choices": [{"finish_reason": "error"}]})]
+    )
+
+    stream = openrouter_client.stream_chat(system="s", user="u")
+
+    assert next(stream) == "cz"
+    with pytest.raises(RuntimeError, match="provider padl"):
+        next(stream)
+    assert transport.response.closed
+
+
+def test_stream_chat_maps_http_status_errors(transport):
+    transport.response = FakeStreamResponse([], status_code=402, text="payment required")
+
+    with pytest.raises(RuntimeError, match="srodkow"):
+        list(openrouter_client.stream_chat(system="s", user="u"))
+    assert transport.response.closed
+
+
+def test_stream_chat_maps_connection_errors(transport):
+    transport.error = requests.RequestException("network down")
+
+    with pytest.raises(RuntimeError, match="polaczenia"):
+        list(openrouter_client.stream_chat(system="s", user="u"))
+
+
+def test_closing_stream_early_closes_http_response(transport):
+    transport.response = FakeStreamResponse([_sse(_delta("a")), _sse(_delta("b")), b"data: [DONE]"])
+
+    stream = openrouter_client.stream_chat(system="s", user="u")
+    assert next(stream) == "a"
+    stream.close()
+
+    assert transport.response.closed

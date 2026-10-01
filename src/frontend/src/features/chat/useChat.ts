@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiRequestError, isSessionLost } from '../../lib/api';
 import { ACTIVE_CONVERSATION_KEY, rememberActiveConversation } from '../../lib/chatStorage';
+import type { HtmlLang } from '../preferences/languages';
 import {
   deleteConversation,
   fetchConversationMessages,
   fetchConversations,
   newConversationId,
-  sendMessage,
   shouldRegenerate,
+  streamMessage,
   toChatMessages,
   type ChatMessage,
   type ConversationList,
   type ConversationSummary,
 } from './conversations';
+import { describeStop, waitForStoppedExchange, type StoppedExchange } from './stopSync';
 
 export interface HistoryLimits {
   maxPerUser: number;
@@ -27,9 +29,29 @@ function localId(): string {
   return `local-${Date.now()}-${localIdCounter}`;
 }
 
+function errorMarker(): ChatMessage {
+  return { id: localId(), sender: 'bot', text: '', status: 'error' };
+}
+
+// Ends the answer being streamed: a partial answer becomes a "stopped" bubble
+// that keeps its text; without any text a plain marker is added.
+export function stopStreaming(messages: readonly ChatMessage[], markerId: string): ChatMessage[] {
+  const last = messages.at(-1);
+  if (last?.status === 'streaming') return [...messages.slice(0, -1), { ...last, status: 'stopped' }];
+  return [...messages, { id: markerId, sender: 'bot', text: '', status: 'stopped' }];
+}
+
+// Appends a delta to the streaming bubble `id`, creating it on the first delta.
+export function appendDelta(messages: readonly ChatMessage[], id: string, text: string): ChatMessage[] {
+  const last = messages.at(-1);
+  if (last?.id === id) return [...messages.slice(0, -1), { ...last, text: last.text + text }];
+  return [...messages, { id, sender: 'bot', text, status: 'streaming' }];
+}
+
 // Chat state: sidebar history from the server, the open conversation, sending,
 // stop and retry. Only the id of the open conversation is kept in localStorage.
-export function useChat() {
+// `language` is the interface language the answers should be written in.
+export function useChat(language: HtmlLang) {
   // the conversation that was open before the reload
   const [rememberedId] = useState(() => localStorage.getItem(ACTIVE_CONVERSATION_KEY));
   // Storage mirrors activeId only once the initial load succeeded (or the user
@@ -52,6 +74,8 @@ export function useChat() {
   const abortRef = useRef<AbortController | null>(null);
   // bumped on every switch, so work started for a previous conversation is ignored
   const loadTokenRef = useRef(0);
+  // after Stop: waiting until the server has saved the stopped exchange
+  const stopSyncRef = useRef<{ conversationId: string; done: Promise<void>; controller: AbortController } | null>(null);
 
   useEffect(() => {
     rememberActiveConversation(activeId, isRestored);
@@ -82,8 +106,29 @@ export function useChat() {
     setIsWaiting(false);
   }, []);
 
+  const cancelStopSync = useCallback(() => {
+    stopSyncRef.current?.controller.abort();
+    stopSyncRef.current = null;
+  }, []);
+
+  useEffect(() => cancelStopSync, [cancelStopSync]);
+
+  // Polls until the stopped exchange is saved (or times out), then refreshes
+  // the sidebar. A switch to another conversation cancels it.
+  const startStopSync = useCallback((conversationId: string, stopped: StoppedExchange) => {
+    cancelStopSync();
+    const token = loadTokenRef.current;
+    const controller = new AbortController();
+    const done = waitForStoppedExchange({ conversationId, ...stopped, signal: controller.signal }).then(() => {
+      if (stopSyncRef.current?.controller === controller) stopSyncRef.current = null;
+      if (!controller.signal.aborted && token === loadTokenRef.current) void refreshHistory();
+    });
+    stopSyncRef.current = { conversationId, done, controller };
+  }, [cancelStopSync, refreshHistory]);
+
   const openConversation = useCallback(async (id: string) => {
     cancelPending();
+    cancelStopSync();
     const token = ++loadTokenRef.current;
     setActiveId(id);
     setMessages([]);
@@ -104,7 +149,7 @@ export function useChat() {
     } finally {
       if (token === loadTokenRef.current) setIsLoadingConversation(false);
     }
-  }, [cancelPending]);
+  }, [cancelPending, cancelStopSync]);
 
   // first load: history, then reopen the conversation that was open before
   useEffect(() => {
@@ -129,13 +174,14 @@ export function useChat() {
 
   const startNewChat = useCallback(() => {
     cancelPending();
+    cancelStopSync();
     loadTokenRef.current += 1;
     setIsRestored(true);
     setActiveId(null);
     setMessages([]);
     setLoadError(false);
     setIsLoadingConversation(false);
-  }, [cancelPending]);
+  }, [cancelPending, cancelStopSync]);
 
   const removeChat = useCallback(async (id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id));
@@ -156,25 +202,39 @@ export function useChat() {
     regenerate: boolean,
     controller: AbortController,
   ) => {
+    const { signal } = controller;
+    // id of the bot bubble that grows while the answer streams in
+    const streamId = localId();
+    const replaceStream = (message: ChatMessage) =>
+      setMessages((prev) => [...prev.filter((m) => m.id !== streamId), message]);
     try {
-      const reply = await sendMessage({ message: question, conversationId, regenerate, signal: controller.signal });
-      if (controller.signal.aborted) return;
-      setMessages((prev) => [...prev, reply]);
-      void refreshHistory();
+      await streamMessage({ message: question, conversationId, regenerate, language, signal }, {
+        onDelta: (text) => {
+          if (!signal.aborted && text !== '') setMessages((prev) => appendDelta(prev, streamId, text));
+        },
+        onDone: (reply) => {
+          if (signal.aborted) return;
+          replaceStream(reply);
+          void refreshHistory();
+        },
+        onError: () => {
+          if (!signal.aborted) replaceStream(errorMarker());
+        },
+      });
     } catch (error) {
-      if (controller.signal.aborted || isSessionLost(error)) return;
+      if (signal.aborted || isSessionLost(error)) return;
       if (error instanceof ApiRequestError && error.status === 404) {
         // id taken by another account (practically impossible): retry under a fresh id
         setActiveId(newConversationId());
       }
-      setMessages((prev) => [...prev, { id: localId(), sender: 'bot', text: '', status: 'error' }]);
+      replaceStream(errorMarker());
     } finally {
       if (abortRef.current === controller) {
         abortRef.current = null;
         setIsWaiting(false);
       }
     }
-  }, [refreshHistory]);
+  }, [language, refreshHistory]);
 
   const beginRequest = useCallback((): AbortController => {
     const controller = new AbortController();
@@ -189,17 +249,26 @@ export function useChat() {
     const conversationId = activeId ?? newConversationId();
     setActiveId(conversationId);
     setMessages((prev) => [...prev, { id: localId(), sender: 'user', text: question }]);
+    // a new question supersedes the stopped one (its answer refreshes the list)
+    cancelStopSync();
     void ask(question, conversationId, false, beginRequest());
     return true;
-  }, [activeId, ask, beginRequest, isLoadingConversation, isWaiting]);
+  }, [activeId, ask, beginRequest, cancelStopSync, isLoadingConversation, isWaiting]);
 
   const stop = useCallback(() => {
     if (abortRef.current === null) return;
     cancelPending();
-    setMessages((prev) => [...prev, { id: localId(), sender: 'bot', text: '', status: 'stopped' }]);
-    // the server keeps going and saves the answer - show the chat in the list
-    void refreshHistory();
-  }, [cancelPending, refreshHistory]);
+    const markerId = localId();
+    setMessages((prev) => stopStreaming(prev, markerId));
+    // the server saves the question and the partial answer once it notices
+    // the disconnect - refresh the list after that
+    const stopped = describeStop(messages);
+    if (activeId === null || stopped === null) {
+      void refreshHistory();
+      return;
+    }
+    startStopSync(activeId, stopped);
+  }, [activeId, cancelPending, messages, refreshHistory, startStopSync]);
 
   const retry = useCallback(async () => {
     const lastQuestion = [...messages].reverse().find((m) => m.sender === 'user');
@@ -209,6 +278,11 @@ export function useChat() {
     const controller = beginRequest();
     setActiveId(conversationId);
     setMessages((prev) => prev.filter((m) => m.status === undefined));
+
+    // right after Stop the partial answer may not be saved yet
+    const pendingSync = stopSyncRef.current;
+    if (pendingSync?.conversationId === conversationId) await pendingSync.done;
+    if (controller.signal.aborted || token !== loadTokenRef.current) return;
 
     let regenerate = false;
     try {

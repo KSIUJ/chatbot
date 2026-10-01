@@ -4,7 +4,13 @@ Uzywa fake'owego retrievera (bez encodera/vectorstore), zeby izolowac tylko
 logike formatowania promptu i wyodrebniania sciezek do obrazow.
 """
 
-from src.backend.rag.context_builder import MORDOR_HEADER, OFFICIAL_HEADER, STAFF_HEADER, build_context
+from src.backend.rag.context_builder import (
+    MORDOR_HEADER,
+    OFFICIAL_HEADER,
+    STAFF_HEADER,
+    build_context,
+    retrieve_context,
+)
 
 
 class FakeRetriever:
@@ -158,3 +164,41 @@ def test_build_context_skips_staff_section_when_gate_is_silent():
 
     assert STAFF_HEADER not in prompt
     assert OFFICIAL_HEADER in prompt
+
+
+def test_retrieve_context_lists_sources_of_text_and_image_hits():
+    staff_hit = {
+        "id": "usos_1",
+        "value": "dr Jan Kowalski, pokoj 101.",
+        "content_type": "text",
+        "source": "usos",
+        "metadata": {"employee_name": "Jan Kowalski", "profile_url": "https://usosweb.uj.edu.pl/jk"},
+    }
+    hits = [
+        staff_hit,
+        {
+            "id": "strony_1",
+            "value": "Dziekanat czynny pon-pt 8-15.",
+            "content_type": "text",
+            "source": "strony",
+            "metadata": {"url": "https://matinf.uj.edu.pl/dziekanat"},
+        },
+        {
+            "id": "mordor_img_1",
+            "value": "data/mordor/mapy/plan_budynku.png",
+            "content_type": "image",
+            "source": "mordor",
+            "metadata": {"file_name": "plan_budynku.png"},
+        },
+    ]
+    retriever = FakeRetriever(hits, staff_hits=[staff_hit])
+
+    result = retrieve_context("gdzie siedzi Jan Kowalski", retriever=retriever)
+
+    assert result.image_paths == ["data/mordor/mapy/plan_budynku.png"]
+    assert "Dziekanat czynny pon-pt 8-15." in result.prompt
+    assert result.sources == [
+        {"kind": "usos", "title": "Jan Kowalski", "url": "https://usosweb.uj.edu.pl/jk"},
+        {"kind": "strony", "title": "matinf.uj.edu.pl/dziekanat", "url": "https://matinf.uj.edu.pl/dziekanat"},
+        {"kind": "mordor", "title": "plan_budynku.png", "url": None},
+    ]
