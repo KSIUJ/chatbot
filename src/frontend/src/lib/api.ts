@@ -1,21 +1,11 @@
-// Frontend zawsze woła backend przez /api na wlasnym originie: w Dockerze
-// proxy robi nginx (src/frontend/nginx.conf), w `npm run dev` - vite
-// (vite.config.ts). Jeden origin = ciasteczko sesji dziala bez CORS.
-export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? '/api';
+// The frontend always calls the backend through /api on its own origin: nginx
+// proxies it in Docker (nginx.conf), Vite in `npm run dev` (vite.config.ts).
+// One origin means the session cookie works without CORS.
+export const API_BASE_URL = '/api';
 
-// Kody bledow logowania - backend zwraca je w detail.code (401/403/503)
-// albo w ?auth_error= po powrocie z Keycloaka.
-export type AuthErrorCode =
-  | 'not_authenticated'
-  | 'session_expired'
-  | 'not_member'
-  | 'provider_unavailable'
-  | 'access_denied'
-  | 'invalid_state'
-  | 'login_failed'
-  | 'forbidden_origin';
-
-const AUTH_ERROR_CODES: ReadonlySet<string> = new Set<AuthErrorCode>([
+// Login error codes: the backend returns them in detail.code (401/403/503) or
+// in ?auth_error= after coming back from Keycloak.
+const AUTH_ERROR_CODES = [
   'not_authenticated',
   'session_expired',
   'not_member',
@@ -24,51 +14,78 @@ const AUTH_ERROR_CODES: ReadonlySet<string> = new Set<AuthErrorCode>([
   'invalid_state',
   'login_failed',
   'forbidden_origin',
-]);
+] as const;
+
+export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[number];
 
 export function isAuthErrorCode(value: unknown): value is AuthErrorCode {
-  return typeof value === 'string' && AUTH_ERROR_CODES.has(value);
+  return typeof value === 'string' && (AUTH_ERROR_CODES as readonly string[]).includes(value);
 }
 
-// Kody, po ktorych sesja w przegladarce jest juz bezuzyteczna.
+// Codes after which the session in this browser is no longer usable.
 const SESSION_LOST_CODES: ReadonlySet<AuthErrorCode> = new Set<AuthErrorCode>([
   'not_authenticated',
   'session_expired',
   'not_member',
 ]);
 
-// Zdarzenie wysylane, gdy backend odrzuci sesje w trakcie pracy (np. ktos
-// zostal usuniety z grupy) - useAuth przelacza wtedy na ekran logowania.
+// Dispatched when the backend rejects the session mid-use (expired, removed
+// from the group) - useAuth then switches to the login flow.
 export const SESSION_LOST_EVENT = 'chatbot:session-lost';
+
+// A non-2xx API response. `code` is the login error code from the body, if any.
+export class ApiRequestError extends Error {
+  readonly status: number;
+  readonly code: AuthErrorCode | null;
+
+  constructor(status: number, code: AuthErrorCode | null) {
+    super(`API request failed with HTTP ${status}`);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.code = code;
+  }
+
+  // True when SESSION_LOST_EVENT was dispatched for this response.
+  get sessionLost(): boolean {
+    return (this.status === 401 || this.status === 403) && this.code !== null && SESSION_LOST_CODES.has(this.code);
+  }
+}
+
+export function isSessionLost(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.sessionLost;
+}
 
 interface ErrorBody {
   detail?: unknown;
 }
 
-export async function readAuthErrorCode(response: Response): Promise<AuthErrorCode | null> {
+async function readAuthErrorCode(response: Response): Promise<AuthErrorCode | null> {
   try {
-    const body = (await response.clone().json()) as ErrorBody;
-    const detail = body.detail;
+    const { detail } = (await response.json()) as ErrorBody;
     if (typeof detail === 'object' && detail !== null && 'code' in detail) {
-      const code = (detail as { code: unknown }).code;
+      const { code } = detail as { code: unknown };
       return isAuthErrorCode(code) ? code : null;
     }
   } catch {
-    // odpowiedz bez JSON-a (np. 502 z nginx) - brak kodu
+    // response without JSON (e.g. a 502 from nginx) has no code
   }
   return null;
 }
 
-// fetch do API z ciasteczkiem sesji. Utrata sesji (401/403 z kodem
-// logowania) jest rozglaszana przez SESSION_LOST_EVENT; wolajacy i tak
-// dostaje odpowiedz, zeby moc przerwac swoja prace.
+// fetch to the API with the session cookie. Throws ApiRequestError for a
+// non-2xx response; a lost session is also announced with SESSION_LOST_EVENT.
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const response = await fetch(`${API_BASE_URL}${path}`, { credentials: 'include', ...init });
-  if (response.status === 401 || response.status === 403) {
-    const code = await readAuthErrorCode(response);
-    if (code !== null && SESSION_LOST_CODES.has(code)) {
-      window.dispatchEvent(new CustomEvent<AuthErrorCode>(SESSION_LOST_EVENT, { detail: code }));
-    }
+  if (response.ok) return response;
+  const code = await readAuthErrorCode(response);
+  const error = new ApiRequestError(response.status, code);
+  if (error.sessionLost && code !== null) {
+    window.dispatchEvent(new CustomEvent<AuthErrorCode>(SESSION_LOST_EVENT, { detail: code }));
   }
-  return response;
+  throw error;
+}
+
+export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await apiFetch(path, init);
+  return (await response.json()) as T;
 }
