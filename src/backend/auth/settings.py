@@ -8,6 +8,7 @@ sie dopiero przy pierwszym logowaniu.
 
 from __future__ import annotations
 
+import math
 import os
 import unicodedata
 from collections.abc import Mapping
@@ -15,9 +16,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from dotenv import load_dotenv
-
-load_dotenv()
+from ..config import DEFAULT_FRONTEND_ORIGINS, parse_origins
 
 # Tylko algorytmy asymetryczne - HS* (klucz wspoldzielony) i "none" nigdy nie
 # moga podpisac tokenu, ktoremu ufamy. Keycloak KSI podpisuje obecnie ES256.
@@ -30,6 +29,8 @@ DEFAULT_ID_TOKEN_ALGORITHMS: tuple[str, ...] = (
 _FORBIDDEN_ALGORITHMS = frozenset({"none", "HS256", "HS384", "HS512"})
 
 MIN_SECRET_KEY_LENGTH = 32
+# Czas na dokonczenie logowania w Keycloaku (ciasteczko ze state, nonce i PKCE)
+LOGIN_STATE_MAX_AGE_SECONDS = 600
 _TRUE = frozenset({"1", "true", "yes", "on", "tak"})
 _FALSE = frozenset({"0", "false", "no", "off", "nie"})
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
@@ -132,10 +133,15 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
         if not raw:
             return default
         try:
-            return float(raw)
+            value = float(raw)
         except ValueError:
+            value = math.nan
+        if not math.isfinite(value):
             errors.append(f"{name} musi byc liczba, jest {raw!r}")
             return default
+        if value <= 0:
+            errors.append(f"{name} musi byc dodatnie")
+        return value
 
     issuer = required("OIDC_ISSUER").rstrip("/")
     client_id = required("OIDC_CLIENT_ID")
@@ -196,7 +202,7 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
     session_max_age_hours = as_int("AUTH_SESSION_MAX_AGE_HOURS", 24 * 7)
     http_timeout = as_float("OIDC_HTTP_TIMEOUT", 10.0)
 
-    frontend_origins = [o.strip().rstrip("/") for o in get("FRONTEND_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+    frontend_origins = parse_origins(get("FRONTEND_ORIGINS", DEFAULT_FRONTEND_ORIGINS))
     allowed_origins = tuple(dict.fromkeys([o for o in [public_origin, *frontend_origins] if o]))
 
     if errors:
@@ -218,7 +224,7 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
         frontend_url=frontend_url,
         cookie_secure=cookie_secure,
         session_max_age_seconds=session_max_age_hours * 3600,
-        login_state_max_age_seconds=600,
+        login_state_max_age_seconds=LOGIN_STATE_MAX_AGE_SECONDS,
         http_timeout_seconds=http_timeout,
         allowed_origins=allowed_origins,
     )

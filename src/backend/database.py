@@ -1,20 +1,17 @@
+"""Polaczenie z baza i operacje na uzytkownikach, rozmowach, wiadomosciach
+i licznikach statystyk. Schemat bazy tworza wylacznie migracje Alembica."""
+
 from __future__ import annotations
 
 import os
 from collections.abc import Generator
 
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy import func
-
-from datetime import datetime, timezone
 
 from .history import make_title
-from .models import Base, Conversation, Message, MessageRole, UsageCounter, User
-
-load_dotenv()
+from .models import Conversation, Message, MessageRole, UsageCounter, User, utcnow
 
 DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./chatbot.db"
 
@@ -25,21 +22,8 @@ engine = create_engine(DATABASE_URL, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
-def init_db() -> None:
-    """Tworzy wszystkie tabele w bazie, jesli jeszcze nie istnieja"""
-    Base.metadata.create_all(bind=engine)
-
-
 def get_db() -> Generator[Session, None, None]:
-    """Dependency dla FastAPI. Uzycie:
-
-        from fastapi import Depends
-        from .database import get_db
-
-        @app.post("/chat")
-        def chat(payload: ChatRequest, db: Session = Depends(get_db)):
-            ...
-    """
+    """Dependency FastAPI: sesja bazy na czas jednego zapytania."""
     db = SessionLocal()
     try:
         yield db
@@ -50,9 +34,11 @@ def get_db() -> Generator[Session, None, None]:
 # USERS
 # Konta zaklada i aktualizuje logowanie OIDC - patrz src/backend/auth/service.py
 
+
 def get_user_by_oidc_sub(db: Session, oidc_sub: str) -> User | None:
     stmt = select(User).where(User.oidc_sub == oidc_sub)
     return db.execute(stmt).scalar_one_or_none()
+
 
 def count_users(db: Session) -> int:
     """Liczba kont - kazde powstaje przy pierwszym udanym logowaniu przez KSI."""
@@ -60,11 +46,12 @@ def count_users(db: Session) -> int:
 
 
 # CONVERSATIONS
+# Lista, usuwanie i wygasanie rozmow: src/backend/history.py
 
-def create_conversation(
-    db: Session, user_id: str | None = None, conversation_id: str | None = None
-) -> Conversation:
-    """Zaklada rozmowe; conversation_id nadaje klient (32 hex), inaczej losowe."""
+
+def create_conversation(db: Session, user_id: str, conversation_id: str | None = None) -> Conversation:
+    """Zaklada rozmowe uzytkownika; conversation_id nadaje klient (32 hex),
+    bez niego id jest losowe."""
     conversation = Conversation(user_id=user_id)
     if conversation_id is not None:
         conversation.id = conversation_id
@@ -76,9 +63,6 @@ def create_conversation(
 
 def get_conversation(db: Session, conversation_id: str) -> Conversation | None:
     return db.get(Conversation, conversation_id)
-
-
-# Lista, usuwanie i wygasanie rozmow: src/backend/history.py
 
 
 # STATS
@@ -114,6 +98,7 @@ def increment_counter(db: Session, key: str, by: int = 1) -> None:
 
 # MESSAGES
 
+
 def add_message(
     db: Session,
     conversation_id: str,
@@ -121,6 +106,7 @@ def add_message(
     content: str,
     sources: list[str] | None = None,
 ) -> Message:
+    """Dopisuje wiadomosc i commituje (razem z niezacommitowanymi zmianami sesji)."""
     conversation = get_conversation(db, conversation_id)
     if conversation is None:
         raise KeyError(f"Konwersacja {conversation_id} nie istnieje")
@@ -134,7 +120,7 @@ def add_message(
     db.add(message)
 
     # kazda wiadomosc odswieza pozycje rozmowy w historii i odsuwa jej wygasniecie
-    conversation.last_message_at = datetime.now(timezone.utc)
+    conversation.last_message_at = utcnow()
     if role == MessageRole.USER:
         if conversation.title is None:
             conversation.title = make_title(content)
@@ -152,13 +138,14 @@ def get_messages(db: Session, conversation_id: str) -> list[Message]:
     )
     return list(db.execute(stmt).scalars().all())
 
+
 def delete_last_assistant_message(db: Session, conversation_id: str) -> bool:
-    """Kasuje ostatnia wiadomosc asystenta, jesli konwersacja konczy sie wlasnie nia.
-    Uzywane przy regeneracji, zeby odrzucona odpowiedz nie zostala w historii."""
+    """Oznacza do usuniecia ostatnia wiadomosc asystenta, jesli rozmowa konczy
+    sie wlasnie nia (regeneracja odpowiedzi). Bez commita - wolajacy commituje
+    razem z nowa odpowiedzia, wiec stara znika tylko wtedy, gdy nowa jest zapisana."""
     messages = get_messages(db, conversation_id)
     if not messages or messages[-1].role != MessageRole.ASSISTANT:
         return False
 
     db.delete(messages[-1])
-    db.commit()
     return True

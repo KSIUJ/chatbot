@@ -1,3 +1,5 @@
+"""Schematy zapytan API."""
+
 from pydantic import BaseModel, Field
 
 # Id rozmowy = 32 znaki hex (uuid4().hex). Nowa rozmowa dostaje id od klienta,
@@ -8,7 +10,6 @@ CONVERSATION_ID_PATTERN = r"^[0-9a-f]{32}$"
 MAX_MESSAGE_LENGTH = 4000
 
 
-#tu szablony requestów
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=MAX_MESSAGE_LENGTH)
     # None albo nieistniejace id = nowa rozmowa

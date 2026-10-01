@@ -1,5 +1,5 @@
 """
-Testy logowania OIDC przeciw atrapie Keycloaka (conftest.FakeKeycloak):
+Testy logowania OIDC przeciw atrapie Keycloaka (fake_keycloak.FakeKeycloak):
 callback, sesje, natychmiastowe odebranie dostepu po usunieciu z grupy,
 odswiezanie tokenow, wylogowanie, wlasnosc rozmow i sprawdzanie Origin.
 """
@@ -362,4 +362,4 @@ def test_stats_count_ksi_accounts(client):
     client.post("/auth/logout")
     login(client, client.keycloak, "bob")
 
-    assert client.get("/api/stats").json()["accounts_created"] == 2
+    assert client.get("/stats").json()["accounts_created"] == 2
