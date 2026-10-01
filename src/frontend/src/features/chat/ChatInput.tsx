@@ -60,7 +60,7 @@ export default function ChatInput({ t, lang, isWaiting, onSend, onStop }: ChatIn
           rows={1}
           maxLength={MAX_MESSAGE_LENGTH}
           style={{ maxHeight: `${MAX_INPUT_HEIGHT_PX}px` }}
-          className={`w-full pl-5 pr-14 py-3 border shadow-md rounded-3xl focus:ring-2 outline-none transition-all duration-100 resize-none overflow-hidden ${t.inputBox}`}
+          className={`block w-full pl-5 pr-14 py-3 border shadow-md rounded-3xl focus:ring-2 outline-none transition-all duration-100 resize-none overflow-hidden ${t.inputBox}`}
         />
 
         {isWaiting ? (
