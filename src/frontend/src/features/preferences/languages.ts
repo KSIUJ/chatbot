@@ -1,4 +1,5 @@
 import type { LoginError } from '../auth/redirect';
+import type { ReportReason } from '../chat/feedback';
 import type { SourceKind } from '../chat/sources';
 import type { ThemePreference } from './themes';
 import { de } from './translations/de';
@@ -63,6 +64,20 @@ export interface Translation {
   loadError: string;
   sources: (count: number) => string;
   sourceKinds: Record<SourceKind, string>;
+  // rating and reporting an answer
+  answerActions: string;
+  rateUp: string;
+  rateDown: string;
+  feedbackError: string;
+  report: string;
+  reported: string;
+  reportTitle: string;
+  reportReasonLabel: string;
+  reportReasons: Record<ReportReason, string>;
+  reportComment: string;
+  reportSubmit: string;
+  reportError: string;
+  cancel: string;
 }
 
 export const translations: Record<HtmlLang, Translation> = { pl, en, de, es, fr, it, uk };

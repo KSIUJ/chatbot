@@ -1,6 +1,7 @@
 """Schematy odpowiedzi API."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -31,12 +32,21 @@ def parse_sources(raw: object) -> list[SourceResponse]:
     return sources
 
 
+class FeedbackState(BaseModel):
+    """Ocena odpowiedzi przez biezacego uzytkownika - frontend pokazuje ja po
+    przeladowaniu (wiadomosci asystenta w GET /conversations/{id})."""
+    rating: Literal[1, -1] | None
+    reported: bool
+
+
 class MessageResponse(BaseModel):
     id: str
     role: MessageRole
     content: str
     created_at: datetime
     sources: list[SourceResponse] = Field(default_factory=list)  # zrodla z RAG-a
+    # tylko odpowiedzi asystenta w GET /conversations/{id}; None = nie dotyczy
+    feedback: FeedbackState | None = None
 
 
 class ConversationResponse(BaseModel):
@@ -80,6 +90,8 @@ class UserResponse(BaseModel):
     email: str | None
     username: str | None
     name: str | None
+    # w grupie OIDC_ADMIN_GROUP - moze przegladac oceny i zgloszenia
+    is_admin: bool = False
 
 
 class LogoutResponse(BaseModel):

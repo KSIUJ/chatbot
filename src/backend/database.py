@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from .history import make_title
+from .history import detach_feedback, make_title
 from .models import Conversation, Message, MessageRole, UsageCounter, User, utcnow
 from .rag.sources import Source
 
@@ -154,5 +154,7 @@ def delete_last_assistant_message(db: Session, conversation_id: str) -> bool:
     if not messages or messages[-1].role != MessageRole.ASSISTANT:
         return False
 
+    # ocena starej odpowiedzi zostaje (z kopia tekstu), bez powiazania
+    detach_feedback(db, [messages[-1].id])
     db.delete(messages[-1])
     return True
