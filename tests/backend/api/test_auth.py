@@ -115,6 +115,19 @@ def test_member_group_is_matched_exactly(client):
     assert _auth_error(r) == "not_member"
 
 
+def test_missing_groups_claim_is_refused_with_a_hint_in_the_log(client, caplog):
+    # klient w Keycloaku bez mappera Group Membership - odmowa ma byc widoczna w logach
+    client.keycloak.groups_mapper = False
+
+    with caplog.at_level("INFO", logger="src.backend.auth.router"):
+        r = login(client, client.keycloak, "dave")
+
+    assert _auth_error(r) == "not_member"
+    assert any(
+        rec.levelname == "WARNING" and "'groups' claim" in rec.getMessage() for rec in caplog.records
+    )
+
+
 def test_callback_rejects_state_mismatch(client):
     client.keycloak.add_user("alice")
     start = client.get("/auth/login", follow_redirects=False)

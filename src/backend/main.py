@@ -6,6 +6,7 @@ sciezki bez /api.
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator
 from uuid import uuid4
 
@@ -52,6 +53,22 @@ from .response import (
     HealthResponse,
     StatsResponse,
 )
+
+
+def configure_logging() -> None:
+    """Logi aplikacji (src.backend.*) od INFO na stderr. Uvicorn konfiguruje
+    tylko swoje loggery, wiec bez tego Python pokazuje jedynie WARNING+ i
+    np. powod odmowy logowania nie trafia do `docker compose logs`."""
+    package_logger = logging.getLogger("src.backend")
+    if package_logger.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s: %(message)s"))
+    package_logger.addHandler(handler)
+    package_logger.setLevel(logging.INFO)
+
+
+configure_logging()
 
 
 def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:

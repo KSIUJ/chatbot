@@ -145,7 +145,17 @@ def callback(
         logger.warning("userinfo sub does not match ID token sub")
         return _fail(settings, "login_failed")
     if not is_member(userinfo, settings):
-        logger.info("login refused: %s is not in %s", sub, settings.required_group)
+        groups = userinfo.get(settings.groups_claim)
+        if groups is None:
+            # najczestszy blad konfiguracji: wtedy nikt nie moze sie zalogowac
+            logger.warning(
+                "login refused: userinfo for %s has no %r claim - check the client's Group Membership "
+                "mapper (claim name, Add to userinfo) or whether the user is in any group",
+                sub,
+                settings.groups_claim,
+            )
+        else:
+            logger.info("login refused: %s is not in %s (groups: %s)", sub, settings.required_group, groups)
         return _fail(settings, "not_member")
 
     purge_expired_sessions(db)
