@@ -12,6 +12,7 @@ import {
   NO_SESSION_ERRORS,
   clearRedirectMark,
   getSessionStorage,
+  loginUrl,
   markRedirect,
   readLastRedirect,
   shouldAutoRedirect,
@@ -74,16 +75,16 @@ async function fetchCurrentUser(): Promise<ResolvedAuthState> {
 }
 
 // full navigation (not fetch) - the backend redirects on to Keycloak
-function goToLogin(): void {
+function goToLogin(language: string): void {
   redirecting = true;
   const storage = getSessionStorage();
   if (storage !== null) markRedirect(storage, Date.now());
-  window.location.assign(`${API_BASE_URL}/auth/login`);
+  window.location.assign(loginUrl(API_BASE_URL, language));
 }
 
 // Without a session: go straight to Keycloak (returns null) or, for real errors
 // and when the loop guard trips, return the login screen state to show.
-function redirectOrShow(error: LoginError | null): ResolvedAuthState | null {
+function redirectOrShow(error: LoginError | null, language: string): ResolvedAuthState | null {
   if (redirecting) return null;
   const storage = getSessionStorage();
   if (storage === null) {
@@ -91,15 +92,22 @@ function redirectOrShow(error: LoginError | null): ResolvedAuthState | null {
     return { status: 'unauthenticated', error: visibleLoginError(error) };
   }
   if (shouldAutoRedirect(error, readLastRedirect(storage), Date.now())) {
-    goToLogin();
+    goToLogin(language);
     return null;
   }
   return { status: 'unauthenticated', error: NO_SESSION_ERRORS.has(error) ? 'login_incomplete' : error };
 }
 
 // Session state from the backend (HttpOnly cookie) plus login and logout.
-export function useAuth() {
+// `language` is the interface language, passed on to the KSI login page.
+export function useAuth(language: string) {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
+  // read by redirects started from effects and event listeners
+  const languageRef = useRef(language);
+
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
   // the session-lost event only matters once the chat is open; at startup the
   // initial /auth/me result decides (it may carry ?auth_error= to show)
   const isAuthenticatedRef = useRef(false);
@@ -122,7 +130,7 @@ export function useAuth() {
         return;
       }
       // null = the browser is already on its way to Keycloak, keep the spinner
-      const next = redirectOrShow(urlError ?? result.error);
+      const next = redirectOrShow(urlError ?? result.error, languageRef.current);
       if (next !== null) setState(next);
     });
 
@@ -139,7 +147,7 @@ export function useAuth() {
       const code = (event as CustomEvent<AuthErrorCode>).detail;
       if (code === 'not_member') clearChatStorage();
       // expired session: back through Keycloak (usually invisible thanks to SSO)
-      setState(redirectOrShow(code) ?? { status: 'loading' });
+      setState(redirectOrShow(code, languageRef.current) ?? { status: 'loading' });
     };
     window.addEventListener(SESSION_LOST_EVENT, onSessionLost);
     return () => window.removeEventListener(SESSION_LOST_EVENT, onSessionLost);
@@ -172,5 +180,7 @@ export function useAuth() {
     setState({ status: 'unauthenticated', error: null });
   }, []);
 
-  return { state, login: goToLogin, logout };
+  const login = useCallback(() => goToLogin(languageRef.current), []);
+
+  return { state, login, logout };
 }

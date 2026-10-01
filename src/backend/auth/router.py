@@ -20,6 +20,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..llm.language import parse_language
 from ..models import User
 from ..response import LogoutResponse, UserResponse
 from .crypto import DecryptionError, LoginState, TokenCipher
@@ -77,14 +78,21 @@ def _fail(settings: AuthSettings, code: str) -> RedirectResponse:
 
 @router.get("/login")
 def login(
+    ui_locales: str | None = None,
     settings: AuthSettings = Depends(get_auth_settings),
     oidc: OIDCClient = Depends(get_oidc_client),
     cipher: TokenCipher = Depends(get_token_cipher),
 ) -> RedirectResponse:
-    """Zaczyna logowanie: przekierowanie do Keycloaka."""
+    """Zaczyna logowanie: przekierowanie do Keycloaka, w jezyku interfejsu
+    (ui_locales) - nieobslugiwana wartosc jest pomijana."""
     login_state = LoginState.generate()
     try:
-        url = oidc.build_authorization_url(login_state.state, login_state.nonce, login_state.code_challenge)
+        url = oidc.build_authorization_url(
+            login_state.state,
+            login_state.nonce,
+            login_state.code_challenge,
+            ui_locales=parse_language(ui_locales),
+        )
     except ProviderUnavailableError as exc:
         logger.error("cannot start login: %s", exc)
         return _fail(settings, "provider_unavailable")

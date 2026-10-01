@@ -150,7 +150,7 @@ def test_stream_rejects_foreign_origin(member):
     "body",
     [
         {"message": ""},
-        {"message": "hej", "language": "de"},
+        {"message": "hej", "language": "ru"},
         {"message": "hej", "conversation_id": "nie-hex"},
     ],
 )
@@ -190,7 +190,7 @@ def test_chat_defaults_to_polish(member):
 
 
 def test_chat_rejects_unknown_language(member):
-    assert member.post("/chat", json={"message": "hej", "language": "de"}).status_code == 422
+    assert member.post("/chat", json={"message": "hej", "language": "ru"}).status_code == 422
 
 
 def test_legacy_and_invalid_sources_are_skipped_in_responses(member):

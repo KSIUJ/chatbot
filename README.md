@@ -6,7 +6,7 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 
 - **Frontend** (React + Vite + Tailwind) — czat z historią rozmów, logowanie przez Keycloak KSI.
 - **Backend** (FastAPI + SQLite) — dla każdego pytania szuka kontekstu (RAG: wyszukiwanie wektorowe w Chroma + pełnotekstowe SQLite FTS5 + wyszukiwanie pracowników) i przekazuje go do modelu językowego: lokalnej Ollamy (domyślnie `qwen2.5:14b`) albo API Claude / OpenRouter / Cursor (`LLM_PROVIDER`).
-- Odpowiedź pojawia się na bieżąco (strumieniowo, `POST /chat/stream`), w języku interfejsu (polski, angielski, francuski), z listą źródeł: strony wydziału, profile pracowników w USOS, pliki z Mordoru.
+- Odpowiedź pojawia się na bieżąco (strumieniowo, `POST /chat/stream`), w języku interfejsu (te same języki co logowanie KSI: polski, angielski, niemiecki, hiszpański, francuski, włoski, ukraiński; domyślnie język przeglądarki), z listą źródeł: strony wydziału, profile pracowników w USOS, pliki z Mordoru.
 - **Dane** pochodzą ze stron wydziału, USOS API (pracownicy) i Mordoru (materiały studenckie). Scrapery i ingest do bazy RAG są w `pipeline/`.
 - Wchodzą tylko osoby z grupy `/Członek` w Keycloaku KSI; członkostwo jest sprawdzane przy każdym zapytaniu.
 
