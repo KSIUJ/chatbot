@@ -52,6 +52,8 @@ class FakeKeycloak:
     refresh_tokens: dict[str, str] = field(default_factory=dict)
     calls: list[str] = field(default_factory=list)
     nonce_override: str | None = None
+    # False = klient bez mappera Group Membership: userinfo nie ma claimu "groups"
+    groups_mapper: bool = True
     # gdy ustawiony, ID tokeny sa podpisywane nim, a JWKS nadal oglasza `key`
     signing_key_override: ECKey | None = None
 
@@ -149,13 +151,15 @@ class FakeKeycloak:
             if sub is None or sub not in self.users:
                 return httpx.Response(401, json={"error": "invalid_token"})
             user = self.users[sub]
-            return httpx.Response(200, json={
+            claims = {
                 "sub": sub,
-                "groups": list(user.groups),
                 "email": user.email,
                 "name": user.name,
                 "preferred_username": user.username,
-            })
+            }
+            if self.groups_mapper:
+                claims["groups"] = list(user.groups)
+            return httpx.Response(200, json=claims)
         return httpx.Response(404)
 
     def _token(self, form_lists: dict[str, list[str]]) -> httpx.Response:
