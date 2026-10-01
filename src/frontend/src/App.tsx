@@ -8,7 +8,7 @@ import { usePreferences } from './features/preferences/usePreferences';
 export default function App() {
   const preferences = usePreferences();
   // the session lives in an HttpOnly cookie - the backend is the only source of truth
-  const { state, login, logout } = useAuth();
+  const { state, login, logout } = useAuth(preferences.lang.htmlLang);
 
   // checking the session with the backend, or already redirecting to KSI login
   if (state.status === 'loading') {

@@ -23,6 +23,12 @@ export const NO_SESSION_ERRORS: ReadonlySet<LoginError | null> = new Set<LoginEr
   'session_expired',
 ]);
 
+// Backend login endpoint; the language is passed on to the KSI login page
+// (OIDC ui_locales), so it opens in the same language as the chat.
+export function loginUrl(apiBase: string, language: string): string {
+  return `${apiBase}/auth/login?ui_locales=${encodeURIComponent(language)}`;
+}
+
 // "Not logged in" is the normal state without a session, not an error to show.
 export function visibleLoginError(error: LoginError | null): LoginError | null {
   return error === 'not_authenticated' ? null : error;

@@ -1,0 +1,68 @@
+import type { Translation } from '../languages';
+
+export const de: Translation = {
+  htmlLang: 'de',
+  languageName: 'Deutsch',
+  systemLanguage: 'System',
+  appTitle: 'Chatbot WMiI UJ',
+  loading: 'Wird geladen...',
+  ksiWebsite: 'KSI-Website',
+  authorization: 'Anmeldung',
+  logIn: 'Mit KSI anmelden',
+  tryAgain: 'Erneut versuchen',
+  redirecting: 'Weiterleitung...',
+  loginErrors: {
+    login_incomplete:
+      'Die Anmeldung wurde nicht abgeschlossen. Stellen Sie sicher, dass diese Seite Cookies speichern darf, und versuchen Sie es erneut.',
+    not_authenticated: 'Bitte melden Sie sich mit Ihrem KSI-Konto an.',
+    session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
+    not_member: 'Der Chatbot steht nur KSI-Mitgliedern zur Verfügung (Gruppe Członek).',
+    provider_unavailable: 'Der KSI-Anmeldeserver ist nicht erreichbar. Bitte versuchen Sie es gleich noch einmal.',
+    access_denied: 'Die Anmeldung wurde abgebrochen.',
+    invalid_state:
+      'Die Anmeldung hat zu lange gedauert oder wurde in einem anderen Tab gestartet. Bitte versuchen Sie es erneut.',
+    login_failed: 'Die Anmeldung ist fehlgeschlagen. Bitte versuchen Sie es erneut.',
+    forbidden_origin: 'Die Anfrage wurde abgelehnt. Bitte laden Sie die Seite neu.',
+  },
+  newChat: 'Neuer Chat',
+  recent: 'Zuletzt',
+  noChats: 'Keine Unterhaltungen',
+  untitled: 'Unterhaltung',
+  deleteChat: 'Unterhaltung löschen',
+  deleteConfirm: 'Diese Unterhaltung löschen?',
+  historyNote: (max, days) =>
+    `Wir speichern Ihre ${max} letzten Unterhaltungen. Nicht genutzte werden nach ${days} Tagen gelöscht.`,
+  historyError: 'Der Verlauf konnte nicht geladen werden.',
+  language: 'Sprache',
+  theme: 'Design',
+  themeNames: {
+    systemowy: 'System',
+    jasny: 'hell',
+    ciemny: 'dunkel',
+  },
+  settings: 'Einstellungen',
+  back: 'Zurück',
+  logout: 'Abmelden',
+  openMenu: 'Menü öffnen',
+  closeMenu: 'Menü schließen',
+  greeting:
+    'Hallo! Ich bin der virtuelle Assistent der Fakultät für Mathematik und Informatik. Wie kann ich Ihnen heute helfen?',
+  inputPlaceholder: 'Frag den Chatbot',
+  waitingPlaceholder: 'Antwortet...',
+  send: 'Senden',
+  stop: 'Stoppen',
+  disclaimer:
+    'Der Chatbot ist eine KI und kann Fehler machen. Prüfen Sie wichtige Informationen auf der Website der Fakultät.',
+  copy: 'Kopieren',
+  copied: 'Kopiert',
+  retry: 'Wiederholen',
+  stopped: 'Abgebrochen.',
+  error: 'Es konnte keine Antwort abgerufen werden. Bitte versuchen Sie es erneut.',
+  loadError: 'Die Unterhaltung konnte nicht geladen werden.',
+  sources: (count) => `Quellen (${count})`,
+  sourceKinds: {
+    strony: 'Website der Fakultät',
+    usos: 'USOS',
+    mordor: 'Mordor (studentische Materialien)',
+  },
+};
