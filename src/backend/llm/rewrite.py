@@ -1,6 +1,16 @@
+"""
+Kondensacja pytania przed retrievalem: dopytanie typu "a jaki ma pokoj?" jest
+przepisywane na samodzielne zapytanie na podstawie poprzednich pytan.
+Dziala tylko z dostawca ollama; przy innych zapytanie wraca bez zmian.
+"""
+
+import logging
 import os
 
-from .client import chat
+from .ollama_client import chat
+from .provider import OLLAMA, current_provider
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_QUESTIONS = 5
 MAX_LENGTH = 200
@@ -29,15 +39,26 @@ SYSTEM_PROMPT = (
 )
 
 
-def _previous_questions(history: list[dict] | None, limit: int) -> list[str]:
+def _previous_questions(history: list[dict[str, str]] | None, limit: int) -> list[str]:
     if not history or limit <= 0:
         return []
     questions = [m.get("content") or "" for m in history if m.get("role") == "user"]
     return [q for q in questions if q.strip()][-limit:]
 
 
-def condense(query: str, history: list[dict] | None = None) -> str:
+def _is_enabled() -> bool:
     if os.getenv("CHAT_CONDENSE", "on").strip().lower() in OFF_VALUES:
+        return False
+    return current_provider() == OLLAMA
+
+
+def condense(query: str, history: list[dict[str, str]] | None = None) -> str:
+    """Zwraca samodzielne zapytanie do wyszukiwarki albo `query` bez zmian.
+
+    Bez zmian, gdy: kondensacja wylaczona (CHAT_CONDENSE), dostawca inny niz
+    ollama, brak poprzednich pytan, blad modelu lub nieprawidlowa odpowiedz.
+    """
+    if not _is_enabled():
         return query
 
     limit = int(os.getenv("CHAT_CONDENSE_QUESTIONS") or DEFAULT_QUESTIONS)
@@ -52,7 +73,8 @@ def condense(query: str, history: list[dict] | None = None) -> str:
 
     try:
         rewritten = chat(system=SYSTEM_PROMPT, user=user, temperature=0.0, num_ctx=4096)
-    except Exception:
+    except Exception as e:  # noqa: BLE001 - kondensacja jest opcjonalna
+        logger.warning("Kondensacja zapytania nie powiodla sie, uzywam oryginalu: %s", e)
         return query
 
     lines = [line.strip() for line in (rewritten or "").splitlines() if line.strip()]

@@ -1,10 +1,6 @@
 """
-Publiczny interfejs modulu RAG dla src/backend/llm/.
-
-Jedyna funkcja, jakiej potrzebuje warstwa LLM: build_context(query, k_mordor,
-k_other) -> (prompt_z_kontekstem, lista_sciezek_do_obrazow). Reszta modulu RAG
-(encoder/vectorstore/retriever) jest szczegolem implementacyjnym. Wywoluje go
-llm/generate.py przy kazdym pytaniu z /chat.
+Publiczny interfejs RAG dla warstwy LLM: build_context(query) -> (tekst
+kontekstu do promptu, sciezki plikow-obrazow). Wywoluje go llm/generate.py.
 """
 
 from .retriever import Retriever
@@ -57,21 +53,16 @@ def build_context(
     staff_limit: int = DEFAULT_STAFF_LIMIT,
     retriever: Retriever | None = None,
 ) -> tuple[str, list[str]]:
-    """Zwraca (prompt_z_kontekstem, lista_sciezek_do_obrazow) dla danego
-    zapytania uzytkownika.
+    """Zwraca (prompt_z_kontekstem, lista_sciezek_do_obrazow) dla zapytania.
 
-    - prompt_z_kontekstem: tekstowe fragmenty (content_type == "text") ze
-      zrodel wpisanych w prompt, oznaczone zrodlem/etykieta dla identyfikacji,
-      w trzech osobnych sekcjach: trafienia z wyszukiwarki pracownikow (o ile
-      zapytanie zawiera nazwisko z USOS), potem zrodla oficjalne, potem mordor. Kazda grupa ma wlasna pule miejsc (k_other / k_mordor),
-      zeby 118k chunkow mordoru nie zagluszalo 1.4k wpisow oficjalnych.
-    - lista_sciezek_do_obrazow: sciezki plikow dla trafien z
-      content_type == "image" (np. plany budynkow, skany z mordoru) - warstwa
-      LLM/frontend decyduje, jak je dolaczyc do odpowiedzi.
+    - prompt_z_kontekstem: fragmenty tekstowe oznaczone zrodlem, w trzech
+      sekcjach: pracownik (gdy zapytanie zawiera nazwisko z USOS), zrodla
+      oficjalne, mordor. Mordor i zrodla oficjalne maja osobne pule miejsc
+      (k_mordor / k_other), zeby duzo wiekszy mordor ich nie zagluszal.
+    - lista_sciezek_do_obrazow: wartosci trafien z content_type == "image"
+      (skany, plany) - dolaczane do odpowiedzi jako pliki.
 
-    Jesli nie znaleziono zadnych trafien (np. pusty vectorstore), zwraca
-    pusty prompt i pusta liste obrazow - nie rzuca wyjatku, zeby brak danych
-    zrodlowych nie wywalal calego flow zapytanie -> odpowiedz.
+    Brak trafien (np. pusty vectorstore) daje ("", []) zamiast wyjatku.
     """
     retriever = retriever or _get_default_retriever()
     staff = retriever.retrieve_staff(query, limit=staff_limit)

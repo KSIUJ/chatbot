@@ -3,7 +3,17 @@ Testy rewrite.py - kondensacja zapytania przed retrievalem. Bez wywolan
 modelu: chat() jest podmieniany na atrape.
 """
 
+import logging
+
+import pytest
+
 from src.backend.llm import rewrite
+
+
+@pytest.fixture(autouse=True)
+def ollama_provider(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    monkeypatch.delenv("CHAT_CONDENSE", raising=False)
 
 
 def test_returns_query_unchanged_without_history():
@@ -18,14 +28,17 @@ def test_uses_model_output_when_valid(monkeypatch):
     assert rewrite.condense("a jakie ma dyzury?", history) == "jakie dyzury ma Jan Kowalski"
 
 
-def test_falls_back_to_query_when_model_fails(monkeypatch):
+def test_falls_back_to_query_and_logs_when_model_fails(monkeypatch, caplog):
     def boom(**kwargs):
         raise RuntimeError("ollama padlo")
 
     monkeypatch.setattr(rewrite, "chat", boom)
     history = [{"role": "user", "content": "kim jest Jan Kowalski"}]
 
-    assert rewrite.condense("a jakie ma dyzury?", history) == "a jakie ma dyzury?"
+    with caplog.at_level(logging.WARNING, logger=rewrite.__name__):
+        assert rewrite.condense("a jakie ma dyzury?", history) == "a jakie ma dyzury?"
+
+    assert "ollama padlo" in caplog.text
 
 
 def test_rejects_empty_and_overlong_output(monkeypatch):
@@ -68,6 +81,18 @@ def test_ignores_assistant_messages_in_history(monkeypatch):
 def test_switch_off_skips_model(monkeypatch):
     monkeypatch.setenv("CHAT_CONDENSE", "off")
     monkeypatch.setattr(rewrite, "chat", lambda **kwargs: "NIE POWINNO ZOSTAC UZYTE")
+    history = [{"role": "user", "content": "kim jest Jan Kowalski"}]
+
+    assert rewrite.condense("a jakie ma dyzury?", history) == "a jakie ma dyzury?"
+
+
+@pytest.mark.parametrize("provider", ["claude", "openrouter", "cursor"])
+def test_non_ollama_provider_skips_model(monkeypatch, provider):
+    def must_not_be_called(**kwargs):
+        raise AssertionError("kondensacja nie powinna wolac Ollamy")
+
+    monkeypatch.setenv("LLM_PROVIDER", provider)
+    monkeypatch.setattr(rewrite, "chat", must_not_be_called)
     history = [{"role": "user", "content": "kim jest Jan Kowalski"}]
 
     assert rewrite.condense("a jakie ma dyzury?", history) == "a jakie ma dyzury?"

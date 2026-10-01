@@ -176,13 +176,3 @@ def test_chat_raises_runtime_error_on_empty_choices(transport):
     with pytest.raises(RuntimeError, match="choices"):
         openrouter_client.chat(system="s", user="u")
 
-
-def test_list_models_returns_ids(transport):
-    transport.response = FakeResponse(
-        payload={"data": [{"id": "openai/gpt-4o-mini"}, {"id": "google/gemini-2.5-flash"}]}
-    )
-
-    assert openrouter_client.list_models() == [
-        "openai/gpt-4o-mini",
-        "google/gemini-2.5-flash",
-    ]

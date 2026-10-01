@@ -1,25 +1,11 @@
 """
-Lokalny encoder tekst -> wektor (embeddingi), bez zaleznosci od zadnego API.
+Lokalny encoder tekst -> wektor (sentence-transformers), bez zewnetrznego API.
 
-Wybor modelu: sdadas/mmlw-roberta-large (domyslnie) - dedykowany model
-embeddingowy dla jezyka polskiego z projektu MMLW (OPI PIB / ICM), publicznie
-dostepny na HuggingFace i uruchamiany lokalnie przez sentence-transformers,
-co jest spojne z reszta stosu (lokalny LLM Qwen, bez kluczy API). Domyslny
-`all-MiniLM-L6-v2` jest trenowany glownie na danych angielskich i wypada
-zauwazalnie slabiej na polskich zdaniach - patrz benchmark PIRB
-(https://huggingface.co/spaces/sdadas/pirb), gdzie modele MMLW gora nad
-ogolnymi modelami wielojezycznymi na polskich zadaniach retrieval.
-
-Jesli materialy z mordoru okaza sie w znacznej czesci anglojezyczne, rozsadna
-alternatywa to
-`intfloat/multilingual-e5-large` lub `BAAI/bge-m3` (oba wielojezyczne,
-wymagaja tego samego prefiksu query/passage co e5). Model mozna podmienic bez
-zmian w kodzie przez zmienna srodowiskowa RAG_EMBEDDING_MODEL.
-
-Modele w rodzinie MMLW/e5 sa asymetryczne: query i dokumenty koduje sie z
-innym prefiksem tekstowym. Domyslne prefiksy ponizej odpowiadaja konwencji
-MMLW/e5 ("zapytanie: " dla zapytan, brak prefiksu dla dokumentow) - jesli
-podmienimy model na jeden bez tej konwencji, oba prefiksy nalezy ustawic na "".
+Domyslny model sdadas/mmlw-roberta-large (polski model embeddingowy MMLW);
+inny ustawia RAG_EMBEDDING_MODEL. Modele MMLW/e5 sa asymetryczne: zapytania
+koduje sie z prefiksem "zapytanie: ", dokumenty bez prefiksu
+(RAG_QUERY_PREFIX / RAG_PASSAGE_PREFIX; pusta zmienna = wartosc domyslna).
+Zmiana modelu lub prefiksu dokumentow wymaga ponownego ingestu.
 """
 
 import os
@@ -40,7 +26,7 @@ def _default_device() -> str:
             return "mps"
         if torch.cuda.is_available():
             return "cuda"
-    except Exception:
+    except (ImportError, AttributeError):
         pass
     return "cpu"
 
@@ -52,7 +38,7 @@ class Encoder:
         device: str | None = None,
         query_prefix: str | None = None,
         passage_prefix: str | None = None,
-    ):
+    ) -> None:
         from sentence_transformers import SentenceTransformer
 
         self.model_name = model_name or os.getenv("RAG_EMBEDDING_MODEL") or DEFAULT_MODEL_NAME
@@ -67,10 +53,6 @@ class Encoder:
         self.device = device or _default_device()
         print(f"[encoder] model={self.model_name} device={self.device}")
         self._model = SentenceTransformer(self.model_name, device=self.device)
-
-    def embed(self, text: str) -> list[float]:
-        """Koduje pojedynczy fragment (dokument/passage) na wektor."""
-        return self.embed_batch([text])[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Koduje liste fragmentow (dokumentow/passages) na wektory."""
