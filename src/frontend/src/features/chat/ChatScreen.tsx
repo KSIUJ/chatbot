@@ -84,7 +84,10 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
           isLoading={chat.isLoadingConversation}
           loadError={chat.loadError}
           copiedId={chat.copiedId}
+          feedbackErrorId={chat.feedbackErrorId}
           onCopy={chat.copy}
+          onRate={chat.rate}
+          onReport={chat.report}
           onRetry={() => void chat.retry()}
           onReload={reloadConversation}
         />

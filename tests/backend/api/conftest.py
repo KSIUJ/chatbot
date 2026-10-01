@@ -49,7 +49,8 @@ TEST_ENV = {
 def auth_env(monkeypatch: pytest.MonkeyPatch):
     for name, value in TEST_ENV.items():
         monkeypatch.setenv(name, value)
-    for name in ("AUTH_COOKIE_SECURE", "AUTH_FRONTEND_URL", "OIDC_POST_LOGOUT_REDIRECT_URI", "OIDC_SCOPES"):
+    for name in ("AUTH_COOKIE_SECURE", "AUTH_FRONTEND_URL", "OIDC_POST_LOGOUT_REDIRECT_URI", "OIDC_SCOPES",
+                 "OIDC_ADMIN_GROUP"):
         monkeypatch.delenv(name, raising=False)
     for name in ("CHAT_HISTORY_MAX_PER_USER", "CHAT_HISTORY_RETENTION_DAYS", "CHAT_HISTORY_PURGE_INTERVAL_HOURS"):
         monkeypatch.delenv(name, raising=False)

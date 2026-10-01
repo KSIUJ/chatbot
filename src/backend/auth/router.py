@@ -5,7 +5,7 @@ Za nginxem sa pod /api/auth/* (nginx obcina /api), backend widzi /auth/*.
     GET  /auth/login     -> 303 do Keycloaka (state, nonce, PKCE S256)
     GET  /auth/callback  -> wymiana kodu, walidacja, sprawdzenie grupy,
                             ciasteczko sesji, 303 na frontend
-    GET  /auth/me        -> dane zalogowanego czlonka albo 401/403/503
+    GET  /auth/me        -> dane zalogowanego czlonka (z is_admin) albo 401/403/503
     POST /auth/logout    -> kasuje sesje, zwraca adres wylogowania z Keycloaka
 """
 
@@ -21,12 +21,12 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..llm.language import parse_language
-from ..models import User
 from ..response import LogoutResponse, UserResponse
 from .crypto import DecryptionError, LoginState, TokenCipher
-from .dependencies import get_oidc_client, get_token_cipher, require_member
+from .dependencies import get_oidc_client, get_token_cipher, require_member_context
 from .oidc import OIDCClient, OIDCError, ProviderUnavailableError
 from .service import (
+    AuthenticatedMember,
     create_session,
     decrypt_id_token,
     delete_session,
@@ -190,9 +190,13 @@ def callback(
 
 
 @router.get("/me", response_model=UserResponse)
-def me(user: User = Depends(require_member)) -> UserResponse:
-    """Zalogowany czlonek KSI - frontend wola to przy starcie."""
-    return UserResponse(id=user.id, email=user.email, username=user.username, name=user.name)
+def me(member: AuthenticatedMember = Depends(require_member_context)) -> UserResponse:
+    """Zalogowany czlonek KSI - frontend wola to przy starcie. is_admin
+    pozwala pokazac panel adminow (dostep i tak sprawdza /admin/*)."""
+    user = member.user
+    return UserResponse(
+        id=user.id, email=user.email, username=user.username, name=user.name, is_admin=member.is_admin
+    )
 
 
 @router.post("/logout", response_model=LogoutResponse)
