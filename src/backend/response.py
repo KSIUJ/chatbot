@@ -1,14 +1,18 @@
+"""Schematy odpowiedzi API."""
+
 from datetime import datetime
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
+
 from .models import MessageRole
-#tu szablony odpowiedzi
+
 
 class MessageResponse(BaseModel):
     id: str
     role: MessageRole
     content: str
     created_at: datetime
-    sources: list[str] = [] #info od RAGa
+    sources: list[str] = Field(default_factory=list)  # pliki zrodlowe z RAG-a
 
 
 class ConversationResponse(BaseModel):

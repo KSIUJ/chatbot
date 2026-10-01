@@ -17,13 +17,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
-from dotenv import load_dotenv
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .models import Conversation, Message
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -144,11 +141,9 @@ def make_room_for_new_conversation(db: Session, user_id: str, max_per_user: int)
     return delete_conversations(db, list(db.execute(stmt).scalars()))
 
 
-def purge_expired_conversations(
-    db: Session, retention_days: int, now: datetime | None = None
-) -> int:
+def purge_expired_conversations(db: Session, retention_days: int) -> int:
     """Kasuje rozmowy (takze stare anonimowe) bez nowej wiadomosci od retention_days."""
-    cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=retention_days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     expired = select(Conversation.id).where(Conversation.last_message_at < cutoff)
     # podzapytanie zamiast listy id - dowolnie duza zaleglosc w jednym DELETE
     db.execute(delete(Message).where(Message.conversation_id.in_(expired)))

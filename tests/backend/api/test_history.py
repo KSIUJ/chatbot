@@ -308,11 +308,11 @@ def test_stats_do_not_shrink_when_conversations_are_deleted(client):
     login(client, client.keycloak, "alice")
     cid = _ask(client, "pierwsze")
     _ask(client, "drugie", cid)
-    before = client.get("/api/stats").json()
+    before = client.get("/stats").json()
 
     client.delete(f"/conversations/{cid}")
 
-    after = client.get("/api/stats").json()
+    after = client.get("/stats").json()
     assert before["total_prompts"] == 2
     assert after == before
 
@@ -323,4 +323,4 @@ def test_regenerate_does_not_count_as_new_prompt(client):
 
     client.post("/chat", json={"message": "pytanie", "conversation_id": cid, "regenerate": True})
 
-    assert client.get("/api/stats").json()["total_prompts"] == 1
+    assert client.get("/stats").json()["total_prompts"] == 1

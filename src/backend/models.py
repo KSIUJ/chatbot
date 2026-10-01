@@ -27,6 +27,7 @@ class MessageRole(str, enum.Enum):
     USER = "user"
     ASSISTANT = "assistant"
 
+
 class User(Base):
     """Konto uzytkownika zakladane automatycznie przy pierwszym logowaniu przez
     Keycloak KSI (OIDC). Tozsamoscia jest `oidc_sub` - email i nazwa sa tylko
@@ -57,9 +58,6 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
 
-    def __repr__(self) -> str:  # pragma: no cover
-        return f"User(id={self.id!r}, oidc_sub={self.oidc_sub!r})"
-
 
 class Conversation(Base):
     """Rozmowa w historii uzytkownika (sidebar). Nieuzywane dluzej niz
@@ -84,9 +82,6 @@ class Conversation(Base):
         order_by="Message.created_at",
     )
 
-    def __repr__(self) -> str:  # pragma: no cover
-        return f"Conversation(id={self.id!r}, user_id={self.user_id!r})"
-
 
 class Message(Base):
     __tablename__ = "messages"
@@ -102,20 +97,14 @@ class Message(Base):
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 
-    def __repr__(self) -> str:  # pragma: no cover
-        return f"Message(id={self.id!r}, role={self.role!r})"
-
 
 class UsageCounter(Base):
-    """Liczniki statystyk (/api/stats), ktore nie maleja, gdy stare rozmowy
+    """Liczniki statystyk (GET /stats), ktore nie maleja, gdy stare rozmowy
     sa kasowane - liczenie wierszy w messages spadaloby po kazdym czyszczeniu."""
     __tablename__ = "usage_counters"
 
     key: Mapped[str] = mapped_column(String(50), primary_key=True)
     value: Mapped[int] = mapped_column(default=0, nullable=False)
-
-    def __repr__(self) -> str:  # pragma: no cover
-        return f"UsageCounter(key={self.key!r}, value={self.value!r})"
 
 
 class UserSession(Base):
@@ -144,6 +133,3 @@ class UserSession(Base):
     id_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
-
-    def __repr__(self) -> str:  # pragma: no cover
-        return f"UserSession(user_id={self.user_id!r}, expires_at={self.expires_at!r})"

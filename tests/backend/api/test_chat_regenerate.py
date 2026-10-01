@@ -6,6 +6,7 @@ model jako historia.
 
 import pytest
 
+from src.backend import main as main_module
 from src.backend.models import MessageRole
 
 
@@ -82,3 +83,43 @@ def test_regenerate_on_new_conversation_still_logs_question(client):
         (MessageRole.USER, "kim jest Jan Kowalski"),
         (MessageRole.ASSISTANT, "odpowiedz na: kim jest Jan Kowalski"),
     ]
+
+
+def _break_llm(monkeypatch):
+    def broken_llm(message, history=None, **kwargs):
+        raise RuntimeError("LLM down")
+
+    monkeypatch.setattr(main_module, "rag_answer", broken_llm)
+
+
+def test_failed_followup_leaves_conversation_unchanged(client, monkeypatch):
+    cid = client.post("/chat", json={"message": "kim jest Jan Kowalski"}).json()["conversation_id"]
+    before = _messages(client, cid)
+    working_llm = main_module.rag_answer
+    _break_llm(monkeypatch)
+
+    with pytest.raises(RuntimeError):
+        client.post("/chat", json={"message": "a jakie ma dyzury?", "conversation_id": cid})
+
+    assert _messages(client, cid) == before
+    assert client.get("/stats").json()["total_prompts"] == 1
+
+    # ponowienie po awarii dostaje czysta historie, bez wiszacego pytania
+    monkeypatch.setattr(main_module, "rag_answer", working_llm)
+    client.post("/chat", json={"message": "a jakie ma dyzury?", "conversation_id": cid})
+    assert [m["role"] for m in client.calls[-1]["history"]] == ["user", "assistant"]
+    assert len(_messages(client, cid)) == 4
+
+
+def test_failed_regenerate_keeps_previous_answer(client, monkeypatch):
+    cid = client.post("/chat", json={"message": "kim jest Jan Kowalski"}).json()["conversation_id"]
+    before = _messages(client, cid)
+    _break_llm(monkeypatch)
+
+    with pytest.raises(RuntimeError):
+        client.post(
+            "/chat",
+            json={"message": "kim jest Jan Kowalski", "conversation_id": cid, "regenerate": True},
+        )
+
+    assert _messages(client, cid) == before
