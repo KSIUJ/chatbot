@@ -1,5 +1,4 @@
 [tool.pytest.ini_options]
-# Jeden korzen importow dla testow, alembica i Dockera: katalog glowny repo
-# (importy "src.backend.*" i "pipeline.*").
+# Testy importuja z katalogu glownego repo ("src.backend.*", "pipeline.*").
 pythonpath = ["."]
 testpaths = ["tests"]

@@ -1,8 +1,6 @@
 services:
-  # Lokalny model (LLM_PROVIDER=ollama, domyslny) - opcjonalny profil "ollama".
-  # Bez niego (LLM_PROVIDER=claude/cursor/openrouter) ten serwis w ogole nie
-  # startuje: `docker compose up` sam z siebie nie sciaga kilku GB modelu.
-  # Wlaczenie: `docker compose --profile ollama up -d --build`.
+  # Lokalny model dla LLM_PROVIDER=ollama. Startuje tylko z profilem:
+  #   docker compose --profile ollama up -d --build
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -15,9 +13,7 @@ services:
       timeout: 5s
       retries: 12
 
-  # Jednorazowa "ollama pull" zanim backend wystartuje - inaczej pierwszy
-  # /chat trafiaby w model, ktorego jeszcze nie ma (kilka GB pobierania).
-  # Tylko w profilu "ollama" - patrz komentarz przy serwisie ollama.
+  # Jednorazowe pobranie modelu OLLAMA_MODEL do wolumenu ollama-data.
   ollama-pull:
     image: ollama/ollama:latest
     profiles: ["ollama"]
@@ -32,18 +28,14 @@ services:
       - "ollama pull ${OLLAMA_MODEL:-qwen2.5:14b}"
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     restart: unless-stopped
-    # Logowanie KSI (OIDC_*, AUTH_*) przychodzi z .env - bez OIDC_CLIENT_SECRET,
-    # OIDC_REDIRECT_URI i AUTH_SECRET_KEY backend nie wystartuje (patrz .env.example).
+    # Konfiguracja (logowanie OIDC, dostawca LLM) z .env - patrz .env.example.
     env_file:
       - .env
     environment:
       DATABASE_URL: sqlite:////app/db/chatbot.db
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
     volumes:
       - chatbot-db:/app/db
       - chatbot-dataset:/app/dataset
@@ -58,11 +50,7 @@ services:
       retries: 12
 
   frontend:
-    build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api
+    build: ./src/frontend
     restart: unless-stopped
     depends_on:
       backend:
