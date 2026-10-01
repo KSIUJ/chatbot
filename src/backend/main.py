@@ -28,13 +28,16 @@ from .database import (
     get_db,
     get_messages,
 )
+from .auth.service import purge_expired_sessions
 from .history import (
+    CleanupJob,
     HistorySettings,
     conversation_lock,
     delete_user_conversation,
     get_history_settings,
     list_user_conversations,
     make_room_for_new_conversation,
+    purge_expired_conversations,
     retention_loop,
 )
 from .llm.generate import answer as rag_answer
@@ -51,9 +54,20 @@ from .response import (
 )
 
 
+def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:
+    """Zadania sprzatania w tle: nieuzywane rozmowy i wygasle sesje logowania."""
+    return {
+        "conversations": lambda db: purge_expired_conversations(db, settings.retention_days),
+        "sessions": purge_expired_sessions,
+    }
+
+
 def start_retention_task() -> asyncio.Task[None]:
-    """Petla kasujaca wygasle rozmowy (testy podmieniaja to na no-op)."""
-    return asyncio.create_task(retention_loop(SessionLocal, get_history_settings()))
+    """Petla sprzatajaca w tle (testy podmieniaja to na no-op)."""
+    settings = get_history_settings()
+    return asyncio.create_task(
+        retention_loop(SessionLocal, settings.purge_interval_hours, cleanup_jobs(settings))
+    )
 
 
 @contextlib.asynccontextmanager
