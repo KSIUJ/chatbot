@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 
+from .llm.language import DEFAULT_LANGUAGE, Language
+
 # Id rozmowy = 32 znaki hex (uuid4().hex). Nowa rozmowa dostaje id od klienta,
 # zeby ponowienie po bledzie/przerwaniu trafialo do tej samej rozmowy.
 CONVERSATION_ID_PATTERN = r"^[0-9a-f]{32}$"
@@ -15,3 +17,5 @@ class ChatRequest(BaseModel):
     # None albo nieistniejace id = nowa rozmowa
     conversation_id: str | None = Field(default=None, pattern=CONVERSATION_ID_PATTERN)
     regenerate: bool = False
+    # jezyk interfejsu - w nim model odpowiada
+    language: Language = DEFAULT_LANGUAGE

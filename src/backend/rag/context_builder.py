@@ -1,9 +1,13 @@
 """
-Publiczny interfejs RAG dla warstwy LLM: build_context(query) -> (tekst
-kontekstu do promptu, sciezki plikow-obrazow). Wywoluje go llm/generate.py.
+Publiczny interfejs RAG dla warstwy LLM: retrieve_context(query) -> tekst
+kontekstu do promptu, sciezki plikow-obrazow i zrodla odpowiedzi. Wywoluje go
+llm/generate.py; build_context zwraca same (tekst, obrazy).
 """
 
+from typing import NamedTuple
+
 from .retriever import Retriever
+from .sources import Source, collect_sources
 from .staff import DEFAULT_LIMIT as DEFAULT_STAFF_LIMIT
 
 DEFAULT_K_MORDOR = 5
@@ -46,6 +50,13 @@ def _section(header: str, hits: list[dict]) -> str | None:
     return header + "\n\n" + "\n\n".join(fragments)
 
 
+class RagContext(NamedTuple):
+    prompt: str
+    image_paths: list[str]
+    # zrodla wszystkich trafien uzytych w kontekscie (tekst i obrazy)
+    sources: list[Source]
+
+
 def build_context(
     query: str,
     k_mordor: int = DEFAULT_K_MORDOR,
@@ -53,7 +64,21 @@ def build_context(
     staff_limit: int = DEFAULT_STAFF_LIMIT,
     retriever: Retriever | None = None,
 ) -> tuple[str, list[str]]:
-    """Zwraca (prompt_z_kontekstem, lista_sciezek_do_obrazow) dla zapytania.
+    """(prompt_z_kontekstem, lista_sciezek_do_obrazow) - patrz retrieve_context."""
+    result = retrieve_context(
+        query, k_mordor=k_mordor, k_other=k_other, staff_limit=staff_limit, retriever=retriever
+    )
+    return result.prompt, result.image_paths
+
+
+def retrieve_context(
+    query: str,
+    k_mordor: int = DEFAULT_K_MORDOR,
+    k_other: int = DEFAULT_K_OTHER,
+    staff_limit: int = DEFAULT_STAFF_LIMIT,
+    retriever: Retriever | None = None,
+) -> RagContext:
+    """Kontekst dla zapytania: prompt, obrazy i zrodla.
 
     - prompt_z_kontekstem: fragmenty tekstowe oznaczone zrodlem, w trzech
       sekcjach: pracownik (gdy zapytanie zawiera nazwisko z USOS), zrodla
@@ -61,8 +86,9 @@ def build_context(
       (k_mordor / k_other), zeby duzo wiekszy mordor ich nie zagluszal.
     - lista_sciezek_do_obrazow: wartosci trafien z content_type == "image"
       (skany, plany) - dolaczane do odpowiedzi jako pliki.
+    - zrodla: strony, profile USOS i pliki z tych trafien, bez powtorzen.
 
-    Brak trafien (np. pusty vectorstore) daje ("", []) zamiast wyjatku.
+    Brak trafien (np. pusty vectorstore) daje ("", [], []) zamiast wyjatku.
     """
     retriever = retriever or _get_default_retriever()
     staff = retriever.retrieve_staff(query, limit=staff_limit)
@@ -84,4 +110,4 @@ def build_context(
     hits = staff + other + groups["mordor"]
     image_paths = [h["value"] for h in hits if h.get("content_type") == "image"]
 
-    return "\n\n".join(sections), image_paths
+    return RagContext("\n\n".join(sections), image_paths, collect_sources(hits))

@@ -2,7 +2,11 @@ import { useEffect, useRef } from 'react';
 import { Bot, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
 import type { ThemeStyle } from '../preferences/themes';
-import type { ChatMessage } from './conversations';
+import { isMarker, type ChatMessage } from './conversations';
+import MessageSources from './MessageSources';
+
+// How close to the bottom (px) still counts as "reading the latest answer".
+const NEAR_BOTTOM_PX = 120;
 
 interface ChatMessageListProps {
   t: ThemeStyle;
@@ -29,10 +33,34 @@ export default function ChatMessageList({
   t, lang, messages, isWaiting, isLoading, loadError, copiedId, onCopy, onRetry, onReload,
 }: ChatMessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  // updated on scroll, so a reader who scrolled up is not pulled down
+  const isNearBottomRef = useRef(true);
 
+  const last = messages.at(-1);
+  const streamingText = last?.status === 'streaming' ? last.text : null;
+
+  // a new bubble or the typing indicator: scroll to it
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isWaiting]);
+  }, [messages.length, isWaiting]);
+
+  // the streamed answer grows (and at the end gets its sources): follow it
+  // only when the reader is at the bottom
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    const main = mainRef.current;
+    const isStreaming = streamingText !== null;
+    const justFinished = wasStreamingRef.current && !isStreaming;
+    wasStreamingRef.current = isStreaming;
+    if ((!isStreaming && !justFinished) || main === null || !isNearBottomRef.current) return;
+    main.scrollTop = main.scrollHeight;
+  }, [streamingText]);
+
+  const handleScroll = () => {
+    const main = mainRef.current;
+    if (main !== null) isNearBottomRef.current = main.scrollHeight - main.scrollTop - main.clientHeight < NEAR_BOTTOM_PX;
+  };
 
   if (isLoading) {
     return (
@@ -57,10 +85,12 @@ export default function ChatMessageList({
     );
   }
 
-  const lastId = messages.at(-1)?.id;
+  const lastId = last?.id;
+  // typing dots only until the first words of the answer arrive
+  const showTyping = isWaiting && streamingText === null;
 
   return (
-    <main className="flex-1 p-4 pt-8 overflow-y-auto space-y-6">
+    <main ref={mainRef} onScroll={handleScroll} className="flex-1 p-4 pt-8 overflow-y-auto space-y-6">
       {/* empty conversation: greeting instead of a fake stored message */}
       {messages.length === 0 && !isWaiting && (
         <div className="flex gap-4 max-w-4xl mx-auto w-full">
@@ -73,9 +103,15 @@ export default function ChatMessageList({
 
       {messages.map((msg) => {
         const isUser = msg.sender === 'user';
-        const isMarker = msg.status !== undefined;
-        const text = msg.status === 'stopped' ? lang.stopped : msg.status === 'error' ? lang.error : msg.text;
+        const marker = isMarker(msg);
+        const isStreaming = msg.status === 'streaming';
+        // a stopped answer keeps the text received so far, with a note below
+        const hasPartialText = msg.status === 'stopped' && msg.text !== '';
+        const markerText = msg.status === 'stopped' ? lang.stopped : lang.error;
+        const text = marker && !hasPartialText ? markerText : msg.text;
         const isCopied = copiedId === msg.id;
+        const canCopy = !isUser && msg.status === undefined;
+        const sources = !isUser && msg.status === undefined ? msg.sources ?? [] : [];
 
         return (
           <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -85,12 +121,14 @@ export default function ChatMessageList({
               <div
                 className={`p-5 relative rounded-2xl border text-[15px] leading-relaxed whitespace-pre-wrap break-words
                   ${isUser ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}
-                  ${isMarker ? 'opacity-80 italic' : ''}
-                  ${!isUser && !isMarker ? 'pr-14' : ''}`}
+                  ${marker && !hasPartialText ? 'opacity-80 italic' : ''}
+                  ${canCopy || isStreaming ? 'pr-14' : ''}`}
+                aria-busy={isStreaming || undefined}
               >
                 {text}
+                {hasPartialText && <span className="block mt-2 text-sm italic opacity-80">{markerText}</span>}
 
-                {!isUser && !isMarker && (
+                {canCopy && (
                   <button
                     type="button"
                     onClick={() => onCopy(msg)}
@@ -103,8 +141,10 @@ export default function ChatMessageList({
                 )}
               </div>
 
+              {sources.length > 0 && <MessageSources t={t} lang={lang} sources={sources} />}
+
               {/* retry only on the latest failed / stopped answer */}
-              {isMarker && msg.id === lastId && (
+              {marker && msg.id === lastId && (
                 <button
                   type="button"
                   onClick={onRetry}
@@ -123,7 +163,7 @@ export default function ChatMessageList({
       })}
 
       {/* waiting for the answer */}
-      {isWaiting && (
+      {showTyping && (
         <div className="flex gap-4 max-w-4xl mx-auto w-full">
           <BotAvatar t={t} />
           <div role="status" className={`px-5 rounded-2xl rounded-tl-sm border flex items-center h-13 ${t.msgBox}`}>

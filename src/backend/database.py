@@ -4,7 +4,7 @@ i licznikach statystyk. Schemat bazy tworza wylacznie migracje Alembica."""
 from __future__ import annotations
 
 import os
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 
 from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .history import make_title
 from .models import Conversation, Message, MessageRole, UsageCounter, User, utcnow
+from .rag.sources import Source
 
 DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./chatbot.db"
 
@@ -29,6 +30,12 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def get_session_factory() -> sessionmaker[Session]:
+    """Dependency FastAPI: fabryka sesji dla kodu, ktory dziala dluzej niz
+    samo zapytanie (strumien odpowiedzi otwiera wlasne sesje)."""
+    return SessionLocal
 
 
 # USERS
@@ -104,7 +111,7 @@ def add_message(
     conversation_id: str,
     role: MessageRole,
     content: str,
-    sources: list[str] | None = None,
+    sources: Sequence[Source] | None = None,
 ) -> Message:
     """Dopisuje wiadomosc i commituje (razem z niezacommitowanymi zmianami sesji)."""
     conversation = get_conversation(db, conversation_id)
@@ -115,7 +122,7 @@ def add_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
-        sources=sources or [],
+        sources=list(sources or []),
     )
     db.add(message)
 
