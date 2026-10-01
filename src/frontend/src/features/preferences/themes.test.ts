@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DARK_CLASS,
   DEFAULT_THEME_PREFERENCE,
+  THEME_KEYS,
   THEME_PREFERENCES,
+  applyTheme,
   isDarkTheme,
   parseThemePreference,
   resolveTheme,
-  themeStyles,
 } from './themes';
 import { translations } from './languages';
 
@@ -41,7 +43,7 @@ describe('resolveTheme', () => {
 describe('theme options', () => {
   it('lists the system option first and every concrete theme after it', () => {
     expect(THEME_PREFERENCES[0]).toBe('systemowy');
-    expect([...THEME_PREFERENCES.slice(1)].sort()).toEqual(Object.keys(themeStyles).sort());
+    expect([...THEME_PREFERENCES.slice(1)].sort()).toEqual([...THEME_KEYS].sort());
   });
 
   it('has a label for every option in every language', () => {
@@ -55,5 +57,33 @@ describe('theme options', () => {
   it('marks only the dark theme as dark', () => {
     expect(isDarkTheme('ciemny')).toBe(true);
     expect(isDarkTheme('jasny')).toBe(false);
+  });
+});
+
+describe('applyTheme', () => {
+  const makeRoot = (initial: string[] = []) => {
+    const classes = new Set(initial);
+    const classList = {
+      toggle: (name: string, force?: boolean) => {
+        const on = force ?? !classes.has(name);
+        if (on) classes.add(name);
+        else classes.delete(name);
+        return on;
+      },
+    };
+    return { root: { classList }, classes };
+  };
+
+  it('adds the dark class for the dark theme', () => {
+    const { root, classes } = makeRoot();
+    applyTheme(root, 'ciemny');
+    expect(classes.has(DARK_CLASS)).toBe(true);
+  });
+
+  it('removes the dark class for the light theme', () => {
+    const { root, classes } = makeRoot([DARK_CLASS, 'other']);
+    applyTheme(root, 'jasny');
+    expect(classes.has(DARK_CLASS)).toBe(false);
+    expect(classes.has('other')).toBe(true);
   });
 });

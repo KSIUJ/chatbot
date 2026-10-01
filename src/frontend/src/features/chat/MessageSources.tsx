@@ -1,7 +1,6 @@
 import { useId, useState } from 'react';
 import { ChevronDown, FileText, Globe, User, type LucideIcon } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
-import type { ThemeStyle } from '../preferences/themes';
 import { sourceHref, type Source, type SourceKind } from './sources';
 
 const KIND_ICONS: Record<SourceKind, LucideIcon> = {
@@ -11,13 +10,12 @@ const KIND_ICONS: Record<SourceKind, LucideIcon> = {
 };
 
 interface MessageSourcesProps {
-  t: ThemeStyle;
   lang: Translation;
   sources: readonly Source[];
 }
 
 // Collapsed "Sources (n)" toggle under a bot answer.
-export default function MessageSources({ t, lang, sources }: MessageSourcesProps) {
+export default function MessageSources({ lang, sources }: MessageSourcesProps) {
   const [isOpen, setIsOpen] = useState(false);
   const listId = useId();
 
@@ -28,7 +26,7 @@ export default function MessageSources({ t, lang, sources }: MessageSourcesProps
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
         aria-controls={listId}
-        className={`flex items-center gap-1 p-1.5 rounded-md font-medium ${t.textMuted} ${t.hover}`}
+        className="flex items-center gap-1 px-1.5 py-1 rounded-control font-medium text-muted transition-colors hover:bg-surface-hover hover:text-fg"
       >
         <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
         {lang.sources(sources.length)}
@@ -40,7 +38,7 @@ export default function MessageSources({ t, lang, sources }: MessageSourcesProps
           const kindName = lang.sourceKinds[source.kind];
           const href = sourceHref(source);
           return (
-            <li key={`${index}-${source.title}`} className={`flex items-center gap-2 min-w-0 ${t.textMuted}`}>
+            <li key={`${index}-${source.title}`} className="flex items-center gap-2 min-w-0 text-muted">
               <span className="shrink-0" title={kindName}>
                 <Icon size={14} aria-hidden="true" />
                 <span className="sr-only">{kindName}:</span>
@@ -53,7 +51,7 @@ export default function MessageSources({ t, lang, sources }: MessageSourcesProps
                   target="_blank"
                   rel="noopener noreferrer"
                   title={source.title}
-                  className={`truncate underline underline-offset-2 hover:opacity-80 ${t.text}`}
+                  className="ksi-link truncate"
                 >
                   {source.title}
                 </a>

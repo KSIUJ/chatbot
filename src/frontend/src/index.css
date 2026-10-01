@@ -1,1 +1,357 @@
 @import "tailwindcss";
+
+/* `dark:` utilities follow the .dark class on <html> (set from the theme
+   preference), not the media query - "jasny" / "ciemny" override the device. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   Fonts of the KSI Keycloak theme, self-hosted (SIL OFL 1.1): Inter and
+   Source Sans Pro. latin + latin-ext subsets - latin-ext carries the Polish
+   letters. Same files and unicode ranges as auth.ksi.sh.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./assets/fonts/inter-latin-ext-400_700.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./assets/fonts/inter-latin-400_700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/fonts/source-sans-pro-latin-ext-600.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/fonts/source-sans-pro-latin-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/source-sans-pro-latin-ext-700.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/fonts/source-sans-pro-latin-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ==========================================================================
+   KSI tokens - copied 1:1 from the KSI Keycloak theme (ksi-login.css).
+   Flat surfaces, hairline borders instead of shadows, 4/8 px radii.
+   The only accent is the KSI brand colour #2B2D40 in light mode and white in
+   dark mode. Dark mode is the `.dark` class here (Keycloak: .pf-v5-theme-dark).
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- brand palette --- */
+  --ksi-brand: #2b2d40;
+  --ksi-brand-600: #3b3e57;
+  --ksi-brand-500: #4d5273;
+  --ksi-brand-400: #5a6089;
+  --ksi-brand-300: #a6abcb;
+  --ksi-brand-900: #1d1e2b;
+
+  --ksi-mist: #eef0f4;
+  --ksi-mist-200: #e2e6ec;
+  --ksi-mist-300: #ccd2dc;
+
+  --ksi-danger: #c0392f;
+  --ksi-success: #1a7f4b;
+  --ksi-warning: #9a5b06;
+
+  /* --- semantic roles: light --- */
+  --ksi-bg: #eef0f4;
+  --ksi-bg-accent: #e2e6ec;
+  --ksi-surface: #ffffff;
+  --ksi-surface-sunken: #f5f6f9;
+  --ksi-surface-hover: #f0f2f6;
+  --ksi-text: var(--ksi-brand);
+  --ksi-text-muted: #5b6076;
+  --ksi-text-faint: #868b9e;
+  --ksi-border: #dadee6;
+  --ksi-border-strong: #bcc3d0;
+  --ksi-link: var(--ksi-brand);
+  --ksi-accent: var(--ksi-brand);
+  --ksi-accent-soft: rgba(43, 45, 64, 0.07);
+
+  --ksi-btn-bg: var(--ksi-brand);
+  --ksi-btn-bg-hover: var(--ksi-brand-600);
+  --ksi-btn-fg: #ffffff;
+
+  /* Text of a danger alert. Keycloak keeps PatternFly's own value here
+     (--pf-v5-global--danger-color--200 in light mode). */
+  --ksi-danger-text: #a30000;
+
+  /* Graphics for a light background. */
+  --ksi-logo-img: url('./assets/ksi-logo-brand.svg');
+  --ksi-facade-img: url('./assets/wmi-facade-brand.svg');
+  --ksi-facade-opacity: 0.28;
+
+  /* --- typography --- */
+  --ksi-font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ksi-font-head: 'Source Sans Pro', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* --- depth: borders do the work, shadows stay faint --- */
+  --ksi-shadow: 0 1px 2px rgba(29, 30, 43, 0.08);
+  --ksi-shadow-raised: 0 4px 12px -6px rgba(29, 30, 43, 0.22);
+  --ksi-ring: 0 0 0 3px rgba(43, 45, 64, 0.16);
+  --ksi-transition: 120ms ease;
+
+  /* --- chat-only roles, built from the palette above --- */
+  --chat-user-bg: var(--ksi-brand);
+  --chat-user-fg: #ffffff;
+  --chat-user-border: transparent;
+  --chat-backdrop: rgba(29, 30, 43, 0.45);
+}
+
+/* Dark navy instead of neutral black - the brand colour stays perceptible. */
+.dark {
+  color-scheme: dark;
+
+  --ksi-bg: #14151f;
+  --ksi-bg-accent: #0f1018;
+  --ksi-surface: #1e2030;
+  --ksi-surface-sunken: #191b28;
+  --ksi-surface-hover: #272a3c;
+  --ksi-text: #e7e9f0;
+  --ksi-text-muted: #999db3;
+  --ksi-text-faint: #767a90;
+  --ksi-border: #2e3145;
+  --ksi-border-strong: #41455c;
+  --ksi-link: var(--ksi-text);
+  --ksi-accent: #ffffff;
+  --ksi-accent-soft: rgba(255, 255, 255, 0.08);
+  --ksi-btn-bg: var(--ksi-brand-400);
+  --ksi-btn-bg-hover: #4271d8;
+  --ksi-btn-fg: #ffffff;
+
+  --ksi-logo-img: url('./assets/ksi-logo-white.svg');
+  --ksi-facade-img: url('./assets/wmi-facade-white.svg');
+  --ksi-facade-opacity: 0.07;
+
+  --ksi-danger: #f0736a;
+  --ksi-success: #4ade80;
+  --ksi-warning: #e0a337;
+  --ksi-danger-text: var(--ksi-danger);
+
+  --ksi-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --ksi-shadow-raised: 0 4px 12px -6px rgba(0, 0, 0, 0.7);
+  --ksi-ring: 0 0 0 3px rgba(255, 255, 255, 0.2);
+
+  --chat-user-bg: var(--ksi-surface-hover);
+  --chat-user-fg: var(--ksi-text);
+  --chat-user-border: var(--ksi-border-strong);
+  --chat-backdrop: rgba(0, 0, 0, 0.6);
+}
+
+/* Semantic Tailwind utilities on top of the tokens (bg-surface, text-muted,
+   border-line, bg-btn ...). `inline` keeps the var() references, so the
+   utilities switch with the .dark class. */
+@theme inline {
+  --color-page: var(--ksi-bg);
+  --color-page-accent: var(--ksi-bg-accent);
+  --color-surface: var(--ksi-surface);
+  --color-surface-sunken: var(--ksi-surface-sunken);
+  --color-surface-hover: var(--ksi-surface-hover);
+  --color-fg: var(--ksi-text);
+  --color-muted: var(--ksi-text-muted);
+  --color-faint: var(--ksi-text-faint);
+  --color-line: var(--ksi-border);
+  --color-line-strong: var(--ksi-border-strong);
+  --color-link: var(--ksi-link);
+  --color-accent: var(--ksi-accent);
+  --color-accent-soft: var(--ksi-accent-soft);
+  --color-btn: var(--ksi-btn-bg);
+  --color-btn-hover: var(--ksi-btn-bg-hover);
+  --color-btn-fg: var(--ksi-btn-fg);
+  --color-danger: var(--ksi-danger);
+  --color-danger-text: var(--ksi-danger-text);
+  --color-user: var(--chat-user-bg);
+  --color-user-fg: var(--chat-user-fg);
+  --color-user-line: var(--chat-user-border);
+  --color-backdrop: var(--chat-backdrop);
+
+  --font-sans: var(--ksi-font-body);
+  --font-head: var(--ksi-font-head);
+
+  --shadow-ksi: var(--ksi-shadow);
+  --shadow-raised: var(--ksi-shadow-raised);
+  --shadow-ring: var(--ksi-ring);
+}
+
+@theme {
+  /* KSI type scale: 12 / 13 / 14 / 16 / 20 px */
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.45;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.3;
+
+  /* 4 px for controls, 8 px for cards and panels */
+  --radius-control: 4px;
+  --radius-card: 8px;
+}
+
+@layer base {
+  body {
+    background: var(--ksi-bg);
+    color: var(--ksi-text);
+    font-family: var(--ksi-font-body);
+    font-size: 0.875rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Keycloak's focus: a ring with a gap in the surface colour, not an outline
+     hugging the edge (on a dark button that reads as a second border). */
+  button:focus-visible,
+  a:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--ksi-surface), 0 0 0 4px var(--ksi-accent);
+  }
+
+  @media (forced-colors: active) {
+    button:focus-visible,
+    a:focus-visible {
+      outline: 2px solid CanvasText;
+      outline-offset: 2px;
+    }
+  }
+}
+
+@layer components {
+  /* Silhouette of the WMiI UJ building behind the login card, exactly as on
+     auth.ksi.sh: centred, so the card sits over the entrance. */
+  .ksi-facade {
+    position: fixed;
+    inset: 0;
+    background-image: var(--ksi-facade-img);
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: 118% auto;
+    opacity: var(--ksi-facade-opacity);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @media (max-width: 85rem) {
+    .ksi-facade { background-size: 1600px auto; }
+  }
+
+  @media (max-width: 48rem) {
+    .ksi-facade { background-size: 1200px auto; }
+  }
+
+  @media (forced-colors: active) {
+    .ksi-facade { display: none; }
+  }
+
+  /* KSI logo in the variant for the current background (brand / white). */
+  .ksi-logo {
+    background: var(--ksi-logo-img) center / contain no-repeat;
+  }
+
+  /* Buttons (Keycloak: .pf-v5-c-button) - 36 px high, 4 px radius, flat. */
+  .ksi-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    padding: 0.375rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-family: var(--ksi-font-body);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color var(--ksi-transition), color var(--ksi-transition),
+                border-color var(--ksi-transition), box-shadow var(--ksi-transition);
+  }
+
+  .ksi-btn:disabled {
+    cursor: default;
+  }
+
+  .ksi-btn-primary {
+    background: var(--ksi-btn-bg);
+    color: var(--ksi-btn-fg);
+  }
+
+  .ksi-btn-primary:hover,
+  .ksi-btn-primary:focus-visible {
+    background: var(--ksi-btn-bg-hover);
+  }
+
+  .ksi-btn-secondary {
+    background: var(--ksi-surface);
+    color: var(--ksi-text);
+    border-color: var(--ksi-border-strong);
+    font-weight: 500;
+  }
+
+  .ksi-btn-secondary:hover {
+    background: var(--ksi-surface-hover);
+    border-color: var(--ksi-text-faint);
+  }
+
+  /* Danger alert (Keycloak: .pf-v5-c-alert.pf-m-danger). */
+  .ksi-alert-danger {
+    border: 1px solid color-mix(in srgb, var(--ksi-danger) 45%, transparent);
+    background: color-mix(in srgb, var(--ksi-danger) 8%, var(--ksi-surface));
+  }
+
+  /* Text links are always underlined - colour alone is too close to the
+     secondary text in a palette of one brand colour plus neutrals. */
+  .ksi-link {
+    color: var(--ksi-link);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+  }
+
+  .ksi-link:hover {
+    text-decoration-thickness: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

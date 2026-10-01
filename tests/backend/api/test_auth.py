@@ -78,6 +78,25 @@ def test_login_ignores_unsupported_language(client):
         assert "ui_locales" not in query
 
 
+def test_login_without_prompt_keeps_sso(client):
+    query = _login_query(client, "/auth/login")
+
+    assert "prompt" not in query
+
+
+def test_login_can_force_the_login_form_for_another_account(client):
+    query = _login_query(client, "/auth/login?ui_locales=pl&prompt=login")
+
+    assert query["prompt"] == "login"
+    assert query["ui_locales"] == "pl"
+
+
+def test_login_drops_other_prompt_values(client):
+    for value in ("none", "consent", "select_account", "login none", "LOGIN", ""):
+        query = _login_query(client, f"/auth/login?prompt={value}")
+        assert "prompt" not in query
+
+
 def test_login_when_keycloak_down_returns_to_frontend_with_error(client):
     client.keycloak.down = True
 

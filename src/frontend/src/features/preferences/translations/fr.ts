@@ -7,9 +7,9 @@ export const fr: Translation = {
   appTitle: 'Chatbot WMiI UJ',
   loading: 'Chargement...',
   ksiWebsite: 'Site du KSI',
-  authorization: 'Autorisation',
   logIn: 'Se connecter avec KSI',
   tryAgain: 'Réessayer',
+  logInAnotherAccount: 'Se connecter avec un autre compte',
   redirecting: 'Redirection...',
   loginErrors: {
     login_incomplete:
