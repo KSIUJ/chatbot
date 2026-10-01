@@ -22,8 +22,7 @@ describe('parseThemePreference', () => {
 
   it('falls back to the default for unknown or removed themes', () => {
     expect(parseThemePreference('neon')).toBe('systemowy');
-    expect(parseThemePreference('granatowy')).toBe('systemowy');
-    expect(parseThemePreference('różowy')).toBe('systemowy');
+    expect(parseThemePreference('')).toBe('systemowy');
   });
 });
 

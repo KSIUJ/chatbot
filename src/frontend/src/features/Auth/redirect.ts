@@ -23,6 +23,11 @@ export const NO_SESSION_ERRORS: ReadonlySet<LoginError | null> = new Set<LoginEr
   'session_expired',
 ]);
 
+// "Not logged in" is the normal state without a session, not an error to show.
+export function visibleLoginError(error: LoginError | null): LoginError | null {
+  return error === 'not_authenticated' ? null : error;
+}
+
 type ReadableStorage = Pick<Storage, 'getItem'>;
 type WritableStorage = Pick<Storage, 'setItem' | 'removeItem'>;
 
