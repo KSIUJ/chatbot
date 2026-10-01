@@ -76,15 +76,23 @@ def _fail(settings: AuthSettings, code: str) -> RedirectResponse:
     return response
 
 
+def _parse_prompt(value: str | None) -> str | None:
+    """Jedyna przepuszczana wartosc OIDC prompt to "login" (logowanie innym
+    kontem); reszta (none, consent, ...) jest pomijana."""
+    return "login" if value == "login" else None
+
+
 @router.get("/login")
 def login(
     ui_locales: str | None = None,
+    prompt: str | None = None,
     settings: AuthSettings = Depends(get_auth_settings),
     oidc: OIDCClient = Depends(get_oidc_client),
     cipher: TokenCipher = Depends(get_token_cipher),
 ) -> RedirectResponse:
     """Zaczyna logowanie: przekierowanie do Keycloaka, w jezyku interfejsu
-    (ui_locales) - nieobslugiwana wartosc jest pomijana."""
+    (ui_locales) - nieobslugiwana wartosc jest pomijana. prompt=login wymusza
+    formularz logowania mimo sesji SSO (np. po odmowie dla konta spoza grupy)."""
     login_state = LoginState.generate()
     try:
         url = oidc.build_authorization_url(
@@ -92,6 +100,7 @@ def login(
             login_state.nonce,
             login_state.code_challenge,
             ui_locales=parse_language(ui_locales),
+            prompt=_parse_prompt(prompt),
         )
     except ProviderUnavailableError as exc:
         logger.error("cannot start login: %s", exc)

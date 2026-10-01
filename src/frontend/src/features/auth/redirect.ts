@@ -23,10 +23,17 @@ export const NO_SESSION_ERRORS: ReadonlySet<LoginError | null> = new Set<LoginEr
   'session_expired',
 ]);
 
+export interface LoginOptions {
+  // Ask Keycloak for its login form even with a live SSO session (OIDC
+  // prompt=login) - "log in with another account" after a refused login.
+  forceLogin?: boolean;
+}
+
 // Backend login endpoint; the language is passed on to the KSI login page
 // (OIDC ui_locales), so it opens in the same language as the chat.
-export function loginUrl(apiBase: string, language: string): string {
-  return `${apiBase}/auth/login?ui_locales=${encodeURIComponent(language)}`;
+export function loginUrl(apiBase: string, language: string, options: LoginOptions = {}): string {
+  const prompt = options.forceLogin === true ? '&prompt=login' : '';
+  return `${apiBase}/auth/login?ui_locales=${encodeURIComponent(language)}${prompt}`;
 }
 
 // "Not logged in" is the normal state without a session, not an error to show.
