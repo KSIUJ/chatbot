@@ -4,6 +4,8 @@ Wspolne wywolania HTTP dla klientow LLM z kluczem w naglowku Bearer
 i zamiana bledow HTTP/sieci na RuntimeError z czytelnym komunikatem.
 """
 
+import contextlib
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 import requests
@@ -58,6 +60,27 @@ class BearerApi:
             response.encoding = "utf-8"
         self.raise_for_status(response)
         return response.json()
+
+    @contextlib.contextmanager
+    def stream(self, method: str, path: str, *, timeout: float, **kwargs) -> Iterator[requests.Response]:
+        """Zapytanie z stream=True; polaczenie zamyka sie po wyjsciu z bloku
+        (takze gdy czytajacy przerwie odpowiedz w polowie)."""
+        try:
+            response = requests.request(
+                method,
+                f"{self.base_url}{path}",
+                headers=self.headers(),
+                timeout=timeout,
+                stream=True,
+                **kwargs,
+            )
+        except requests.RequestException as e:
+            raise RuntimeError(f"Blad polaczenia z {self.label}: {e}") from e
+        try:
+            self.raise_for_status(response)
+            yield response
+        finally:
+            response.close()
 
 
 def build_messages(

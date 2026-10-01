@@ -2,9 +2,33 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from .models import MessageRole
+from .rag.sources import SourceKind
+
+
+class SourceResponse(BaseModel):
+    """Zrodlo odpowiedzi: strona wydzialu, profil USOS albo plik z mordora."""
+    kind: SourceKind
+    title: str = Field(min_length=1)
+    url: str | None = None
+
+
+def parse_sources(raw: object) -> list[SourceResponse]:
+    """Zrodla zapisane w Message.sources. Stare wpisy (sciezki plikow jako
+    napisy) i wpisy niepasujace do schematu sa pomijane."""
+    if not isinstance(raw, list):
+        return []
+    sources = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            sources.append(SourceResponse.model_validate(entry))
+        except ValidationError:
+            continue
+    return sources
 
 
 class MessageResponse(BaseModel):
@@ -12,7 +36,7 @@ class MessageResponse(BaseModel):
     role: MessageRole
     content: str
     created_at: datetime
-    sources: list[str] = Field(default_factory=list)  # pliki zrodlowe z RAG-a
+    sources: list[SourceResponse] = Field(default_factory=list)  # zrodla z RAG-a
 
 
 class ConversationResponse(BaseModel):
