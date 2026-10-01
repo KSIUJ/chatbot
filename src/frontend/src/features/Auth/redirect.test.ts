@@ -6,6 +6,7 @@ import {
   markRedirect,
   readLastRedirect,
   shouldAutoRedirect,
+  visibleLoginError,
 } from './redirect';
 
 class MemoryStorage {
@@ -54,6 +55,15 @@ describe('shouldAutoRedirect', () => {
 
   it('ignores a mark from the future (clock change)', () => {
     expect(shouldAutoRedirect(null, NOW + 10_000, NOW)).toBe(true);
+  });
+});
+
+describe('visibleLoginError', () => {
+  it('hides "not logged in" and keeps real errors', () => {
+    expect(visibleLoginError('not_authenticated')).toBeNull();
+    expect(visibleLoginError(null)).toBeNull();
+    expect(visibleLoginError('not_member')).toBe('not_member');
+    expect(visibleLoginError('login_incomplete')).toBe('login_incomplete');
   });
 });
 

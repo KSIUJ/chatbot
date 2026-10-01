@@ -1,8 +1,7 @@
 """Wspolne fixtury testow API: konfiguracja OIDC w env, atrapa Keycloaka
-(httpx.MockTransport + prawdziwie podpisane ID tokeny) i klient z baza w tmp."""
+(z fake_keycloak.py), atrapa LLM i klient z baza w tmp."""
 
 from __future__ import annotations
-
 
 import httpx
 import pytest
@@ -38,6 +37,7 @@ TEST_ENV = {
     "FRONTEND_ORIGINS": "http://localhost:5173",
 }
 
+
 @pytest.fixture
 def auth_env(monkeypatch: pytest.MonkeyPatch):
     for name, value in TEST_ENV.items():
@@ -52,6 +52,7 @@ def auth_env(monkeypatch: pytest.MonkeyPatch):
     auth_dependencies._oidc_client_for.cache_clear()
     yield
     get_auth_settings.cache_clear()
+    get_history_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
 
@@ -91,10 +92,7 @@ def client(auth_env, keycloak: FakeKeycloak, session_factory, monkeypatch: pytes
         return {"answer": f"odpowiedz na: {message}", "files": []}
 
     monkeypatch.setattr(main_module, "rag_answer", fake_answer)
-    # startup wola init_db() na prawdziwym DATABASE_URL (lokalny chatbot.db) -
-    # testy maja wlasna baze w tmp_path
-    monkeypatch.setattr(main_module, "init_db", lambda: None)
-    # ani petla kasujaca stare rozmowy (dzialalaby na prawdziwej bazie)
+    # petla kasujaca stare rozmowy dzialalaby na prawdziwej bazie (DATABASE_URL)
     monkeypatch.setattr(main_module, "start_retention_task", lambda: None)
     app = main_module.app
     app.dependency_overrides[get_db] = override_get_db

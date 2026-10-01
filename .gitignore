@@ -1,58 +1,32 @@
 # secrets
 .env
-*.local
+.env.*
+!.env.example
 
-# scraped data and the RAG index (only the folder placeholders are tracked)
-data/*/*
-!data/*/.gitkeep
-dataset/*
-!dataset/.gitkeep
-*.pdf
-*.doc
-*.docx
-pipeline/scrapers/usos/.last_request_time
-
-# local databases and their backups
+# scraped data, RAG index, local databases
+data/
+dataset/
 *.db
 *.db.bak*
+pipeline/scrapers/usos/.last_request_time
 
 # python
 .venv/
-venv/
-env/
 __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
-.mypy_cache/
 
-# node / frontend build
-node_modules
-dist
-dist-ssr
+# frontend
+node_modules/
+dist/
 coverage/
 *.tsbuildinfo
 .eslintcache
-.stylelintcache
 
-# logs
-logs
+# logs, editors, OS
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# editors and OS
-.vscode/*
-!.vscode/extensions.json
-.idea
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.superpowers/

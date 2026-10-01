@@ -1,7 +1,10 @@
 """
-Wlasciwy scraper danych pracownikow WMI z USOS API UJ: kontakt i dyzury
-("office_hours"), zapisywane jako znormalizowany dataset JSON pod katem
-pozniejszego wykorzystania w RAG.
+Scraper danych pracownikow WMI z USOS API UJ (kontakt, pokoj, dyzury,
+zainteresowania). Zapisuje znormalizowany dataset JSON w data/usos/staff/,
+ktory czyta pipeline/ingest/from_usos.py.
+
+Uzycie (z katalogu glownego repo):
+    python pipeline/scrapers/usos/scrape_staff.py [--with-email]
 """
 
 import argparse
@@ -83,7 +86,7 @@ def save_staff_dataset(fac_id: str, employees: list[dict]) -> str:
 
 
 def run_scrape(fac_id: str = FAC_ID, with_email: bool = False) -> dict:
-    """Uruchamia pelny scraping: dyskonta ID, fetch kazdego, zapis datasetu.
+    """Uruchamia pelny scraping: lista ID, dane kazdego pracownika, zapis datasetu.
 
     Bledy pojedynczych pracownikow sa logowane na stderr i pomijane - reszta
     scrapingu jest kontynuowana. with_email=True dolacza email (wymaga
@@ -99,10 +102,7 @@ def run_scrape(fac_id: str = FAC_ID, with_email: bool = False) -> dict:
 
     for user_id in staff_ids:
         try:
-            if with_email:
-                raw = fetch_employee_detail(user_id, authenticated=True)
-            else:
-                raw = fetch_employee_detail(user_id)
+            raw = fetch_employee_detail(user_id, authenticated=with_email)
         except UsosApiError as e:
             print(
                 f"[error] Pomijam pracownika {user_id}: status {e.status_code}\n{e.body}",

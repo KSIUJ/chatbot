@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Bot, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
-import type { ThemeStyle } from './themes';
-import type { Translation } from './languages';
-import type { ChatMessage } from '../../lib/conversations';
+import type { Translation } from '../preferences/languages';
+import type { ThemeStyle } from '../preferences/themes';
+import type { ChatMessage } from './conversations';
 
 interface ChatMessageListProps {
   t: ThemeStyle;
@@ -37,7 +37,10 @@ export default function ChatMessageList({
   if (isLoading) {
     return (
       <main className="flex-1 flex items-center justify-center">
-        <Loader2 className={`w-6 h-6 animate-spin ${t.textMuted}`} aria-label="Loading" />
+        <div role="status">
+          <Loader2 className={`w-6 h-6 animate-spin ${t.textMuted}`} />
+          <span className="sr-only">{lang.loading}</span>
+        </div>
       </main>
     );
   }
@@ -123,8 +126,9 @@ export default function ChatMessageList({
       {isWaiting && (
         <div className="flex gap-4 max-w-4xl mx-auto w-full">
           <BotAvatar t={t} />
-          <div className={`px-5 rounded-2xl rounded-tl-sm border flex items-center h-13 ${t.msgBox}`}>
-            <div className="flex gap-1.5 items-center">
+          <div role="status" className={`px-5 rounded-2xl rounded-tl-sm border flex items-center h-13 ${t.msgBox}`}>
+            <span className="sr-only">{lang.waitingPlaceholder}</span>
+            <div className="flex gap-1.5 items-center" aria-hidden="true">
               <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '150ms' }} />
               <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '300ms' }} />

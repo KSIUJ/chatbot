@@ -3,29 +3,35 @@ Konwersja plikow z data/mordor/ (pobranych przez
 pipeline/scrapers/mordor/files_downloader.py) do wspolnego schematu Document.
 
 - Pliki tekstowe (pdf z warstwa tekstu, docx, txt) sa zamieniane na markdown
-  (pymupdf4llm.to_markdown) i dzielone RecursiveCharacterTextSplitterem, z
-  metadanymi source_file, file_type, directory.
-- Obrazy (.jpg/.jpeg/.png) i pdf-y bez warstwy tekstu (skany) nie daja sie
-  sensownie zamienic na tekst, wiec sa osobnymi dokumentami typu "image"
-  (content_type="image", value=sciezka do pliku), z embed_text zbudowanym z
-  nazwy pliku i katalogu nadrzednego - prowizorka do czasu dodania OCR/opisow.
+  (pymupdf4llm) i dzielone na chunki (chunking.py), z metadanymi
+  source_file, file_type, directory, chunk_index.
+- Obrazy (.jpg/.jpeg/.png) i pdf-y bez warstwy tekstu (skany) sa dokumentami
+  typu "image" (value = sciezka pliku); embed_text to sciezka wzgledna bez
+  rozszerzenia, z separatorami zamienionymi na spacje.
 """
 
+from __future__ import annotations
+
 import os
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from src.backend.rag.schema import Document, make_id
+
+from .chunking import make_splitter
+
+if TYPE_CHECKING:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 BASE_DIR = os.path.join("data", "mordor")
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
-
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+TEXT_EXTENSIONS = {".docx", ".txt"}
 
 PROGRESS_EVERY = 200
 
 
-def _iter_files(directory):
+def _iter_files(directory: str) -> Iterator[str]:
     for root, _, filenames in os.walk(directory):
         for filename in filenames:
             if filename.startswith("."):
@@ -34,6 +40,7 @@ def _iter_files(directory):
 
 
 def _pdf_has_text_layer(file_path: str, min_chars: int = 20) -> bool:
+    """Czy pdf ma co najmniej min_chars znakow tekstu; nieczytelny pdf -> False (skan)."""
     import fitz
 
     fitz.TOOLS.mupdf_display_errors(False)
@@ -55,11 +62,10 @@ def _pdf_has_text_layer(file_path: str, min_chars: int = 20) -> bool:
         doc.close()
 
 
-def _text_documents(file_path: str) -> list[Document]:
+def _text_documents(
+    file_path: str, splitter: RecursiveCharacterTextSplitter
+) -> list[Document]:
     import pymupdf4llm
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-    pymupdf4llm.use_layout(False)
 
     file_name = os.path.basename(file_path)
     parent_dir = os.path.dirname(file_path)
@@ -74,15 +80,8 @@ def _text_documents(file_path: str) -> list[Document]:
     if not clean_text:
         return []
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        length_function=len,
-    )
-    chunks = splitter.split_text(clean_text)
-
     documents = []
-    for index, chunk in enumerate(chunks):
+    for index, chunk in enumerate(splitter.split_text(clean_text)):
         metadata = {
             "source_file": file_name,
             "file_type": file_extension,
@@ -102,11 +101,11 @@ def _text_documents(file_path: str) -> list[Document]:
     return documents
 
 
-def _image_document(file_path: str) -> Document:
+def _image_document(file_path: str, directory: str) -> Document:
     file_name = os.path.basename(file_path)
     parent_dir = os.path.dirname(file_path)
 
-    rel_path = os.path.relpath(file_path, BASE_DIR)
+    rel_path = os.path.relpath(file_path, directory)
     rel_no_ext = os.path.splitext(rel_path)[0]
     embed_text = rel_no_ext.replace(os.sep, " ").replace("_", " ").replace("-", " ")
 
@@ -121,26 +120,30 @@ def _image_document(file_path: str) -> Document:
 
 
 def load_documents(directory: str = BASE_DIR) -> list[Document]:
-    """Wczytuje i normalizuje wszystkie pliki z data/mordor/ do listy Document."""
+    """Wczytuje i normalizuje wszystkie pliki z `directory` do listy Document."""
     if not os.path.exists(directory):
         print(f"[mordor] Katalog {directory} nie istnieje, pomijam.")
         return []
 
+    import pymupdf4llm
+
+    pymupdf4llm.use_layout(False)
+    splitter = make_splitter()
+
     documents: list[Document] = []
     processed = 0
     for file_path in _iter_files(directory):
-        _, ext = os.path.splitext(file_path)
-        ext = ext.lower()
+        ext = os.path.splitext(file_path)[1].lower()
 
         if ext == ".pdf":
             if _pdf_has_text_layer(file_path):
-                documents.extend(_text_documents(file_path))
+                documents.extend(_text_documents(file_path, splitter))
             else:
-                documents.append(_image_document(file_path))
-        elif ext in {".docx", ".txt"}:
-            documents.extend(_text_documents(file_path))
+                documents.append(_image_document(file_path, directory))
+        elif ext in TEXT_EXTENSIONS:
+            documents.extend(_text_documents(file_path, splitter))
         elif ext in IMAGE_EXTENSIONS:
-            documents.append(_image_document(file_path))
+            documents.append(_image_document(file_path, directory))
         else:
             continue
 

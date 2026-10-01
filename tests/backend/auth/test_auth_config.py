@@ -2,13 +2,17 @@
 Testy jednostkowe konfiguracji logowania (env), kryptografii i dopasowania grup.
 """
 
+import time
 import unicodedata
+from types import SimpleNamespace
 
 import pytest
+from cryptography import fernet
 
 from src.backend.auth.crypto import DecryptionError, LoginState, TokenCipher, pkce_challenge
 from src.backend.auth.service import is_member
-from src.backend.auth.settings import AuthConfigError, load_auth_settings
+from src.backend.auth.settings import LOGIN_STATE_MAX_AGE_SECONDS, AuthConfigError, load_auth_settings
+from src.backend.config import parse_origins
 
 BASE_ENV = {
     "OIDC_ISSUER": "https://auth.ksi.sh/realms/ksi",
@@ -61,11 +65,31 @@ def test_all_missing_variables_reported_at_once():
         ({"OIDC_REQUIRED_GROUP": "   "}, "OIDC_REQUIRED_GROUP"),
         ({"AUTH_FRONTEND_URL": "//evil.example"}, "AUTH_FRONTEND_URL"),
         ({"AUTH_SESSION_MAX_AGE_HOURS": "abc"}, "AUTH_SESSION_MAX_AGE_HOURS"),
+        ({"OIDC_HTTP_TIMEOUT": "0"}, "OIDC_HTTP_TIMEOUT"),
+        ({"OIDC_HTTP_TIMEOUT": "-5"}, "OIDC_HTTP_TIMEOUT"),
+        ({"OIDC_HTTP_TIMEOUT": "abc"}, "OIDC_HTTP_TIMEOUT"),
+        ({"OIDC_HTTP_TIMEOUT": "inf"}, "OIDC_HTTP_TIMEOUT"),
     ],
 )
 def test_invalid_values_are_rejected(override, fragment):
     with pytest.raises(AuthConfigError, match=fragment):
         load_auth_settings({**BASE_ENV, **override})
+
+
+def test_http_timeout_accepts_positive_fraction():
+    s = load_auth_settings({**BASE_ENV, "OIDC_HTTP_TIMEOUT": "2.5"})
+
+    assert s.http_timeout_seconds == 2.5
+
+
+def test_frontend_origins_are_trimmed_and_deduplicated():
+    s = load_auth_settings({**BASE_ENV, "FRONTEND_ORIGINS": " http://localhost:5173/ , ,https://chat.ksi.sh"})
+
+    assert s.allowed_origins == ("https://chat.ksi.sh", "http://localhost:5173")
+
+
+def test_parse_origins_skips_blanks_and_trailing_slash():
+    assert parse_origins("a.example, https://b.example/ ,, /") == ["a.example", "https://b.example"]
 
 
 def test_is_member_normalizes_unicode_and_matches_exactly():
@@ -91,13 +115,19 @@ def test_cipher_roundtrip_and_key_separation():
         a.decrypt("garbage")
 
 
-def test_login_state_seal_roundtrip_and_expiry():
+def test_login_state_seal_roundtrip_and_expiry(monkeypatch):
     cipher = TokenCipher("k" * 40)
     state = LoginState.generate()
+    sealed = state.seal(cipher)
 
-    assert LoginState.unseal(state.seal(cipher), cipher, max_age_seconds=600) == state
+    assert LoginState.unseal(sealed, cipher, max_age_seconds=LOGIN_STATE_MAX_AGE_SECONDS) == state
     assert state.code_challenge == pkce_challenge(state.code_verifier)
     assert 43 <= len(state.code_verifier) <= 128  # RFC 7636
+
+    later = time.time() + LOGIN_STATE_MAX_AGE_SECONDS + 5
+    monkeypatch.setattr(fernet, "time", SimpleNamespace(time=lambda: later))
+    with pytest.raises(DecryptionError):
+        LoginState.unseal(sealed, cipher, max_age_seconds=LOGIN_STATE_MAX_AGE_SECONDS)
 
 
 def test_pkce_challenge_matches_rfc7636_example():

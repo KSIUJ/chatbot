@@ -1,12 +1,8 @@
 """
-Baza wektorowa (ChromaDB, PersistentClient) dla RAG.
+Baza wektorowa (ChromaDB, PersistentClient w dataset/vectorstore/).
 
-Jedna kolekcja dla wszystkich trzech zrodel danych (mordor/strony/usos) -
-zrodlo jest zapisane w metadanych kazdego wpisu (`source`), zeby retrieval
-przeszukiwal wszystko naraz zamiast osobnych indeksow per zrodlo.
-
-Dane trzymane sa w dataset/vectorstore/ (katalog `dataset/` jest juz
-przygotowany w repo pod docelowy znormalizowany dataset - patrz README).
+Jedna kolekcja dla wszystkich zrodel (mordor/strony/usos); zrodlo jest w
+metadanych kazdego wpisu (`source`), a search_split filtruje po nim grupy.
 """
 
 import os
@@ -33,7 +29,9 @@ def _hit(id_: str, value: str, metadata: dict, distance: float | None) -> dict:
 
 
 class VectorStore:
-    def __init__(self, persist_dir: str = DEFAULT_PERSIST_DIR, encoder: Encoder | None = None):
+    def __init__(
+        self, persist_dir: str = DEFAULT_PERSIST_DIR, encoder: Encoder | None = None
+    ) -> None:
         import chromadb
 
         self.persist_dir = persist_dir
@@ -64,6 +62,7 @@ class VectorStore:
         )
 
     def filter_new(self, documents: list[Document]) -> list[Document]:
+        """Dokumenty, ktorych id jeszcze nie ma w kolekcji."""
         if not documents:
             return []
 
@@ -80,6 +79,7 @@ class VectorStore:
         return self._collection
 
     def get_by_ids(self, ids: list[str]) -> list[dict]:
+        """Wpisy o podanych id, w kolejnosci `ids` (brakujace sa pomijane)."""
         if not ids:
             return []
 
@@ -109,13 +109,10 @@ class VectorStore:
             hits.append(_hit(id_, value, metadata, distance))
         return hits
 
-    def search(self, query: str, top_k: int = 5) -> list[dict]:
-        """Zwraca top-k najbardziej pasujacych wpisow dla danego zapytania."""
-        return self._query(self.encoder.embed_query(query), top_k)
-
     def search_split(
         self, query: str, k_mordor: int = 5, k_other: int = 5
     ) -> dict[str, list[dict]]:
+        """Top-k wpisow osobno dla mordoru i dla zrodel oficjalnych (strony, usos)."""
         embedding = self.encoder.embed_query(query)
         return {
             "mordor": self._query(embedding, k_mordor, GROUP_MORDOR),
@@ -123,6 +120,7 @@ class VectorStore:
         }
 
     def delete_source(self, source: str) -> int:
+        """Usuwa wszystkie wpisy zrodla; zwraca liczbe usunietych."""
         before = self._collection.count()
         self._collection.delete(where={"source": source})
         return before - self._collection.count()
