@@ -154,13 +154,70 @@ const angielski: Translation = {
   loadError: 'Could not load this conversation.',
 };
 
+const francuski: Translation = {
+  htmlLang: 'fr',
+  languageName: 'Français',
+  appTitle: APP_TITLE,
+  loading: 'Chargement...',
+  ksiWebsite: 'Site du KSI',
+  authorization: 'Autorisation',
+  logIn: 'Se connecter avec KSI',
+  tryAgain: 'Réessayer',
+  redirecting: 'Redirection...',
+  loginErrors: {
+    login_incomplete:
+      "La connexion n'a pas abouti. Vérifiez que ce site peut enregistrer des cookies, puis réessayez.",
+    not_authenticated: 'Connectez-vous avec votre compte KSI.',
+    session_expired: 'Votre session a expiré. Reconnectez-vous.',
+    not_member: 'Le chatbot est réservé aux membres du KSI (groupe Członek).',
+    provider_unavailable: 'Le serveur de connexion KSI est indisponible. Réessayez dans un instant.',
+    access_denied: 'La connexion a été annulée.',
+    invalid_state: 'La connexion a pris trop de temps ou a été lancée dans un autre onglet. Réessayez.',
+    login_failed: 'La connexion a échoué. Réessayez.',
+    forbidden_origin: 'La requête a été refusée. Rechargez la page.',
+  },
+  newChat: 'Nouvelle discussion',
+  recent: 'Récentes',
+  noChats: 'Aucune conversation',
+  untitled: 'Conversation',
+  deleteChat: 'Supprimer la conversation',
+  deleteConfirm: 'Supprimer cette conversation ?',
+  historyNote: (max, days) =>
+    `Nous conservons vos ${max} dernières conversations. Celles inutilisées sont supprimées après ${days} jours.`,
+  historyError: "Impossible de charger l'historique.",
+  language: 'Langue',
+  theme: 'Thème',
+  themeNames: {
+    systemowy: 'système',
+    jasny: 'clair',
+    ciemny: 'sombre',
+  },
+  settings: 'Paramètres',
+  back: 'Retour',
+  logout: 'Se déconnecter',
+  greeting:
+    "Bonjour ! Je suis l'assistant virtuel de la Faculté de mathématiques et d'informatique. Comment puis-je vous aider aujourd'hui ?",
+  inputPlaceholder: 'Posez une question au Chatbot',
+  waitingPlaceholder: 'Réponse en cours...',
+  send: 'Envoyer',
+  stop: 'Arrêter',
+  disclaimer:
+    "Le chatbot est une IA et peut se tromper. Vérifiez les informations importantes sur le site de la faculté.",
+  copy: 'Copier',
+  copied: 'Copié',
+  retry: 'Réessayer',
+  stopped: 'Interrompu.',
+  error: "Impossible d'obtenir une réponse. Réessayez.",
+  loadError: 'Impossible de charger cette conversation.',
+};
+
 // Keys are the values stored in localStorage - keep them unchanged.
-export const translations = { polski, angielski } as const;
+export const translations = { polski, angielski, francuski } as const;
 
 export type LangKey = keyof typeof translations;
 
 // Order shown in the settings menu.
-export const LANGUAGES: readonly LangKey[] = ['polski', 'angielski'];
+export const LANGUAGES: readonly LangKey[] = ['polski', 'angielski', 'francuski'];
 
 export const LANGUAGE_STORAGE_KEY = 'chatLanguage';
 
