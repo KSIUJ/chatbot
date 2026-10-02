@@ -1,7 +1,7 @@
 """Konfiguracja logowania OIDC (Keycloak KSI) czytana ze zmiennych srodowiskowych.
 
 Wszystko, co zalezy od srodowiska (adres Keycloaka, klient, adresy powrotu,
-wymagana grupa), jest w env - opis kazdej zmiennej w .env.example. Brak
+wymagana grupa, grupa adminow), jest w env - opis kazdej zmiennej w .env.example. Brak
 wymaganej zmiennej zatrzymuje start backendu z lista brakow, zamiast wywalac
 sie dopiero przy pierwszym logowaniu.
 """
@@ -35,6 +35,10 @@ _TRUE = frozenset({"1", "true", "yes", "on", "tak"})
 _FALSE = frozenset({"0", "false", "no", "off", "nie"})
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
+DEFAULT_REQUIRED_GROUP = "/Członek"
+# Zarzad KSI przeglada oceny i zgloszenia odpowiedzi (/admin/*)
+DEFAULT_ADMIN_GROUP = "/Zarząd"
+
 
 class AuthConfigError(RuntimeError):
     """Konfiguracja logowania w env jest niekompletna albo bledna."""
@@ -51,6 +55,8 @@ class AuthSettings:
     post_logout_redirect_uri: str
     scopes: str
     required_group: str
+    # None = nikt nie jest adminem (OIDC_ADMIN_GROUP=off)
+    admin_group: str | None
     groups_claim: str
     id_token_algorithms: tuple[str, ...]
     secret_key: str
@@ -167,9 +173,12 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
         errors.append("OIDC_SCOPES musi zawierac 'openid'")
 
     # NFC: "ł" wpisane w .env i przyslane przez Keycloaka musza sie porownac rowno
-    required_group = unicodedata.normalize("NFC", get("OIDC_REQUIRED_GROUP", "/Członek"))
+    required_group = unicodedata.normalize("NFC", get("OIDC_REQUIRED_GROUP", DEFAULT_REQUIRED_GROUP))
     if not required_group:
         errors.append("OIDC_REQUIRED_GROUP nie moze byc puste")
+    # puste = domyslna grupa (jak kazda zmienna w .env.example), off/false/0/no/nie = brak adminow
+    admin_group_raw = unicodedata.normalize("NFC", get("OIDC_ADMIN_GROUP") or DEFAULT_ADMIN_GROUP)
+    admin_group = None if admin_group_raw.lower() in _FALSE else admin_group_raw
     groups_claim = get("OIDC_GROUPS_CLAIM", "groups")
 
     algorithms_raw = get("OIDC_ID_TOKEN_ALGORITHMS")
@@ -218,6 +227,7 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
         post_logout_redirect_uri=post_logout_redirect_uri,
         scopes=scopes,
         required_group=required_group,
+        admin_group=admin_group,
         groups_claim=groups_claim,
         id_token_algorithms=algorithms,
         secret_key=secret_key,

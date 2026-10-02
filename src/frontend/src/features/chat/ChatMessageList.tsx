@@ -1,8 +1,11 @@
-import { useEffect, useRef } from 'react';
-import { Bot, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bot, Loader2, RefreshCw } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
+import AnswerActions from './AnswerActions';
 import { isMarker, type ChatMessage } from './conversations';
+import { EMPTY_FEEDBACK, canGiveFeedback, type Rating, type ReportReason } from './feedback';
 import MessageSources from './MessageSources';
+import ReportDialog from './ReportDialog';
 
 // How close to the bottom (px) still counts as "reading the latest answer".
 const NEAR_BOTTOM_PX = 120;
@@ -14,7 +17,11 @@ interface ChatMessageListProps {
   isLoading: boolean;
   loadError: boolean;
   copiedId: string | null;
+  feedbackErrorId: string | null;
   onCopy: (message: ChatMessage) => void;
+  onRate: (message: ChatMessage, rating: Rating) => void;
+  // resolves to true once the report is saved
+  onReport: (message: ChatMessage, reason: ReportReason, comment: string | null) => Promise<boolean>;
   onRetry: () => void;
   onReload: () => void;
 }
@@ -33,12 +40,14 @@ function BotAvatar() {
 }
 
 export default function ChatMessageList({
-  lang, messages, isWaiting, isLoading, loadError, copiedId, onCopy, onRetry, onReload,
+  lang, messages, isWaiting, isLoading, loadError, copiedId, feedbackErrorId, onCopy, onRate, onReport, onRetry, onReload,
 }: ChatMessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   // updated on scroll, so a reader who scrolled up is not pulled down
   const isNearBottomRef = useRef(true);
+  // answer whose report dialog is open
+  const [reportingId, setReportingId] = useState<string | null>(null);
 
   const last = messages.at(-1);
   const streamingText = last?.status === 'streaming' ? last.text : null;
@@ -89,6 +98,8 @@ export default function ChatMessageList({
   }
 
   const lastId = last?.id;
+  // gone after a switch to another conversation - the dialog closes with it
+  const reportingMessage = reportingId === null ? undefined : messages.find((m) => m.id === reportingId);
   // typing dots only until the first words of the answer arrive
   const showTyping = isWaiting && streamingText === null;
 
@@ -112,8 +123,7 @@ export default function ChatMessageList({
         const hasPartialText = msg.status === 'stopped' && msg.text !== '';
         const markerText = msg.status === 'stopped' ? lang.stopped : lang.error;
         const text = marker && !hasPartialText ? markerText : msg.text;
-        const isCopied = copiedId === msg.id;
-        const canCopy = !isUser && msg.status === undefined;
+        const hasActions = canGiveFeedback(msg);
         const sources = !isUser && msg.status === undefined ? msg.sources ?? [] : [];
 
         return (
@@ -124,29 +134,26 @@ export default function ChatMessageList({
               <div
                 className={`px-4 py-3 relative rounded-card text-sm leading-relaxed whitespace-pre-wrap break-words
                   ${isUser ? USER_BUBBLE : BOT_BUBBLE}
-                  ${isUser ? '' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}
-                  ${canCopy || isStreaming ? 'pr-12' : ''}`}
+                  ${isUser ? '' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}`}
                 aria-busy={isStreaming || undefined}
               >
                 {text}
                 {hasPartialText && <span className="block mt-2 text-label italic text-muted">{markerText}</span>}
-
-                {canCopy && (
-                  <button
-                    type="button"
-                    onClick={() => onCopy(msg)}
-                    className={`absolute top-2 right-2 p-1.5 rounded-control transition-colors ${
-                      isCopied ? 'text-accent' : 'text-muted hover:bg-surface-hover hover:text-fg'
-                    }`}
-                    title={isCopied ? lang.copied : lang.copy}
-                    aria-label={isCopied ? lang.copied : lang.copy}
-                  >
-                    {isCopied ? <Check size={16} /> : <Copy size={16} />}
-                  </button>
-                )}
               </div>
 
               {sources.length > 0 && <MessageSources lang={lang} sources={sources} />}
+
+              {hasActions && (
+                <AnswerActions
+                  lang={lang}
+                  feedback={msg.feedback ?? EMPTY_FEEDBACK}
+                  isCopied={copiedId === msg.id}
+                  hasError={feedbackErrorId === msg.id}
+                  onCopy={() => onCopy(msg)}
+                  onRate={(rating) => onRate(msg, rating)}
+                  onReport={() => setReportingId(msg.id)}
+                />
+              )}
 
               {/* retry only on the latest failed / stopped answer */}
               {marker && msg.id === lastId && (
@@ -183,6 +190,14 @@ export default function ChatMessageList({
       )}
 
       <div ref={endRef} />
+
+      {reportingMessage !== undefined && (
+        <ReportDialog
+          lang={lang}
+          onSubmit={(reason, comment) => onReport(reportingMessage, reason, comment)}
+          onClose={() => setReportingId(null)}
+        />
+      )}
     </main>
   );
 }

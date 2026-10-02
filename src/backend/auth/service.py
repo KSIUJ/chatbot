@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import threading
 import unicodedata
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete
@@ -84,6 +85,23 @@ def extract_groups(claims: JSONObject, claim_name: str) -> set[str]:
 def is_member(claims: JSONObject, settings: AuthSettings) -> bool:
     """Czy claimy (z userinfo) zawieraja wymagana grupe, np. /Członek."""
     return settings.required_group in extract_groups(claims, settings.groups_claim)
+
+
+def is_admin(claims: JSONObject, settings: AuthSettings) -> bool:
+    """Czy claimy (z userinfo) zawieraja grupe adminow (OIDC_ADMIN_GROUP,
+    domyslnie /Zarząd). Wylaczona grupa adminow = nikt nie jest adminem."""
+    if settings.admin_group is None:
+        return False
+    return settings.admin_group in extract_groups(claims, settings.groups_claim)
+
+
+@dataclass(frozen=True)
+class AuthenticatedMember:
+    """Czlonek KSI po sprawdzeniu sesji i biezacego userinfo z Keycloaka.
+    is_admin pochodzi z tego samego userinfo - bez dodatkowego zapytania."""
+
+    user: User
+    is_admin: bool
 
 
 # --- uzytkownicy -----------------------------------------------------------
@@ -242,9 +260,9 @@ def authenticate(
     oidc: OIDCClient,
     cipher: TokenCipher,
     settings: AuthSettings,
-) -> User:
+) -> AuthenticatedMember:
     """Sprawdza sesje z ciasteczka i - przy kazdym zapytaniu - aktualne
-    czlonkostwo w grupie przez userinfo Keycloaka.
+    czlonkostwo w grupie (i w grupie adminow) przez userinfo Keycloaka.
 
     Usuniecie z grupy, zablokowanie konta albo wylogowanie w Keycloaku odbiera
     dostep przy najblizszym zapytaniu, bez czekania na wygasniecie sesji.
@@ -295,4 +313,4 @@ def authenticate(
         _apply_profile(user, claims)
         session.last_seen_at = utcnow()
         db.commit()
-        return user
+        return AuthenticatedMember(user=user, is_admin=is_admin(claims, settings))

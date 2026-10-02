@@ -22,7 +22,7 @@ from .history import make_room_for_new_conversation
 from .llm.language import Language
 from .models import Conversation, Message, MessageRole
 from .rag.sources import Source
-from .response import MessageResponse, parse_sources
+from .response import FeedbackState, MessageResponse, parse_sources
 
 SessionFactory = Callable[[], Session]
 
@@ -43,13 +43,14 @@ class ChatTurn:
     max_per_user: int
 
 
-def to_message_response(message: Message) -> MessageResponse:
+def to_message_response(message: Message, feedback: FeedbackState | None = None) -> MessageResponse:
     return MessageResponse(
         id=message.id,
         role=message.role,
         content=message.content,
         created_at=message.created_at,
         sources=parse_sources(message.sources),
+        feedback=feedback,
     )
 
 

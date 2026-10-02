@@ -4,7 +4,7 @@ import enum
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, JSON, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -97,6 +97,58 @@ class Message(Base):
     sources: Mapped[list[dict[str, str | None] | str]] = mapped_column(JSON, default=list)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+
+
+class MessageFeedback(Base):
+    """Ocena (lapka w gore/w dol) i/lub zgloszenie odpowiedzi asystenta.
+
+    Jeden wiersz na (uzytkownik, wiadomosc) - kolejne klikniecia go nadpisuja,
+    wiec nie da sie "nabic" ocen. Pytanie, odpowiedz i zrodla sa kopiowane przy
+    pierwszej ocenie: rozmowy znikaja po CHAT_HISTORY_RETENTION_DAYS (i przy
+    regeneracji odpowiedzi), a oceny zostaja jako material do zbioru
+    ewaluacyjnego - message_id staje sie wtedy NULL.
+
+    user_id tez przechodzi na NULL po usunieciu konta (anonimizacja zamiast
+    kasowania): ocena dalej sluzy ewaluacji, ale nie wskazuje osoby.
+    """
+    __tablename__ = "message_feedback"
+    __table_args__ = (
+        UniqueConstraint("user_id", "message_id", name="uq_message_feedback_user_message"),
+        CheckConstraint("rating IN (1, -1)", name="ck_message_feedback_rating"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
+    message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
+    # 1 = lapka w gore, -1 = w dol, NULL = brak oceny (zostalo samo zgloszenie)
+    rating: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+
+    # Zgloszenie: powod z feedback/schemas.py (ReportReason), NULL = brak zgloszenia
+    report_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # open | resolved | dismissed (ReportStatus); NULL gdy nie ma zgloszenia
+    report_status: Mapped[str | None] = mapped_column(String(20), index=True, nullable=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Kopia z chwili pierwszej oceny
+    question: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    sources: Mapped[list[dict[str, str | None] | str]] = mapped_column(JSON, default=list)
+    # jezyk interfejsu podany przy ocenie (pl, en, ...)
+    language: Mapped[str | None] = mapped_column(String(5), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class UsageCounter(Base):

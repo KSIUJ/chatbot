@@ -26,6 +26,8 @@ export interface AuthUser {
   email: string | null;
   username: string | null;
   name: string | null;
+  // in the admin group (OIDC_ADMIN_GROUP); the admin API checks it again
+  is_admin: boolean;
 }
 
 type AuthState =
