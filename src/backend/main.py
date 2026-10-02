@@ -1,4 +1,4 @@
-"""Aplikacja FastAPI: czat, historia rozmow, logowanie i statystyki.
+"""Aplikacja FastAPI: czat, historia rozmow, logowanie, oceny odpowiedzi i statystyki.
 
 Za nginxem endpointy sa pod /api/* (nginx obcina prefiks), backend widzi
 sciezki bez /api.
@@ -20,6 +20,7 @@ from .auth import get_auth_settings, require_member, router as auth_router, veri
 from .chat import ChatTurn, ConversationNotOwned, load_history, save_exchange, to_message_response
 from .chat_stream import SSE_HEADERS, chat_events
 from .config import APP_NAME, FRONTEND_ORIGINS
+from .feedback import admin_router as feedback_admin_router, conversation_feedback, router as feedback_router
 from .database import (
     ANONYMOUS_CONVERSATIONS_COUNTER,
     PROMPTS_COUNTER,
@@ -43,7 +44,8 @@ from .history import (
     retention_loop,
 )
 from .llm.generate import answer as rag_answer, stream_answer as rag_stream
-from .models import Conversation, User
+from .feedback.service import EMPTY_STATE
+from .models import Conversation, MessageRole, User
 from .request import ChatRequest
 from .response import (
     ChatResponse,
@@ -111,11 +113,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
 app.include_router(auth_router)
+app.include_router(feedback_router)
+app.include_router(feedback_admin_router)
 
 
 def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Conversation:
@@ -166,14 +170,19 @@ def list_conversations(
 def get_conversation(
     conversation_id: str, db: Session = Depends(get_db), user: User = Depends(require_member)
 ) -> ConversationResponse:
-    """Rozmowa razem z wiadomosciami."""
+    """Rozmowa razem z wiadomosciami; odpowiedzi asystenta niosa ocene
+    biezacego uzytkownika (stan lapek po przeladowaniu)."""
     conversation = _get_owned_conversation(db, conversation_id, user)
 
     messages = get_messages(db, conversation_id)
+    feedback = conversation_feedback(db, user.id, conversation_id)
     return ConversationResponse(
         id=conversation.id,
         created_at=conversation.created_at,
-        messages=[to_message_response(m) for m in messages],
+        messages=[
+            to_message_response(m, feedback.get(m.id, EMPTY_STATE) if m.role == MessageRole.ASSISTANT else None)
+            for m in messages
+        ],
     )
 
 

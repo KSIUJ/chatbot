@@ -10,7 +10,7 @@ import pytest
 from cryptography import fernet
 
 from src.backend.auth.crypto import DecryptionError, LoginState, TokenCipher, pkce_challenge
-from src.backend.auth.service import is_member
+from src.backend.auth.service import is_admin, is_member
 from src.backend.auth.settings import LOGIN_STATE_MAX_AGE_SECONDS, AuthConfigError, load_auth_settings
 from src.backend.config import parse_origins
 
@@ -101,6 +101,38 @@ def test_is_member_normalizes_unicode_and_matches_exactly():
     assert not is_member({"groups": [group + "/Sub"]}, s)
     assert not is_member({"groups": "/Członkowie Zarządu"}, s)  # nie lista
     assert not is_member({}, s)
+
+
+def test_admin_group_defaults_to_board():
+    s = load_auth_settings(BASE_ENV)
+
+    assert s.admin_group == "/Zarząd"
+    assert is_admin({"groups": ["/Członek", "/Zarząd"]}, s)
+    assert not is_admin({"groups": ["/Członek"]}, s)
+
+
+def test_admin_group_override_is_normalized_to_nfc():
+    group = "/Zarząd/Techniczny"
+    s = load_auth_settings({**BASE_ENV, "OIDC_ADMIN_GROUP": unicodedata.normalize("NFD", group)})
+
+    assert s.admin_group == group
+    assert is_admin({"groups": [unicodedata.normalize("NFD", group)]}, s)
+    assert not is_admin({"groups": ["/Zarząd"]}, s)
+
+
+@pytest.mark.parametrize("value", ["off", "false", "0", "nie", " OFF "])
+def test_admin_group_can_be_disabled(value):
+    s = load_auth_settings({**BASE_ENV, "OIDC_ADMIN_GROUP": value})
+
+    assert s.admin_group is None
+    assert not is_admin({"groups": ["/Zarząd", "off", value]}, s)
+
+
+def test_empty_admin_group_means_default():
+    # jak reszta .env.example: puste = wartosc domyslna
+    s = load_auth_settings({**BASE_ENV, "OIDC_ADMIN_GROUP": "  "})
+
+    assert s.admin_group == "/Zarząd"
 
 
 def test_cipher_roundtrip_and_key_separation():

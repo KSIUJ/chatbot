@@ -1,5 +1,6 @@
 import { ApiRequestError, apiFetch, apiJson } from '../../lib/api';
 import type { HtmlLang } from '../preferences/languages';
+import { parseFeedback, type MessageFeedback } from './feedback';
 import { parseSources, type Source } from './sources';
 
 // Chat API: history list, single conversation, delete, send. The server is the
@@ -14,6 +15,8 @@ export interface ChatMessage {
   text: string;
   status?: 'streaming' | 'stopped' | 'error';
   sources?: Source[];
+  // the current user's rating / report of a bot answer
+  feedback?: MessageFeedback;
 }
 
 export function isMarker(message: ChatMessage): boolean {
@@ -38,6 +41,8 @@ export interface ApiMessage {
   content: string;
   // validated by parseSources, so an older backend without it still works
   sources?: unknown;
+  // validated by parseFeedback; only answers in GET /conversations/{id} have it
+  feedback?: unknown;
 }
 
 interface ConversationDetail {
@@ -58,7 +63,14 @@ export function newConversationId(): string {
 function toChatMessage(m: ApiMessage): ChatMessage {
   if (m.role === 'user') return { id: m.id, sender: 'user', text: m.content };
   const sources = parseSources(m.sources);
-  return { id: m.id, sender: 'bot', text: m.content, ...(sources.length > 0 ? { sources } : {}) };
+  const feedback = parseFeedback(m.feedback);
+  return {
+    id: m.id,
+    sender: 'bot',
+    text: m.content,
+    ...(sources.length > 0 ? { sources } : {}),
+    ...(feedback !== undefined ? { feedback } : {}),
+  };
 }
 
 export function toChatMessages(messages: readonly ApiMessage[]): ChatMessage[] {

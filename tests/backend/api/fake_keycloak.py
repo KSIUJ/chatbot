@@ -20,6 +20,8 @@ CLIENT_ID = "chatbot"
 CLIENT_SECRET = "test-client-secret"
 REDIRECT_URI = "https://chat.test/api/auth/callback"
 MEMBER_GROUP = "/Członek"
+# domyslna OIDC_ADMIN_GROUP
+ADMIN_GROUP = "/Zarząd"
 
 
 @dataclass

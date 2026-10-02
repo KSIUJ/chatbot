@@ -14,6 +14,16 @@ import {
   type ConversationList,
   type ConversationSummary,
 } from './conversations';
+import {
+  EMPTY_FEEDBACK,
+  submitFeedback,
+  toggleRating,
+  withFeedback,
+  type FeedbackUpdate,
+  type MessageFeedback,
+  type Rating,
+  type ReportReason,
+} from './feedback';
 import { describeStop, waitForStoppedExchange, type StoppedExchange } from './stopSync';
 
 export interface HistoryLimits {
@@ -49,7 +59,7 @@ export function appendDelta(messages: readonly ChatMessage[], id: string, text: 
 }
 
 // Chat state: sidebar history from the server, the open conversation, sending,
-// stop and retry. Only the id of the open conversation is kept in localStorage.
+// stop, retry and rating / reporting answers. Only the id of the open conversation is kept in localStorage.
 // `language` is the interface language the answers should be written in.
 export function useChat(language: HtmlLang) {
   // the conversation that was open before the reload
@@ -70,12 +80,19 @@ export function useChat(language: HtmlLang) {
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // answer whose rating could not be saved (shows an error under it)
+  const [feedbackErrorId, setFeedbackErrorId] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   // bumped on every switch, so work started for a previous conversation is ignored
   const loadTokenRef = useRef(0);
   // after Stop: waiting until the server has saved the stopped exchange
   const stopSyncRef = useRef<{ conversationId: string; done: Promise<void>; controller: AbortController } | null>(null);
+  // per answer: number of the latest feedback request (older replies do not
+  // touch the bubble) and the newest state the server confirmed, with the
+  // number of its request (the rollback target)
+  const feedbackSeqRef = useRef(new Map<string, number>());
+  const confirmedFeedbackRef = useRef(new Map<string, { seq: number; feedback: MessageFeedback }>());
 
   useEffect(() => {
     rememberActiveConversation(activeId, isRestored);
@@ -111,6 +128,13 @@ export function useChat(language: HtmlLang) {
     stopSyncRef.current = null;
   }, []);
 
+  // switching conversations: feedback replies still in flight are ignored
+  const resetFeedback = useCallback(() => {
+    feedbackSeqRef.current.clear();
+    confirmedFeedbackRef.current.clear();
+    setFeedbackErrorId(null);
+  }, []);
+
   useEffect(() => cancelStopSync, [cancelStopSync]);
 
   // Polls until the stopped exchange is saved (or times out), then refreshes
@@ -129,6 +153,7 @@ export function useChat(language: HtmlLang) {
   const openConversation = useCallback(async (id: string) => {
     cancelPending();
     cancelStopSync();
+    resetFeedback();
     const token = ++loadTokenRef.current;
     setActiveId(id);
     setMessages([]);
@@ -149,7 +174,7 @@ export function useChat(language: HtmlLang) {
     } finally {
       if (token === loadTokenRef.current) setIsLoadingConversation(false);
     }
-  }, [cancelPending, cancelStopSync]);
+  }, [cancelPending, cancelStopSync, resetFeedback]);
 
   // first load: history, then reopen the conversation that was open before
   useEffect(() => {
@@ -175,13 +200,14 @@ export function useChat(language: HtmlLang) {
   const startNewChat = useCallback(() => {
     cancelPending();
     cancelStopSync();
+    resetFeedback();
     loadTokenRef.current += 1;
     setIsRestored(true);
     setActiveId(null);
     setMessages([]);
     setLoadError(false);
     setIsLoadingConversation(false);
-  }, [cancelPending, cancelStopSync]);
+  }, [cancelPending, cancelStopSync, resetFeedback]);
 
   const removeChat = useCallback(async (id: string) => {
     setConversations((prev) => prev.filter((c) => c.id !== id));
@@ -308,6 +334,53 @@ export function useChat(language: HtmlLang) {
     );
   }, []);
 
+  // Saves feedback of an answer. `optimistic` (if given) is shown right away and
+  // rolled back to the last confirmed state when the request fails; only the
+  // latest request per answer updates the bubble. Resolves to "saved".
+  const sendFeedback = useCallback(async (
+    message: ChatMessage,
+    optimistic: MessageFeedback | null,
+    update: FeedbackUpdate,
+    showError: boolean,
+  ): Promise<boolean> => {
+    const { id } = message;
+    const seq = (feedbackSeqRef.current.get(id) ?? 0) + 1;
+    feedbackSeqRef.current.set(id, seq);
+    const confirmed = confirmedFeedbackRef.current;
+    if (!confirmed.has(id)) confirmed.set(id, { seq: 0, feedback: message.feedback ?? EMPTY_FEEDBACK });
+    const isLatest = () => feedbackSeqRef.current.get(id) === seq;
+
+    setFeedbackErrorId((current) => (current === id ? null : current));
+    if (optimistic !== null) setMessages((prev) => withFeedback(prev, id, optimistic));
+    try {
+      const saved = await submitFeedback(id, update);
+      const known = confirmed.get(id);
+      if (known !== undefined && known.seq < seq) confirmed.set(id, { seq, feedback: saved });
+      if (isLatest()) setMessages((prev) => withFeedback(prev, id, saved));
+      return true;
+    } catch (error) {
+      if (isLatest()) {
+        const rollback = confirmed.get(id)?.feedback ?? EMPTY_FEEDBACK;
+        setMessages((prev) => withFeedback(prev, id, rollback));
+        // a lost session already switched the app to the login flow
+        if (showError && !isSessionLost(error)) setFeedbackErrorId(id);
+      }
+      return false;
+    }
+  }, []);
+
+  // Thumbs up / down; clicking the pressed one again removes the rating.
+  const rate = useCallback((message: ChatMessage, rating: Rating) => {
+    const next = toggleRating(message.feedback ?? EMPTY_FEEDBACK, rating);
+    void sendFeedback(message, next, { rating: next.rating, language }, true);
+  }, [language, sendFeedback]);
+
+  // Report from the dialog: not optimistic - the dialog stays open (keeping
+  // the comment) and shows its own error when sending fails.
+  const report = useCallback((message: ChatMessage, reason: ReportReason, comment: string | null) =>
+    sendFeedback(message, null, { report: { reason, comment }, language }, false),
+  [language, sendFeedback]);
+
   return {
     conversations,
     limits,
@@ -318,6 +391,7 @@ export function useChat(language: HtmlLang) {
     isLoadingConversation,
     loadError,
     copiedId,
+    feedbackErrorId,
     openConversation,
     startNewChat,
     removeChat,
@@ -325,5 +399,7 @@ export function useChat(language: HtmlLang) {
     stop,
     retry,
     copy,
+    rate,
+    report,
   };
 }

@@ -1,5 +1,5 @@
 """Zaleznosci FastAPI dla logowania: klient OIDC, szyfrowanie, biezacy uzytkownik
-i sprawdzanie naglowka Origin."""
+(czlonek, admin) i sprawdzanie naglowka Origin."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from ..database import get_db
 from ..models import User
 from .crypto import TokenCipher
 from .oidc import OIDCClient, ProviderUnavailableError
-from .service import AuthFailure, authenticate
+from .service import AuthenticatedMember, AuthFailure, authenticate
 from .settings import AuthSettings, get_auth_settings
 
 logger = logging.getLogger(__name__)
@@ -46,14 +46,16 @@ def get_oidc_client(settings: AuthSettings = Depends(get_auth_settings)) -> OIDC
     return _oidc_client_for(settings)
 
 
-def require_member(
+def require_member_context(
     request: Request,
     db: Session = Depends(get_db),
     settings: AuthSettings = Depends(get_auth_settings),
     oidc: OIDCClient = Depends(get_oidc_client),
     cipher: TokenCipher = Depends(get_token_cipher),
-) -> User:
-    """Zalogowany uzytkownik, ktory w tej chwili jest w wymaganej grupie.
+) -> AuthenticatedMember:
+    """Zalogowany uzytkownik, ktory w tej chwili jest w wymaganej grupie,
+    razem z flaga admina. FastAPI liczy to raz na zapytanie, nawet gdy endpoint
+    potrzebuje i require_member, i require_admin.
 
     Raises:
         HTTPException: 401 (brak/wygasla sesja), 403 (brak w grupie),
@@ -69,6 +71,23 @@ def require_member(
         raise auth_error(
             503, "provider_unavailable", "Serwer logowania KSI jest niedostepny. Sprobuj za chwile."
         ) from None
+
+
+def require_member(member: AuthenticatedMember = Depends(require_member_context)) -> User:
+    """Zalogowany czlonek KSI (patrz require_member_context)."""
+    return member.user
+
+
+def require_admin(member: AuthenticatedMember = Depends(require_member_context)) -> User:
+    """Czlonek KSI, ktory jest tez w grupie adminow (OIDC_ADMIN_GROUP).
+
+    Raises:
+        HTTPException: jak require_member_context, a do tego 403 "not_admin".
+    """
+    if not member.is_admin:
+        logger.info("admin access refused for user %s", member.user.id)
+        raise auth_error(403, "not_admin", "Dostep tylko dla zarzadu KSI.")
+    return member.user
 
 
 def verify_origin(request: Request, settings: AuthSettings = Depends(get_auth_settings)) -> None:

@@ -17,10 +17,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, select, update
 from sqlalchemy.orm import Session
 
-from .models import Conversation, Message
+from .models import Conversation, Message, MessageFeedback
 
 logger = logging.getLogger(__name__)
 
@@ -100,17 +100,32 @@ def conversation_lock(conversation_id: str) -> threading.Lock:
     return _CONVERSATION_LOCKS[zlib.crc32(conversation_id.encode()) % len(_CONVERSATION_LOCKS)]
 
 
+def detach_feedback(db: Session, message_ids: Select[tuple[str]] | Sequence[str]) -> None:
+    """Odpina oceny od kasowanych wiadomosci (message_id = NULL) - kopia
+    pytania i odpowiedzi w ocenie zostaje. SQLite bez PRAGMA foreign_keys nie
+    wykona ON DELETE SET NULL sam, wiec robimy to jawnie przed kazdym DELETE
+    wiadomosci. Bez commita."""
+    db.execute(
+        update(MessageFeedback)
+        .where(MessageFeedback.message_id.in_(message_ids))
+        .values(message_id=None)
+        .execution_options(synchronize_session=False)
+    )
+
+
 # Duze listy id kasujemy partiami - SQLite ma limit parametrow w zapytaniu.
 DELETE_BATCH_SIZE = 500
 
 
 def delete_conversations(db: Session, conversation_ids: Sequence[str]) -> int:
     """Kasuje rozmowy razem z wiadomosciami (SQLite nie wymusza kaskad FK,
-    wiec wiadomosci ida pierwsze). Zwraca liczbe usunietych rozmow."""
+    wiec wiadomosci ida pierwsze, a oceny sa od nich odpinane). Zwraca liczbe
+    usunietych rozmow."""
     ids = list(conversation_ids)
     deleted = 0
     for start in range(0, len(ids), DELETE_BATCH_SIZE):
         batch = ids[start:start + DELETE_BATCH_SIZE]
+        detach_feedback(db, select(Message.id).where(Message.conversation_id.in_(batch)))
         db.execute(delete(Message).where(Message.conversation_id.in_(batch)))
         result = db.execute(delete(Conversation).where(Conversation.id.in_(batch)))
         deleted += int(result.rowcount or 0)
@@ -146,6 +161,7 @@ def purge_expired_conversations(db: Session, retention_days: int) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     expired = select(Conversation.id).where(Conversation.last_message_at < cutoff)
     # podzapytanie zamiast listy id - dowolnie duza zaleglosc w jednym DELETE
+    detach_feedback(db, select(Message.id).where(Message.conversation_id.in_(expired)))
     db.execute(delete(Message).where(Message.conversation_id.in_(expired)))
     result = db.execute(delete(Conversation).where(Conversation.last_message_at < cutoff))
     db.commit()
