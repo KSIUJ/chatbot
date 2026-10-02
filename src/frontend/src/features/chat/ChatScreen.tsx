@@ -36,6 +36,15 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
     wasAdminOpenRef.current = isAdminOpen;
   }, [isAdminOpen, menuButtonRef]);
 
+  // banner over the input while the admins have the chat switched off
+  const offNotice = chat.chatDisabled ? chat.usage?.chatDisabledMessage ?? lang.chatOffDefault : null;
+
+  const closeAdmin = () => {
+    setIsAdminOpen(false);
+    // the chat switch may have been flipped in the panel
+    void chat.refreshUsage();
+  };
+
   const openAdmin = () => {
     adminOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeDrawer();
@@ -59,7 +68,7 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
 
   return (
     <>
-      {isAdminOpen && <AdminPanel lang={lang} onClose={() => setIsAdminOpen(false)} />}
+      {isAdminOpen && <AdminPanel lang={lang} onClose={closeAdmin} />}
       {/* hidden (not unmounted) behind the admin view: a streamed answer keeps going */}
       <div className="flex h-dvh bg-page text-fg font-sans" hidden={isAdminOpen}>
         <ChatSidebar
@@ -118,7 +127,7 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
             onRetry={() => void chat.retry()}
             onReload={reloadConversation}
           />
-          <ChatInput lang={lang} isWaiting={chat.isWaiting} onSend={chat.send} onStop={chat.stop} />
+          <ChatInput lang={lang} isWaiting={chat.isWaiting} onSend={chat.send} onStop={chat.stop} offNotice={offNotice} />
         </div>
       </div>
     </>

@@ -13,3 +13,6 @@ class UsageResponse(BaseModel):
     # None = bez limitu (wyjatek nadany przez zarzad)
     limit: int | None
     reset_at: datetime
+    # wylacznik czatu (panel administratora); komunikat None = domyslny
+    chat_enabled: bool = True
+    chat_disabled_message: str | None = None

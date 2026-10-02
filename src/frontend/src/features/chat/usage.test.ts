@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '../../lib/api';
-import { exhaustedUsage, formatResetTime, parseRateLimit, parseUsage } from './usage';
+import { exhaustedUsage, formatResetTime, parseChatDisabled, parseRateLimit, parseUsage } from './usage';
 
 const RESET = '2026-10-02T22:00:00+00:00';
 
 describe('parseUsage', () => {
   it('reads the /usage body', () => {
-    expect(parseUsage({ used: 3, limit: 10, reset_at: RESET })).toEqual({ used: 3, limit: 10, resetAt: RESET });
+    expect(parseUsage({ used: 3, limit: 10, reset_at: RESET })).toMatchObject({ used: 3, limit: 10, resetAt: RESET });
   });
 
   it('keeps null as unlimited', () => {
-    expect(parseUsage({ used: 7, limit: null, reset_at: RESET })).toEqual({ used: 7, limit: null, resetAt: RESET });
+    expect(parseUsage({ used: 7, limit: null, reset_at: RESET })).toMatchObject({ used: 7, limit: null, resetAt: RESET });
   });
 
   it('rejects malformed bodies', () => {
@@ -52,7 +52,13 @@ describe('parseRateLimit', () => {
 
 describe('exhaustedUsage', () => {
   it('marks the whole limit as used', () => {
-    expect(exhaustedUsage({ limit: 10, resetAt: RESET })).toEqual({ used: 10, limit: 10, resetAt: RESET });
+    expect(exhaustedUsage({ limit: 10, resetAt: RESET })).toEqual({
+      used: 10,
+      limit: 10,
+      resetAt: RESET,
+      chatEnabled: true,
+      chatDisabledMessage: null,
+    });
   });
 });
 
@@ -75,5 +81,33 @@ describe('formatResetTime', () => {
 
   it('returns an empty string for an invalid date', () => {
     expect(formatResetTime('not a date', 'pl', now, 'UTC')).toBe('');
+  });
+});
+
+describe('chat availability', () => {
+  it('reads the kill switch from /usage', () => {
+    expect(parseUsage({ used: 1, limit: 10, reset_at: RESET, chat_enabled: false, chat_disabled_message: 'Awaria' }))
+      .toMatchObject({ chatEnabled: false, chatDisabledMessage: 'Awaria' });
+  });
+
+  it('treats a missing switch (older backend) as enabled', () => {
+    expect(parseUsage({ used: 1, limit: 10, reset_at: RESET })).toMatchObject({
+      chatEnabled: true,
+      chatDisabledMessage: null,
+    });
+  });
+
+  it('maps a 503 chat_disabled error to the admin message (null = default text)', () => {
+    const custom = new ApiRequestError(503, null, { code: 'chat_disabled', message: 'x', admin_message: 'Awaria' }, null);
+    const plain = new ApiRequestError(503, null, { code: 'chat_disabled', message: 'x', admin_message: null }, null);
+
+    expect(parseChatDisabled(custom)).toEqual({ adminMessage: 'Awaria' });
+    expect(parseChatDisabled(plain)).toEqual({ adminMessage: null });
+  });
+
+  it('ignores other 503s and other errors', () => {
+    expect(parseChatDisabled(new ApiRequestError(503, 'provider_unavailable', { code: 'provider_unavailable' }, null))).toBeNull();
+    expect(parseChatDisabled(new ApiRequestError(500, null, { code: 'chat_disabled' }, null))).toBeNull();
+    expect(parseChatDisabled(new TypeError('Failed to fetch'))).toBeNull();
   });
 });

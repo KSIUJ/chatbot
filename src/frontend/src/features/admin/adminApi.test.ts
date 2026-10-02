@@ -7,6 +7,7 @@ import {
   parseIncidentPage,
   parseReportPage,
   parseUserPage,
+  toChatSwitchPayload,
   toLimitPayload,
   toSettingsPayload,
 } from './adminApi';
@@ -240,5 +241,21 @@ describe('diagnosticsPath', () => {
   it('asks for a fresh snapshot only on refresh (the server caches it ~15 s)', () => {
     expect(diagnosticsPath(false)).toBe('/admin/diagnostics');
     expect(diagnosticsPath(true)).toBe('/admin/diagnostics?refresh=1');
+  });
+});
+
+describe('chat switch', () => {
+  it('reads the switch from the settings', () => {
+    const settings = parseAdminSettings({ ...settingsBody, chat_enabled: false, chat_disabled_message: 'Awaria' });
+
+    expect(settings.chatEnabled).toBe(false);
+    expect(settings.chatDisabledMessage).toBe('Awaria');
+    expect(parseAdminSettings(settingsBody).chatEnabled).toBe(true);
+  });
+
+  it('builds the PUT body of the switch only (limits stay untouched)', () => {
+    expect(toChatSwitchPayload(false, '  Awaria modelu ')).toEqual({ chat_enabled: false, chat_disabled_message: 'Awaria modelu' });
+    expect(toChatSwitchPayload(false, '   ')).toEqual({ chat_enabled: false, chat_disabled_message: null });
+    expect(toChatSwitchPayload(true, 'Awaria')).toEqual({ chat_enabled: true });
   });
 });

@@ -16,6 +16,7 @@ from ..limits.settings import (
     USER_DAILY_LIMIT_RANGE,
     AttachmentType,
     IntRange,
+    MAX_CHAT_DISABLED_MESSAGE_LENGTH,
     LimitSettings,
     normalize_types,
 )
@@ -79,9 +80,48 @@ class SettingsRanges(BaseModel):
     max_per_day: IntRangeModel
 
 
+class AdminSettingsUpdate(BaseModel):
+    """PUT /admin/settings - zmiana czesci ustawien: limity (oba pola razem,
+    pelna zamiana), wylacznik czatu i/lub jego komunikat. Pominiete pole =
+    bez zmian; chat_disabled_message null albo pusty = komunikat domyslny."""
+    model_config = ConfigDict(extra="forbid")
+
+    daily_question_limit: Annotated[int, _bounded(DAILY_QUESTION_LIMIT_RANGE)] | None = None
+    attachments: AttachmentLimitsModel | None = None
+    chat_enabled: bool | None = None
+    chat_disabled_message: str | None = Field(default=None, max_length=MAX_CHAT_DISABLED_MESSAGE_LENGTH)
+
+    @field_validator("chat_disabled_message")
+    @classmethod
+    def _clean_message(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        text = value.strip()
+        return text or None
+
+    @property
+    def sets_limits(self) -> bool:
+        return self.daily_question_limit is not None
+
+    @property
+    def sets_message(self) -> bool:
+        return "chat_disabled_message" in self.model_fields_set
+
+    @model_validator(mode="after")
+    def _consistent(self) -> AdminSettingsUpdate:
+        if (self.daily_question_limit is None) != (self.attachments is None):
+            raise ValueError("daily_question_limit i attachments podaje sie razem")
+        if not self.sets_limits and self.chat_enabled is None and not self.sets_message:
+            raise ValueError("brak zmian")
+        return self
+
+
 class AdminSettingsResponse(LimitSettingsModel):
-    """GET/PUT /admin/settings: obowiazujace limity, wartosci domyslne z env,
-    wszystkie znane rodzaje plikow i zakresy."""
+    """GET/PUT /admin/settings: obowiazujace limity, wylacznik czatu,
+    wartosci domyslne z env, wszystkie znane rodzaje plikow i zakresy."""
+    chat_enabled: bool
+    # None = domyslny komunikat
+    chat_disabled_message: str | None
     defaults: LimitSettingsModel
     available_types: list[AttachmentType]
     ranges: SettingsRanges

@@ -43,7 +43,14 @@ from .database import (
     get_session_factory,
 )
 from .auth.service import purge_expired_sessions
-from .limits import LimitExceeded, limit_exceeded_handler, router as limits_router
+from .limits import (
+    ChatDisabled,
+    LimitExceeded,
+    chat_disabled_handler,
+    ensure_chat_enabled,
+    limit_exceeded_handler,
+    router as limits_router,
+)
 from .limits.settings import get_default_limits
 from .limits.usage import (
     Clock,
@@ -139,6 +146,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title=APP_NAME, dependencies=[Depends(verify_origin)], lifespan=lifespan)
 # wyczerpany dzienny limit pytan -> 429 z kodem rate_limited (przed strumieniem)
 app.add_exception_handler(LimitExceeded, limit_exceeded_handler)
+# czat wylaczony przez zarzad -> 503 chat_disabled (przed limitem i modelem)
+app.add_exception_handler(ChatDisabled, chat_disabled_handler)
 
 # CORS potrzebny tylko gdy frontend i API sa na roznych originach (w Dockerze
 # i w vite z proxy jest jeden origin). Z ciasteczkami nie wolno uzyc "*".
@@ -245,7 +254,9 @@ def chat(
 ) -> ChatResponse:
     """Pytanie do czatu, odpowiedz w calosci (JSON). Wiodacy znacznik
     [[NARUSZENIE]] jest zdejmowany przed zapisem i zglaszany jako incydent.
-    Wyczerpany dzienny limit -> 429 (rate_limited), model nie jest wolany."""
+    Wyczerpany dzienny limit -> 429 (rate_limited), model nie jest wolany.
+    Czat wylaczony przez zarzad -> 503 (chat_disabled) przed czymkolwiek."""
+    ensure_chat_enabled(db)
     turn = _new_turn(payload, user, history_settings)
     model_flagged = False
     saved = False
@@ -281,11 +292,13 @@ def chat(
 def _prepare_stream_turn(
     db: Session, payload: ChatRequest, user: User, history_settings: HistorySettings, clock: Clock
 ) -> tuple[ChatTurn, Reservation]:
-    """Tura dla strumienia; cudza rozmowa -> 404, wyczerpany limit -> 429
+    """Tura dla strumienia; wylaczony czat -> 503 (ChatDisabled, przed
+    czymkolwiek), cudza rozmowa -> 404, wyczerpany limit -> 429
     (LimitExceeded) - jeszcze przed strumieniem. Sesja zapytania jest potem
     zamykana - strumien uzywa wlasnych sesji, a ta trzymalaby polaczenie
     z puli przez cale generowanie."""
     try:
+        ensure_chat_enabled(db)
         turn = _new_turn(payload, user, history_settings)
         conversation = db.get(Conversation, turn.conversation_id, populate_existing=True)
         if conversation is not None and conversation.user_id != turn.user_id:
@@ -310,7 +323,7 @@ async def chat_stream(
     clock: Clock = Depends(get_clock),
 ) -> StreamingResponse:
     """Pytanie do czatu, odpowiedz strumieniowana (SSE, patrz chat_stream.py).
-    Bledy logowania, originu, walidacji, 404 i 429 (dzienny limit) wracaja
+    Bledy logowania, originu, walidacji, 503 (czat wylaczony), 404 i 429 (dzienny limit) wracaja
     jako zwykle odpowiedzi HTTP, zanim zacznie sie strumien."""
     turn, reservation = await run_in_threadpool(_prepare_stream_turn, db, payload, user, history_settings, clock)
     refund = partial(refund_in_new_session, session_factory, reservation)

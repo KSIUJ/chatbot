@@ -19,6 +19,17 @@ export type HtmlLang = 'pl' | 'en' | 'de' | 'es' | 'fr' | 'it' | 'uk';
 
 // Strings of the admin panel (only shown to the admin group).
 export interface AdminTranslation {
+  // global chat switch (kill switch)
+  chatSwitch: string;
+  chatIsOn: string;
+  chatIsOff: string;
+  turnOff: string;
+  turnOn: string;
+  disabledMessage: string;
+  disabledMessageHint: string;
+  confirmTurnOffTitle: string;
+  confirmTurnOffText: string;
+  confirmTurnOff: string;
   title: string;
   backToChat: string;
   sections: string;
@@ -181,6 +192,9 @@ export interface Translation {
   // daily question limit
   rateLimited: (limit: number, time: string) => string;
   usageToday: (used: number, limit: number) => string;
+  // banner above the input while the admins have the chat switched off
+  chatOffTitle: string;
+  chatOffDefault: string;
   admin: AdminTranslation;
 }
 

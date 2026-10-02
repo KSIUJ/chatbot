@@ -44,6 +44,10 @@ export interface SettingsRanges {
 }
 
 export interface AdminSettings extends LimitSettings {
+  // false = questions are blocked for everyone (the admins' kill switch)
+  chatEnabled: boolean;
+  // shown to users while the chat is off (null = translated default)
+  chatDisabledMessage: string | null;
   defaults: LimitSettings;
   availableTypes: AttachmentType[];
   ranges: SettingsRanges;
@@ -181,6 +185,9 @@ export function parseAdminSettings(value: unknown): AdminSettings {
   const ranges = record(body.ranges, 'ranges');
   return {
     ...parseLimitSettings(body, 'settings'),
+    // a backend without the switch never disables the chat
+    chatEnabled: body.chat_enabled !== false,
+    chatDisabledMessage: optStr(body, 'chat_disabled_message'),
     defaults: parseLimitSettings(body.defaults, 'defaults'),
     availableTypes: attachmentTypes(body, 'available_types'),
     ranges: {
@@ -347,6 +354,14 @@ export function parseDiagnostics(value: unknown): Diagnostics {
   };
 }
 
+// PUT body of the chat switch alone (the limits are left as they are). The
+// message is saved only when switching off; switching on keeps it for next time.
+export function toChatSwitchPayload(enabled: boolean, message: string) {
+  if (enabled) return { chat_enabled: true };
+  const text = message.trim();
+  return { chat_enabled: false, chat_disabled_message: text === '' ? null : text };
+}
+
 // ---- per-user limit editor ----
 
 export type LimitMode = 'global' | 'custom' | 'unlimited';
@@ -383,6 +398,11 @@ export async function fetchSettings(): Promise<AdminSettings> {
 
 export async function saveSettings(settings: LimitSettings): Promise<AdminSettings> {
   const body = JSON.stringify(toSettingsPayload(settings));
+  return parseAdminSettings(await apiJson<unknown>('/admin/settings', { method: 'PUT', headers: JSON_HEADERS, body }));
+}
+
+export async function saveChatSwitch(enabled: boolean, message: string): Promise<AdminSettings> {
+  const body = JSON.stringify(toChatSwitchPayload(enabled, message));
   return parseAdminSettings(await apiJson<unknown>('/admin/settings', { method: 'PUT', headers: JSON_HEADERS, body }));
 }
 

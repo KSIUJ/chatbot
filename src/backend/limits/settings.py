@@ -1,4 +1,4 @@
-"""Globalne limity: dzienny limit pytan i limity zalacznikow.
+"""Globalne limity: dzienny limit pytan, limity zalacznikow i wylacznik czatu.
 
 Wartosci domyslne pochodza z env (CHAT_DAILY_LIMIT, ATTACHMENT_*), a zarzad
 moze je zmienic w panelu administratora - wtedy obowiazuje wiersz w tabeli
@@ -7,6 +7,10 @@ i walidacja API adminow.
 
 Zalaczniki: limity sa juz zapisywane i edytowalne, a egzekwuje je dopiero
 funkcja zalacznikow - czyta je jednym wywolaniem get_attachment_limits(db).
+
+Wylacznik czatu (chat_enabled, chat_disabled_message): zarzad moze jednym
+przyciskiem zablokowac pytania wszystkim (takze sobie), np. gdy model zle
+odpowiada. Domyslnie czat jest wlaczony; nie ma wartosci w env.
 """
 
 from __future__ import annotations
@@ -93,6 +97,12 @@ KEY_MAX_FILE_MB = "attachments.max_file_mb"
 KEY_MAX_FILES_PER_MESSAGE = "attachments.max_files_per_message"
 KEY_MAX_ATTACHMENTS_PER_DAY = "attachments.max_per_day"
 KEY_ALLOWED_TYPES = "attachments.allowed_types"
+KEY_CHAT_ENABLED = "chat_enabled"
+KEY_CHAT_DISABLED_MESSAGE = "chat_disabled_message"
+
+MAX_CHAT_DISABLED_MESSAGE_LENGTH = 300
+# Komunikat, gdy zarzad nie wpisal wlasnego (frontend ma tlumaczenia).
+DEFAULT_CHAT_DISABLED_MESSAGE = "Czat jest chwilowo wyłączony przez zarząd KSI. Spróbuj później."
 
 
 class LimitsConfigError(RuntimeError):
@@ -223,6 +233,88 @@ def get_attachment_limits(db: Session) -> AttachmentLimits:
 def get_daily_question_limit(db: Session) -> int:
     """Globalny dzienny limit pytan (bez wyjatkow per osoba)."""
     return get_limit_settings(db).daily_question_limit
+
+
+@dataclass(frozen=True)
+class ChatAvailability:
+    enabled: bool
+    # wlasny komunikat zarzadu; None = domyslny
+    message: str | None
+    # kto ostatnio przelaczyl (None = nikt, wartosc domyslna)
+    updated_by: str | None
+
+
+class ChatDisabled(Exception):
+    """Czat wylaczony przez zarzad - API odpowiada 503 chat_disabled."""
+
+    def __init__(self, admin_message: str | None) -> None:
+        super().__init__("chat disabled by admins")
+        self.admin_message = admin_message
+
+    @property
+    def message(self) -> str:
+        return self.admin_message or DEFAULT_CHAT_DISABLED_MESSAGE
+
+
+def get_chat_availability(db: Session) -> ChatAvailability:
+    """Stan wylacznika czatu (brak wiersza = wlaczony, bez komunikatu)."""
+    enabled_row = db.get(AppSetting, KEY_CHAT_ENABLED, populate_existing=True)
+    message_row = db.get(AppSetting, KEY_CHAT_DISABLED_MESSAGE, populate_existing=True)
+    enabled = enabled_row.value if enabled_row is not None else True
+    if not isinstance(enabled, bool):
+        logger.warning("ignoring invalid app setting %s=%r", KEY_CHAT_ENABLED, enabled)
+        enabled = True
+    message = message_row.value if message_row is not None else None
+    if message is not None and not isinstance(message, str):
+        logger.warning("ignoring invalid app setting %s=%r", KEY_CHAT_DISABLED_MESSAGE, message)
+        message = None
+    return ChatAvailability(
+        enabled=enabled,
+        message=message or None,
+        updated_by=enabled_row.updated_by if enabled_row is not None else None,
+    )
+
+
+def ensure_chat_enabled(db: Session) -> None:
+    """Pierwszy krok /chat i /chat/stream - przed limitem, heurystyka i modelem.
+
+    Raises:
+        ChatDisabled: zarzad wylaczyl czat.
+    """
+    availability = get_chat_availability(db)
+    if not availability.enabled:
+        raise ChatDisabled(availability.message)
+
+
+def _put_setting(db: Session, key: str, value: bool | int | str | list[str], admin_id: str | None) -> None:
+    row = db.get(AppSetting, key)
+    if row is None:
+        db.add(AppSetting(key=key, value=value, updated_by=admin_id, updated_at=utcnow()))
+    else:
+        row.value = value
+        row.updated_by = admin_id
+        row.updated_at = utcnow()
+
+
+def save_chat_availability(
+    db: Session, *, enabled: bool | None, message: str | None, sets_message: bool, admin_id: str | None
+) -> ChatAvailability:
+    """Zmienia wylacznik i/lub komunikat (None = bez zmian; sets_message=False
+    zostawia komunikat) i commituje. Kto przelaczyl, trafia do logu (INFO)."""
+    before = get_chat_availability(db)
+    if enabled is not None:
+        _put_setting(db, KEY_CHAT_ENABLED, enabled, admin_id)
+    if sets_message:
+        if message is None:
+            row = db.get(AppSetting, KEY_CHAT_DISABLED_MESSAGE)
+            if row is not None:
+                db.delete(row)
+        else:
+            _put_setting(db, KEY_CHAT_DISABLED_MESSAGE, message, admin_id)
+    db.commit()
+    if enabled is not None and enabled != before.enabled:
+        logger.info("admin %s turned chat %s for everyone", admin_id, "on" if enabled else "off")
+    return get_chat_availability(db)
 
 
 def save_limit_settings(db: Session, settings: LimitSettings, admin_id: str | None) -> LimitSettings:

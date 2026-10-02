@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Translation } from '../preferences/languages';
 import { fetchSettings, type AdminSettings } from './adminApi';
 import { LoadError, LoadingRow } from './AdminCommon';
+import ChatSwitch from './ChatSwitch';
 import GlobalLimitsForm from './GlobalLimitsForm';
 import { useLoader } from './useLoader';
 import UserLimits from './UserLimits';
@@ -10,7 +11,7 @@ interface LimitsTabProps {
   lang: Translation;
 }
 
-// Global limits form and the user list with per-person exceptions.
+// Chat kill switch, global limits form and the user list with per-person exceptions.
 export default function LimitsTab({ lang }: LimitsTabProps) {
   const text = lang.admin;
   const loaded = useLoader(fetchSettings);
@@ -28,6 +29,7 @@ export default function LimitsTab({ lang }: LimitsTabProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      <ChatSwitch lang={lang} settings={settings} onSaved={setSaved} />
       <GlobalLimitsForm text={text} settings={settings} onSaved={setSaved} />
       {/* remounted when the global limit changes: effective limits are reloaded */}
       <UserLimits

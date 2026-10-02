@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { SendHorizontal, Square } from 'lucide-react';
+import { PowerOff, SendHorizontal, Square } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
 import { MAX_MESSAGE_LENGTH } from './conversations';
 
@@ -11,9 +11,11 @@ interface ChatInputProps {
   // returns false when the message was not sent (empty / busy) - text stays
   onSend: (text: string) => boolean;
   onStop: () => void;
+  // set while the admins have the chat switched off: banner instead of sending
+  offNotice: string | null;
 }
 
-export default function ChatInput({ lang, isWaiting, onSend, onStop }: ChatInputProps) {
+export default function ChatInput({ lang, isWaiting, onSend, onStop, offNotice }: ChatInputProps) {
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,9 +46,19 @@ export default function ChatInput({ lang, isWaiting, onSend, onStop }: ChatInput
   };
 
   const placeholder = isWaiting ? lang.waitingPlaceholder : lang.inputPlaceholder;
+  const isOff = offNotice !== null;
 
   return (
     <form onSubmit={handleSubmit} className="px-4 pb-8 z-20">
+      {isOff && (
+        <div role="status" className="ksi-alert-danger rounded-card max-w-2xl mx-auto mb-3 flex gap-2.5 px-4 py-3 text-sm">
+          <PowerOff size={16} className="shrink-0 mt-0.5 text-danger-text" aria-hidden="true" />
+          <div>
+            <p className="font-semibold text-danger-text">{lang.chatOffTitle}</p>
+            <p className="text-fg break-words">{offNotice}</p>
+          </div>
+        </div>
+      )}
       <div className="max-w-2xl mx-auto relative mb-4">
         <textarea
           ref={inputRef}
@@ -56,9 +68,10 @@ export default function ChatInput({ lang, isWaiting, onSend, onStop }: ChatInput
           placeholder={placeholder}
           aria-label={lang.inputPlaceholder}
           rows={1}
+          disabled={isOff && !isWaiting}
           maxLength={MAX_MESSAGE_LENGTH}
           style={{ maxHeight: `${MAX_INPUT_HEIGHT_PX}px` }}
-          className="block w-full pl-4 pr-14 py-3 rounded-control border border-line-strong bg-surface text-sm leading-normal text-fg placeholder:text-muted outline-none resize-none overflow-hidden transition-[border-color,box-shadow] duration-[120ms] hover:border-faint focus:border-accent focus:shadow-ring"
+          className="block w-full disabled:opacity-60 disabled:cursor-not-allowed pl-4 pr-14 py-3 rounded-control border border-line-strong bg-surface text-sm leading-normal text-fg placeholder:text-muted outline-none resize-none overflow-hidden transition-[border-color,box-shadow] duration-[120ms] hover:border-faint focus:border-accent focus:shadow-ring"
         />
 
         {isWaiting ? (
@@ -74,7 +87,8 @@ export default function ChatInput({ lang, isWaiting, onSend, onStop }: ChatInput
         ) : (
           <button
             type="submit"
-            className="absolute right-2 top-1/2 -translate-y-1/2 ksi-btn ksi-btn-primary size-9 min-h-0 p-0"
+            disabled={isOff}
+            className="absolute right-2 top-1/2 -translate-y-1/2 ksi-btn ksi-btn-primary size-9 min-h-0 p-0 disabled:opacity-50"
             title={lang.send}
             aria-label={lang.send}
           >

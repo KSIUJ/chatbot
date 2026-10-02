@@ -3,8 +3,8 @@
 Za nginxem jest pod /api/* (nginx obcina /api). Przeglad zgloszen i
 incydentow ma wlasne endpointy (/admin/feedback*, /admin/incidents*).
 
-    GET    /admin/settings           -> globalne limity (pytania, zalaczniki)
-    PUT    /admin/settings           -> zmiana globalnych limitow
+    GET    /admin/settings           -> globalne limity (pytania, zalaczniki) i wylacznik czatu
+    PUT    /admin/settings           -> zmiana limitow i/lub wylacznika czatu
     GET    /admin/users?q=           -> wyszukiwarka z dzisiejszym zuzyciem
     PUT    /admin/users/{id}/limit   -> wyjatek: wlasny limit albo bez limitu
     DELETE /admin/users/{id}/limit   -> powrot do limitu globalnego
@@ -24,9 +24,12 @@ from ..database import get_db
 from ..limits.settings import (
     ALL_ATTACHMENT_TYPES,
     AttachmentLimits,
+    ChatAvailability,
     LimitSettings,
+    get_chat_availability,
     get_default_limits,
     get_limit_settings,
+    save_chat_availability,
     save_limit_settings,
 )
 from ..limits.usage import Clock, clear_user_limit, get_clock, set_user_limit, usage_day
@@ -41,6 +44,7 @@ from .diagnostics import (
 from .schemas import (
     MAX_QUERY_LENGTH,
     AdminSettingsResponse,
+    AdminSettingsUpdate,
     AdminUserItem,
     AdminUserPage,
     DiagnosticsResponse,
@@ -61,11 +65,13 @@ _NO_STORE = {"Cache-Control": "no-store"}
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-def _settings_response(settings: LimitSettings) -> AdminSettingsResponse:
+def _settings_response(settings: LimitSettings, availability: ChatAvailability) -> AdminSettingsResponse:
     current = LimitSettingsModel.from_settings(settings)
     return AdminSettingsResponse(
         daily_question_limit=current.daily_question_limit,
         attachments=current.attachments,
+        chat_enabled=availability.enabled,
+        chat_disabled_message=availability.message,
         defaults=LimitSettingsModel.from_settings(get_default_limits()),
         available_types=list(ALL_ATTACHMENT_TYPES),
         ranges=ranges_model(),
@@ -78,32 +84,45 @@ def admin_get_settings(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin),
 ) -> AdminSettingsResponse:
-    """Obowiazujace globalne limity, wartosci domyslne z env i zakresy."""
+    """Obowiazujace globalne limity, wylacznik czatu, wartosci domyslne z env i zakresy."""
     response.headers.update(_NO_STORE)
-    return _settings_response(get_limit_settings(db))
+    return _settings_response(get_limit_settings(db), get_chat_availability(db))
 
 
 @router.put("/settings", response_model=AdminSettingsResponse)
 def admin_put_settings(
-    payload: LimitSettingsModel,
+    payload: AdminSettingsUpdate,
     response: Response,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ) -> AdminSettingsResponse:
-    """Zmienia wszystkie globalne limity naraz (zakresy sprawdza schemat)."""
+    """Zmienia limity (wszystkie naraz) i/lub wylacznik czatu z komunikatem;
+    pominiete pola zostaja bez zmian (zakresy sprawdza schemat)."""
     response.headers.update(_NO_STORE)
-    settings = LimitSettings(
-        daily_question_limit=payload.daily_question_limit,
-        attachments=AttachmentLimits(
-            max_file_mb=payload.attachments.max_file_mb,
-            max_files_per_message=payload.attachments.max_files_per_message,
-            max_per_day=payload.attachments.max_per_day,
-            allowed_types=tuple(payload.attachments.allowed_types),
-        ),
-    )
-    saved = save_limit_settings(db, settings, admin.id)
-    logger.info("admin %s changed global limits: %s", admin.id, payload.model_dump())
-    return _settings_response(saved)
+    if payload.daily_question_limit is not None and payload.attachments is not None:
+        settings = LimitSettings(
+            daily_question_limit=payload.daily_question_limit,
+            attachments=AttachmentLimits(
+                max_file_mb=payload.attachments.max_file_mb,
+                max_files_per_message=payload.attachments.max_files_per_message,
+                max_per_day=payload.attachments.max_per_day,
+                allowed_types=tuple(payload.attachments.allowed_types),
+            ),
+        )
+        save_limit_settings(db, settings, admin.id)
+        logger.info(
+            "admin %s changed global limits: %s",
+            admin.id, payload.model_dump(include={"daily_question_limit", "attachments"}),
+        )
+    if payload.chat_enabled is not None or payload.sets_message:
+        save_chat_availability(
+            db,
+            enabled=payload.chat_enabled,
+            message=payload.chat_disabled_message,
+            sets_message=payload.sets_message,
+            admin_id=admin.id,
+        )
+    return _settings_response(get_limit_settings(db), get_chat_availability(db))
 
 
 @router.get("/users", response_model=AdminUserPage)

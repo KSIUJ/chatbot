@@ -17,9 +17,11 @@ from ..auth.dependencies import require_member
 from ..database import get_db
 from ..models import User
 from .schemas import UsageResponse
+from .settings import ChatDisabled, get_chat_availability
 from .usage import Clock, LimitExceeded, get_clock, usage_status
 
 RATE_LIMITED = "rate_limited"
+CHAT_DISABLED = "chat_disabled"
 
 router = APIRouter(tags=["limits"])
 
@@ -31,10 +33,18 @@ def get_usage(
     user: User = Depends(require_member),
     clock: Clock = Depends(get_clock),
 ) -> UsageResponse:
-    """Dzienny limit pytan biezacego uzytkownika (podpowiedz w sidebarze)."""
+    """Dzienny limit pytan biezacego uzytkownika (podpowiedz w sidebarze) i stan
+    wylacznika czatu (baner nad polem pytania)."""
     response.headers["Cache-Control"] = "no-store"
     status = usage_status(db, user.id, clock())
-    return UsageResponse(used=status.used, limit=status.limit, reset_at=status.reset_at)
+    availability = get_chat_availability(db)
+    return UsageResponse(
+        used=status.used,
+        limit=status.limit,
+        reset_at=status.reset_at,
+        chat_enabled=availability.enabled,
+        chat_disabled_message=availability.message,
+    )
 
 
 def rate_limited_response(exc: LimitExceeded) -> JSONResponse:
@@ -54,6 +64,23 @@ def rate_limited_response(exc: LimitExceeded) -> JSONResponse:
         },
         headers={"Retry-After": str(retry_after), "Cache-Control": "no-store"},
     )
+
+
+def chat_disabled_response(exc: ChatDisabled) -> JSONResponse:
+    """503 z kodem chat_disabled; admin_message = komunikat zarzadu albo null
+    (frontend pokazuje wtedy przetlumaczony tekst domyslny)."""
+    return JSONResponse(
+        status_code=503,
+        content={"detail": {"code": CHAT_DISABLED, "message": exc.message, "admin_message": exc.admin_message}},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def chat_disabled_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """Handler wyjatku ChatDisabled dla /chat i /chat/stream."""
+    if not isinstance(exc, ChatDisabled):
+        raise exc
+    return chat_disabled_response(exc)
 
 
 async def limit_exceeded_handler(_request: Request, exc: Exception) -> JSONResponse:
