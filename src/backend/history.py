@@ -20,7 +20,8 @@ from functools import lru_cache
 from sqlalchemy import Select, delete, select, update
 from sqlalchemy.orm import Session
 
-from .models import Conversation, Message, MessageFeedback
+from .attachments.storage import remove_files
+from .models import Attachment, Conversation, Message, MessageFeedback
 
 logger = logging.getLogger(__name__)
 
@@ -113,23 +114,45 @@ def detach_feedback(db: Session, message_ids: Select[tuple[str]] | Sequence[str]
     )
 
 
+def delete_conversation_attachments(
+    db: Session, conversation_ids: Select[tuple[str]] | Sequence[str]
+) -> list[str]:
+    """Kasuje wiersze zalacznikow rozmow (bez commita; SQLite nie wykona
+    ON DELETE CASCADE sam) i zwraca nazwy plikow do usuniecia PO commicie
+    (attachments/storage.remove_files) - nieudany commit nie zostawi wierszy
+    bez plikow."""
+    keys = list(db.execute(
+        select(Attachment.storage_key).where(Attachment.conversation_id.in_(conversation_ids))
+    ).scalars())
+    db.execute(
+        delete(Attachment)
+        .where(Attachment.conversation_id.in_(conversation_ids))
+        .execution_options(synchronize_session=False)
+    )
+    return keys
+
+
 # Duze listy id kasujemy partiami - SQLite ma limit parametrow w zapytaniu.
 DELETE_BATCH_SIZE = 500
 
 
 def delete_conversations(db: Session, conversation_ids: Sequence[str]) -> int:
-    """Kasuje rozmowy razem z wiadomosciami (SQLite nie wymusza kaskad FK,
-    wiec wiadomosci ida pierwsze, a oceny sa od nich odpinane). Zwraca liczbe
-    usunietych rozmow."""
+    """Kasuje rozmowy razem z zalacznikami i wiadomosciami (SQLite nie
+    wymusza kaskad FK, wiec zalaczniki i wiadomosci ida pierwsze, a oceny sa
+    od wiadomosci odpinane). Pliki zalacznikow znikaja z dysku po commicie.
+    Zwraca liczbe usunietych rozmow."""
     ids = list(conversation_ids)
     deleted = 0
+    files: list[str] = []
     for start in range(0, len(ids), DELETE_BATCH_SIZE):
         batch = ids[start:start + DELETE_BATCH_SIZE]
+        files.extend(delete_conversation_attachments(db, batch))
         detach_feedback(db, select(Message.id).where(Message.conversation_id.in_(batch)))
         db.execute(delete(Message).where(Message.conversation_id.in_(batch)))
         result = db.execute(delete(Conversation).where(Conversation.id.in_(batch)))
         deleted += int(result.rowcount or 0)
     db.commit()
+    remove_files(files)
     return deleted
 
 
@@ -161,10 +184,12 @@ def purge_expired_conversations(db: Session, retention_days: int) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     expired = select(Conversation.id).where(Conversation.last_message_at < cutoff)
     # podzapytanie zamiast listy id - dowolnie duza zaleglosc w jednym DELETE
+    files = delete_conversation_attachments(db, expired)
     detach_feedback(db, select(Message.id).where(Message.conversation_id.in_(expired)))
     db.execute(delete(Message).where(Message.conversation_id.in_(expired)))
     result = db.execute(delete(Conversation).where(Conversation.last_message_at < cutoff))
     db.commit()
+    remove_files(files)
     return int(result.rowcount or 0)
 
 

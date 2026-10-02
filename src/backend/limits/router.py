@@ -2,7 +2,9 @@
 
 Za nginxem jest pod /api/* (nginx obcina /api).
 
-    GET /usage -> {used, limit (null = bez limitu), reset_at}
+    GET /usage -> {used, limit (null = bez limitu), reset_at, chat_enabled,
+                   chat_disabled_message, attachments: {limity plikow,
+                   used_today, images_supported}}
 """
 
 from __future__ import annotations
@@ -15,10 +17,11 @@ from sqlalchemy.orm import Session
 
 from ..auth.dependencies import require_member
 from ..database import get_db
+from ..llm.provider import provider_supports_images
 from ..models import User
-from .schemas import UsageResponse
-from .settings import ChatDisabled, get_chat_availability
-from .usage import Clock, LimitExceeded, get_clock, usage_status
+from .schemas import AttachmentUsage, UsageResponse
+from .settings import MAX_IMAGE_MB, ChatDisabled, get_attachment_limits, get_chat_availability
+from .usage import Clock, LimitExceeded, attachments_used, get_clock, usage_status
 
 RATE_LIMITED = "rate_limited"
 CHAT_DISABLED = "chat_disabled"
@@ -36,14 +39,25 @@ def get_usage(
     """Dzienny limit pytan biezacego uzytkownika (podpowiedz w sidebarze) i stan
     wylacznika czatu (baner nad polem pytania)."""
     response.headers["Cache-Control"] = "no-store"
-    status = usage_status(db, user.id, clock())
+    now = clock()
+    status = usage_status(db, user.id, now)
     availability = get_chat_availability(db)
+    attachments = get_attachment_limits(db)
     return UsageResponse(
         used=status.used,
         limit=status.limit,
         reset_at=status.reset_at,
         chat_enabled=availability.enabled,
         chat_disabled_message=availability.message,
+        attachments=AttachmentUsage(
+            max_file_mb=attachments.max_file_mb,
+            max_image_mb=min(MAX_IMAGE_MB, attachments.max_file_mb),
+            max_files_per_message=attachments.max_files_per_message,
+            max_per_day=attachments.max_per_day,
+            used_today=attachments_used(db, user.id, now),
+            allowed_types=list(attachments.allowed_types),
+            images_supported=provider_supports_images(),
+        ),
     )
 
 

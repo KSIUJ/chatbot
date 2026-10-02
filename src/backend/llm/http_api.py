@@ -85,9 +85,9 @@ class BearerApi:
 
 def build_messages(
     system: str, user: str, history: list[dict[str, str]] | None
-) -> list[dict[str, str]]:
+) -> list[dict[str, object]]:
     """Lista wiadomosci w formacie chat completions: system, historia, pytanie."""
-    messages = [{"role": "system", "content": system}]
+    messages: list[dict[str, object]] = [{"role": "system", "content": system}]
     messages.extend(history or [])
     messages.append({"role": "user", "content": user})
     return messages

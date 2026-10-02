@@ -39,12 +39,22 @@ class FeedbackState(BaseModel):
     reported: bool
 
 
+class AttachmentInfo(BaseModel):
+    """Zalacznik wyslany z pytaniem (pobranie: GET /attachments/{id})."""
+    id: str
+    name: str
+    size: int
+    type: str
+
+
 class MessageResponse(BaseModel):
     id: str
     role: MessageRole
     content: str
     created_at: datetime
     sources: list[SourceResponse] = Field(default_factory=list)  # zrodla z RAG-a
+    # pliki wyslane z pytaniem (tylko wiadomosci uzytkownika)
+    attachments: list[AttachmentInfo] = Field(default_factory=list)
     # tylko odpowiedzi asystenta w GET /conversations/{id}; None = nie dotyczy
     feedback: FeedbackState | None = None
 

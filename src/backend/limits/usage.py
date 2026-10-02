@@ -7,6 +7,10 @@ wiec rownolegle zapytania nie przekrocza limitu. Pytanie jest zwracane tylko
 po bledzie po stronie serwera (blad modelu, pusta odpowiedz, nieudany zapis).
 Rozlaczenie klienta (Stop, zamkniecie karty) w dowolnym momencie nie zwraca
 pytania - model mogl juz zostac wywolany.
+
+Ten sam licznik (osobna tabela daily_attachment_usage) liczy wyslane pliki
+dla limitu attachments.max_per_day: plik zuzywa jedno miejsce przed zapisem
+na dysk, a odrzucony (typ, rozmiar, nieczytelny) je oddaje.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..llm.dates import warsaw_midnight, warsaw_now
-from ..models import DailyUsage, UserLimit, utcnow
+from ..models import DailyAttachmentUsage, DailyUsage, UserLimit, utcnow
 from .settings import get_daily_question_limit
 
 logger = logging.getLogger(__name__)
@@ -30,6 +34,8 @@ logger = logging.getLogger(__name__)
 USAGE_RETENTION_DAYS = 90
 
 Clock = Callable[[], datetime]
+# tabela dziennego licznika: pytania albo wyslane pliki (te same kolumny)
+CounterTable = type[DailyUsage] | type[DailyAttachmentUsage]
 
 
 def system_clock() -> datetime:
@@ -45,12 +51,17 @@ class LimitExceeded(Exception):
     """Dzienny limit pytan wyczerpany - API odpowiada 429."""
 
     def __init__(self, limit: int, used: int, reset_at: datetime, checked_at: datetime) -> None:
-        super().__init__(f"daily question limit {limit} reached")
+        super().__init__(f"daily limit {limit} reached")
         self.limit = limit
         self.used = used
         self.reset_at = reset_at
         # chwila sprawdzenia - od niej liczy sie Retry-After
         self.checked_at = checked_at
+
+
+class AttachmentLimitExceeded(LimitExceeded):
+    """Dzienny limit wyslanych plikow wyczerpany - API odpowiada 429
+    attachments_limited (osobny handler, nie rate_limited)."""
 
 
 @dataclass(frozen=True)
@@ -99,45 +110,74 @@ def effective_limit(db: Session, user_id: str) -> int | None:
     return get_daily_question_limit(db)
 
 
-def _used(db: Session, user_id: str, day: date) -> int:
-    stmt = select(DailyUsage.count).where(DailyUsage.user_id == user_id, DailyUsage.day == day)
+def _used(db: Session, user_id: str, day: date, table: CounterTable = DailyUsage) -> int:
+    stmt = select(table.count).where(table.user_id == user_id, table.day == day)
     return int(db.execute(stmt).scalar_one_or_none() or 0)
 
 
-def _increment(db: Session, user_id: str, day: date, limit: int | None) -> bool:
+def _increment(db: Session, table: CounterTable, user_id: str, day: date, limit: int | None) -> bool:
     """count + 1, jesli miesci sie w limicie. Atomowo w bazie: warunek
     count < limit jest sprawdzany w tym samym UPDATE."""
     stmt = (
-        update(DailyUsage)
-        .where(DailyUsage.user_id == user_id, DailyUsage.day == day)
-        .values(count=DailyUsage.count + 1)
+        update(table)
+        .where(table.user_id == user_id, table.day == day)
+        .values(count=table.count + 1)
         .execution_options(synchronize_session=False)
     )
     if limit is not None:
-        stmt = stmt.where(DailyUsage.count < limit)
+        stmt = stmt.where(table.count < limit)
     return bool(db.execute(stmt).rowcount)
 
 
-def _row_exists(db: Session, user_id: str, day: date) -> bool:
-    stmt = select(DailyUsage.user_id).where(DailyUsage.user_id == user_id, DailyUsage.day == day)
+def _row_exists(db: Session, table: CounterTable, user_id: str, day: date) -> bool:
+    stmt = select(table.user_id).where(table.user_id == user_id, table.day == day)
     return db.execute(stmt).first() is not None
 
 
-def _try_consume(db: Session, user_id: str, day: date, limit: int | None) -> bool:
-    if _increment(db, user_id, day, limit):
+def _try_consume(db: Session, table: CounterTable, user_id: str, day: date, limit: int | None) -> bool:
+    if _increment(db, table, user_id, day, limit):
         return True
-    if _row_exists(db, user_id, day):
+    if _row_exists(db, table, user_id, day):
         return False
     if limit is not None and limit <= 0:
         return False
-    # pierwsze pytanie danego dnia; rownolegle wstawienie konczy sie na kluczu
+    # pierwsze uzycie danego dnia; rownolegle wstawienie konczy sie na kluczu
     # glownym - wtedy wiersz juz jest i wystarczy go zwiekszyc
     try:
         with db.begin_nested():
-            db.execute(insert(DailyUsage).values(user_id=user_id, day=day, count=1))
+            db.execute(insert(table).values(user_id=user_id, day=day, count=1))
         return True
     except IntegrityError:
-        return _increment(db, user_id, day, limit)
+        return _increment(db, table, user_id, day, limit)
+
+
+def _consume(db: Session, table: CounterTable, user_id: str, day: date, limit: int | None) -> bool:
+    """Zuzywa jedno miejsce i commituje; False (po rollbacku) = limit wyczerpany."""
+    try:
+        consumed = _try_consume(db, table, user_id, day, limit)
+    except Exception:
+        db.rollback()
+        raise
+    if not consumed:
+        db.rollback()
+        return False
+    db.commit()
+    return True
+
+
+def _refund(db: Session, table: CounterTable, reservation: Reservation) -> None:
+    """Oddaje zuzyte miejsce i commituje. Nigdy ponizej 0."""
+    db.execute(
+        update(table)
+        .where(
+            table.user_id == reservation.user_id,
+            table.day == reservation.day,
+            table.count > 0,
+        )
+        .values(count=table.count - 1)
+        .execution_options(synchronize_session=False)
+    )
+    db.commit()
 
 
 def consume_question(db: Session, user_id: str, now: datetime) -> Reservation:
@@ -148,34 +188,17 @@ def consume_question(db: Session, user_id: str, now: datetime) -> Reservation:
     """
     day = usage_day(now)
     limit = effective_limit(db, user_id)
-    try:
-        consumed = _try_consume(db, user_id, day, limit)
-    except Exception:
-        db.rollback()
-        raise
-    if not consumed:
-        db.rollback()
+    if not _consume(db, DailyUsage, user_id, day, limit):
         if limit is None:
             # bez limitu UPDATE/INSERT zawsze sie udaje - tu nie powinno dojsc
             raise RuntimeError(f"usage counter of user {user_id} could not be incremented")
         raise LimitExceeded(limit, _used(db, user_id, day), next_reset(now), now)
-    db.commit()
     return Reservation(user_id=user_id, day=day)
 
 
 def refund_question(db: Session, reservation: Reservation) -> None:
     """Oddaje zuzyte pytanie (blad serwera, nic nie zapisano). Nigdy ponizej 0."""
-    db.execute(
-        update(DailyUsage)
-        .where(
-            DailyUsage.user_id == reservation.user_id,
-            DailyUsage.day == reservation.day,
-            DailyUsage.count > 0,
-        )
-        .values(count=DailyUsage.count - 1)
-        .execution_options(synchronize_session=False)
-    )
-    db.commit()
+    _refund(db, DailyUsage, reservation)
 
 
 def refund_in_new_session(session_factory: Callable[[], Session], reservation: Reservation) -> None:
@@ -189,6 +212,30 @@ def refund_in_new_session(session_factory: Callable[[], Session], reservation: R
         logger.exception("refunding question failed (user %s)", reservation.user_id)
     finally:
         db.close()
+
+
+def consume_attachment(db: Session, user_id: str, now: datetime, limit: int) -> Reservation:
+    """Zuzywa jedno miejsce z dziennego limitu wyslanych plikow i commituje.
+
+    Raises:
+        AttachmentLimitExceeded: limit na dzis wyczerpany.
+    """
+    day = usage_day(now)
+    if not _consume(db, DailyAttachmentUsage, user_id, day, limit):
+        raise AttachmentLimitExceeded(
+            limit, _used(db, user_id, day, DailyAttachmentUsage), next_reset(now), now
+        )
+    return Reservation(user_id=user_id, day=day)
+
+
+def refund_attachment(db: Session, reservation: Reservation) -> None:
+    """Oddaje miejsce po odrzuconym pliku. Nigdy ponizej 0."""
+    _refund(db, DailyAttachmentUsage, reservation)
+
+
+def attachments_used(db: Session, user_id: str, now: datetime) -> int:
+    """Ile plikow osoba wyslala dzisiaj (doba wg czasu polskiego)."""
+    return _used(db, user_id, usage_day(now), DailyAttachmentUsage)
 
 
 def usage_status(db: Session, user_id: str, now: datetime) -> UsageStatus:
@@ -229,8 +276,11 @@ def clear_user_limit(db: Session, user_id: str) -> bool:
 # --- sprzatanie -----------------------------------------------------------------------------------
 
 def purge_old_usage(db: Session, retention_days: int = USAGE_RETENTION_DAYS, now: datetime | None = None) -> int:
-    """Kasuje dzienne liczniki starsze niz retention_days."""
+    """Kasuje dzienne liczniki (pytan i plikow) starsze niz retention_days."""
     cutoff = usage_day(now if now is not None else system_clock()) - timedelta(days=retention_days)
-    result = db.execute(delete(DailyUsage).where(DailyUsage.day < cutoff))
+    deleted = 0
+    for table in (DailyUsage, DailyAttachmentUsage):
+        result = db.execute(delete(table).where(table.day < cutoff))
+        deleted += int(result.rowcount or 0)
     db.commit()
-    return int(result.rowcount or 0)
+    return deleted

@@ -270,3 +270,40 @@ def test_closing_stream_early_closes_message_stream(fake_anthropic_client, monke
     stream.close()
 
     assert fake_anthropic_client.last_instance.last_stream.closed
+
+
+# --- obrazy (zalaczniki) -----------------------------------------------------------
+
+def test_chat_sends_images_as_base64_blocks_before_text(fake_anthropic_client):
+    from src.backend.llm.images import ImageInput
+
+    chat = _import_chat()
+
+    chat(system="s", user="co jest na zdjeciu?", images=[ImageInput("image/png", b"\x89PNG")])
+
+    message = fake_anthropic_client.last_instance.last_create_kwargs["messages"][-1]
+    assert message["role"] == "user"
+    assert message["content"] == [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw=="}},
+        {"type": "text", "text": "co jest na zdjeciu?"},
+    ]
+
+
+def test_stream_chat_sends_images(fake_anthropic_client):
+    from src.backend.llm.images import ImageInput
+
+    stream_chat = _import_stream_chat()
+
+    list(stream_chat(system="s", user="u", images=[ImageInput("image/webp", b"RIFF")]))
+
+    content = fake_anthropic_client.last_instance.last_stream_kwargs["messages"][-1]["content"]
+    assert content[0]["source"]["media_type"] == "image/webp"
+    assert content[-1] == {"type": "text", "text": "u"}
+
+
+def test_chat_without_images_keeps_plain_text_content(fake_anthropic_client):
+    chat = _import_chat()
+
+    chat(system="s", user="u", images=[])
+
+    assert fake_anthropic_client.last_instance.last_create_kwargs["messages"] == [{"role": "user", "content": "u"}]

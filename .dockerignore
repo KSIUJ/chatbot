@@ -9,6 +9,7 @@ data
 dataset
 *.db
 *.db.bak*
+uploads
 .env
 
 tests
