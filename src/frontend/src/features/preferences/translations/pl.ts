@@ -92,6 +92,15 @@ export const pl: Translation = {
     uploading: (percent) => `Wysyłanie… ${percent}%`,
     download: (name) => `Pobierz ${name}`,
     waitForUploads: 'Poczekaj, aż pliki się wyślą',
+    earlierNote: (count) => {
+      const mod10 = count % 10;
+      const mod100 = count % 100;
+      const files =
+        count === 1 ? 'wcześniejszy plik'
+          : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'wcześniejsze pliki'
+            : 'wcześniejszych plików';
+      return `Rozmowa zawiera ${count} ${files} (model je widzi).`;
+    },
     dismiss: 'Zamknij',
     problems: {
       tooLarge: (name, maxMb) =>

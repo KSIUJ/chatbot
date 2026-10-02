@@ -27,6 +27,22 @@ export interface ChatMessage {
   attachmentProblem?: AttachmentProblem;
 }
 
+// A bot reply after which the question (and its files) is saved on the server.
+function isSavedReply(reply: ChatMessage | undefined): boolean {
+  if (reply === undefined || reply.sender !== 'bot') return false;
+  if (reply.status === 'stopped') return reply.text !== '';
+  return reply.status !== 'error';
+}
+
+// Files sent earlier in the open conversation - the server adds them to every
+// next question, so the input says the model still sees them.
+export function earlierFileCount(messages: readonly ChatMessage[]): number {
+  return messages.reduce((count, message, index) => {
+    if (message.sender !== 'user' || !message.attachments) return count;
+    return isSavedReply(messages[index + 1]) ? count + message.attachments.length : count;
+  }, 0);
+}
+
 export function isMarker(message: ChatMessage): boolean {
   return message.status === 'stopped' || message.status === 'error';
 }

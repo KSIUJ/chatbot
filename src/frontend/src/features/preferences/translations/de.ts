@@ -96,6 +96,8 @@ export const de: Translation = {
     uploading: (percent) => `Wird hochgeladen… ${percent}%`,
     download: (name) => `${name} herunterladen`,
     waitForUploads: 'Bitte warten Sie, bis die Dateien hochgeladen sind',
+    earlierNote: (count) =>
+      `Dieses Gespräch enthält ${count} ${count === 1 ? 'frühere Datei' : 'frühere Dateien'} (das Modell sieht sie).`,
     dismiss: 'Schließen',
     problems: {
       tooLarge: (name, maxMb) => `${name ?? 'Die Datei'} ist zu groß${maxMb !== null ? ` (Limit ${maxMb} MB)` : ''}.`,

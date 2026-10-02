@@ -40,3 +40,19 @@ describe('describeAttachmentProblem', () => {
     }
   });
 });
+
+describe('earlierNote', () => {
+  it.each([
+    [1, 'Rozmowa zawiera 1 wcześniejszy plik (model je widzi).'],
+    [3, 'Rozmowa zawiera 3 wcześniejsze pliki (model je widzi).'],
+    [5, 'Rozmowa zawiera 5 wcześniejszych plików (model je widzi).'],
+    [12, 'Rozmowa zawiera 12 wcześniejszych plików (model je widzi).'],
+    [22, 'Rozmowa zawiera 22 wcześniejsze pliki (model je widzi).'],
+  ])('Polish plural for %d', (count, expected) => {
+    expect(translations.pl.attachments.earlierNote(count)).toBe(expected);
+  });
+
+  it.each(LANGUAGES)('mentions the count in %s', (code) => {
+    expect(translations[code].attachments.earlierNote(4)).toContain('4');
+  });
+});

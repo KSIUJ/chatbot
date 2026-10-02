@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 UNSENT_RETENTION = timedelta(hours=24)
 # prefiks regul heurystyki znalezionych w tresci pliku (incydenty)
 ATTACHMENT_RULE_PREFIX = "attachment:"
+# obrazy z wczesniejszych pytan wysylane ponownie: najwyzej tyle najnowszych
+MAX_EARLIER_IMAGES = 3
+# lacznie obrazow w jednym zapytaniu do modelu (biezace + wczesniejsze) -
+# z zapasem ponizej limitow API (Claude: 32 MB na zapytanie po base64)
+MAX_TOTAL_IMAGE_BYTES = 15 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -71,6 +76,7 @@ def create_attachment(
         storage_key=storage_key,
         text=extraction.text,
         pages=extraction.pages,
+        ocr=extraction.ocr,
         injection_rules=list(injection_rules),
     )
     db.add(row)
@@ -164,16 +170,65 @@ def _requested(db: Session, user_id: str, conversation_id: str, ids: Sequence[st
     return rows
 
 
-def _prompt_attachment(row: Attachment) -> PromptAttachment:
+def _read_image(row: Attachment) -> ImageInput | None:
+    try:
+        return ImageInput(row.mime, storage.path_for(row.storage_key).read_bytes())
+    except (OSError, ValueError) as exc:
+        logger.warning("attachment file %s unavailable: %s", row.id, exc)
+        return None
+
+
+def _prompt_attachment(row: Attachment, *, image: ImageInput | None = None, earlier: bool = False) -> PromptAttachment:
+    return PromptAttachment(
+        name=row.name, kind=row.kind, text=row.text, pages=row.pages, image=image, earlier=earlier, ocr=row.ocr,
+    )
+
+
+def _current_prompt(row: Attachment) -> PromptAttachment:
+    """Plik biezacego pytania; brak pliku obrazu na dysku = 404."""
     image = None
     if row.kind in IMAGE_KINDS:
-        try:
-            data = storage.path_for(row.storage_key).read_bytes()
-        except (OSError, ValueError) as exc:
-            logger.warning("attachment file %s unavailable: %s", row.id, exc)
-            raise not_found() from exc
-        image = ImageInput(row.mime, data)
-    return PromptAttachment(name=row.name, kind=row.kind, text=row.text, pages=row.pages, image=image)
+        image = _read_image(row)
+        if image is None:
+            raise not_found()
+    return _prompt_attachment(row, image=image)
+
+
+def _earlier(db: Session, user_id: str, conversation_id: str, exclude: set[str]) -> list[Attachment]:
+    """Pliki wyslane wczesniej w tej rozmowie (przypiete do pytan), od
+    najnowszych, bez plikow biezacego pytania."""
+    stmt = (
+        select(Attachment)
+        .where(
+            Attachment.conversation_id == conversation_id,
+            Attachment.user_id == user_id,
+            Attachment.message_id.is_not(None),
+        )
+        .order_by(Attachment.created_at.desc(), Attachment.id.desc())
+    )
+    return [row for row in db.execute(stmt).scalars() if row.id not in exclude]
+
+
+def _earlier_prompts(
+    rows: Sequence[Attachment], images_supported: bool, image_bytes_used: int
+) -> list[PromptAttachment]:
+    """Wczesniejsze pliki dla modelu. Obrazy tylko dla dostawcow z obsluga
+    obrazow: najwyzej MAX_EARLIER_IMAGES najnowszych i lacznie (z obrazami
+    biezacego pytania) najwyzej MAX_TOTAL_IMAGE_BYTES - pozostale obrazy sa
+    tylko wymienione z nazwy. Bez bledu images_unsupported."""
+    prompts: list[PromptAttachment] = []
+    images = 0
+    used = image_bytes_used
+    for row in rows:
+        image = None
+        fits = images < MAX_EARLIER_IMAGES and used + row.size <= MAX_TOTAL_IMAGE_BYTES
+        if row.kind in IMAGE_KINDS and images_supported and fits:
+            image = _read_image(row)
+            if image is not None:
+                images += 1
+                used += len(image.data)
+        prompts.append(_prompt_attachment(row, image=image, earlier=True))
+    return prompts
 
 
 def _rules(rows: Sequence[Attachment]) -> tuple[str, ...]:
@@ -192,18 +247,23 @@ def resolve_turn_attachments(
     images_supported: bool,
 ) -> TurnAttachments:
     """Zalaczniki pytania: przy regeneracji te z powtarzanego pytania, plus
-    podane id (niewyslane albo juz w tej rozmowie). Wolane przed zuzyciem
-    limitu pytan i przed modelem.
+    podane id (niewyslane albo juz w tej rozmowie), a za nimi pliki wyslane
+    wczesniej w rozmowie (od najnowszych). Wolane przed zuzyciem limitu
+    pytan i przed modelem. Limity, images_unsupported i reguly heurystyki
+    dotycza tylko plikow biezacego pytania - wczesniejsze byly sprawdzone
+    przy wyslaniu, wiec nie zakladaja nowych incydentow.
 
     Raises:
         AttachmentError: 404 attachment_not_found, 422 too_many_files albo
-            422 images_unsupported (dostawca bez obslugi obrazow).
+            422 images_unsupported (obraz w biezacym pytaniu, dostawca bez
+            obslugi obrazow).
     """
     replayed = _replayed(db, user_id, conversation_id) if regenerate else []
     requested = _requested(db, user_id, conversation_id, requested_ids)
     known = {row.id for row in replayed}
     rows = [*replayed, *(row for row in requested if row.id not in known)]
-    if not rows:
+    earlier_rows = _earlier(db, user_id, conversation_id, {row.id for row in rows})
+    if not rows and not earlier_rows:
         return NO_ATTACHMENTS
     if len(rows) > max_files:
         raise AttachmentError(
@@ -214,8 +274,10 @@ def resolve_turn_attachments(
         raise AttachmentError(
             422, IMAGES_UNSUPPORTED, "Obecny model nie obsługuje obrazów. Usuń obrazy z pytania.",
         )
+    current = [_current_prompt(row) for row in rows]
+    current_image_bytes = sum(len(item.image.data) for item in current if item.image is not None)
     return TurnAttachments(
-        prompt=tuple(_prompt_attachment(row) for row in rows),
+        prompt=(*current, *_earlier_prompts(earlier_rows, images_supported, current_image_bytes)),
         link_ids=tuple(row.id for row in rows if row.conversation_id is None),
         injection_rules=_rules(rows),
     )

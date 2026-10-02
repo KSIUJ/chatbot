@@ -95,6 +95,8 @@ export const it: Translation = {
     uploading: (percent) => `Caricamento… ${percent}%`,
     download: (name) => `Scarica ${name}`,
     waitForUploads: 'Attendi il caricamento dei file',
+    earlierNote: (count) =>
+      `Questa conversazione contiene ${count} ${count === 1 ? 'file precedente' : 'file precedenti'} (il modello ${count === 1 ? 'lo' : 'li'} vede).`,
     dismiss: 'Chiudi',
     problems: {
       tooLarge: (name, maxMb) =>

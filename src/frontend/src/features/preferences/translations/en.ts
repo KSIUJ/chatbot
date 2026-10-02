@@ -91,6 +91,8 @@ export const en: Translation = {
     uploading: (percent) => `Uploading… ${percent}%`,
     download: (name) => `Download ${name}`,
     waitForUploads: 'Wait until the files are uploaded',
+    earlierNote: (count) =>
+      `This conversation has ${count} earlier ${count === 1 ? 'file' : 'files'} (the model can see ${count === 1 ? 'it' : 'them'}).`,
     dismiss: 'Dismiss',
     problems: {
       tooLarge: (name, maxMb) => `${name ?? 'The file'} is too large${maxMb !== null ? ` (limit ${maxMb} MB)` : ''}.`,

@@ -236,13 +236,17 @@ def test_regenerate_reuses_attachments_of_the_replayed_question(member):
     assert [a["id"] for a in messages[0]["attachments"]] == [attachment_id]
 
 
-def test_followup_does_not_resend_earlier_attachments(member):
+def test_followup_resends_earlier_attachments_marked_as_earlier(member):
     attachment_id = upload(member, b"tresc pliku", "a.txt")
     cid = member.post("/chat", json={"message": "streszcz", "attachment_ids": [attachment_id]}).json()["conversation_id"]
 
     member.post("/chat", json={"message": "dzieki", "conversation_id": cid})
 
-    assert member.calls[-1]["attachments"] == []
+    [sent] = member.calls[-1]["attachments"]
+    assert (sent.name, sent.earlier, sent.text) == ("a.txt", True, "tresc pliku")
+    # ponowne wyslanie nie przepina pliku do nowego pytania
+    messages = member.get(f"/conversations/{cid}").json()["messages"]
+    assert [len(m["attachments"]) for m in messages] == [1, 0, 0, 0]
 
 
 # --- obrazy ------------------------------------------------------------------------------------

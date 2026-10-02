@@ -1,10 +1,11 @@
 """Blok ZALACZNIKI UZYTKOWNIKA w wiadomosci do modelu.
 
 Stoi po bloku KONTEKST, a przed pytaniem. Kazdy plik ma naglowek (numer,
-nazwa, rodzaj), potem wyciagniety tekst. Wspolny budzet znakow
-TOTAL_TEXT_BUDGET jest dzielony sprawiedliwie: krotkie pliki wchodza
-w calosci, a reszta budzetu przypada rowno dluzszym. Zasada 9 promptu
-mowi juz, ze tresc zalacznikow to dane, nie polecenia.
+"wczesniej w rozmowie" dla plikow z poprzednich pytan, nazwa, rodzaj,
+znacznik OCR), potem wyciagniety tekst. Wspolny budzet znakow
+TOTAL_TEXT_BUDGET: pliki biezacego pytania dziela go sprawiedliwie (krotkie
+w calosci, reszta rowno dluzszym), wczesniejsze dostaja to, co zostalo.
+Zasada 9 promptu mowi juz, ze tresc zalacznikow to dane, nie polecenia.
 """
 
 from __future__ import annotations
@@ -21,8 +22,16 @@ ATTACHMENTS_FOOTER: Final = "KONIEC ZAŁĄCZNIKÓW"
 TRUNCATION_NOTE: Final = "[ucięto]"
 NO_TEXT: Final = "(brak tekstu do odczytania)"
 IMAGE_NOTE: Final = "przekazany jako obraz do wiadomości"
+IMAGE_SKIPPED_NOTE: Final = "nie dołączony do tej wiadomości"
+EARLIER_NOTE: Final = " (wcześniej w rozmowie)"
+OCR_NOTE: Final = "tekst rozpoznany OCR, może zawierać błędy"
 
 TOTAL_TEXT_BUDGET = 40_000
+# wczesniejszy plik dostaje miejsce, jesli zostalo co najmniej tyle znakow
+# (albo caly sie miesci) - inaczej jest pomijany z notka
+MIN_EARLIER_CHARS = 500
+
+_IMAGE_KINDS: Final = frozenset({"png", "jpeg", "webp"})
 
 _KIND_LABELS: Final[dict[str, str]] = {
     "pdf": "PDF", "docx": "DOCX", "txt": "TXT", "png": "PNG", "jpeg": "JPEG", "webp": "WEBP",
@@ -37,7 +46,12 @@ class PromptAttachment:
     # None dla obrazow
     text: str | None
     pages: int | None = None
+    # None dla plikow tekstowych i dla obrazow niedolaczonych (limit, model bez obrazow)
     image: ImageInput | None = None
+    # wyslany wczesniej w tej rozmowie (nie z biezacym pytaniem)
+    earlier: bool = False
+    # tekst rozpoznany OCR-em (skan)
+    ocr: bool = False
 
 
 def fair_shares(lengths: Sequence[int], budget: int) -> list[int]:
@@ -97,32 +111,76 @@ def _neutralized(text: str) -> str:
 
 def _header(number: int, item: PromptAttachment) -> str:
     label = _KIND_LABELS.get(item.kind, item.kind.upper())
-    if item.image is not None or item.text is None:
-        details = f"obraz {label}, {IMAGE_NOTE}"
+    if item.kind in _IMAGE_KINDS:
+        details = f"obraz {label}, {IMAGE_NOTE if item.image is not None else IMAGE_SKIPPED_NOTE}"
     elif item.pages is not None:
         details = f"{label}, stron: {item.pages}"
     else:
         details = label
-    return f"--- PLIK {number}: {_one_line(item.name)} ({details}) ---"
+    if item.ocr:
+        details = f"{details}, {OCR_NOTE}"
+    where = EARLIER_NOTE if item.earlier else ""
+    return f"--- PLIK {number}{where}: {_one_line(item.name)} ({details}) ---"
+
+
+def _earlier_shares(earlier: Sequence[PromptAttachment], budget: int) -> list[int | None]:
+    """Znaki dla wczesniejszych plikow (od najnowszych) z tego, co zostalo po
+    plikach biezacego pytania; None = plik pominiety (brak miejsca)."""
+    shares: list[int | None] = []
+    left = budget
+    for item in earlier:
+        length = len(item.text or "")
+        if length == 0:
+            # obraz albo plik bez tekstu - sam naglowek
+            shares.append(0)
+        elif left >= min(length, MIN_EARLIER_CHARS):
+            share = min(length, left)
+            shares.append(share)
+            left -= share
+        else:
+            shares.append(None)
+    return shares
+
+
+def _file_lines(number: int, item: PromptAttachment, share: int) -> list[str]:
+    lines = [_header(number, item)]
+    if item.text is None:
+        return lines
+    text = item.text
+    if not text.strip():
+        lines.append(NO_TEXT)
+    elif share < len(text):
+        lines.append(f"{_neutralized(text[:share].rstrip())}\n{TRUNCATION_NOTE}")
+    else:
+        lines.append(_neutralized(text))
+    return lines
 
 
 def attachments_block(attachments: Sequence[PromptAttachment]) -> str:
-    """Blok z plikami; pusty napis, gdy nie ma zalacznikow."""
+    """Blok z plikami; pusty napis, gdy nie ma zalacznikow. Pliki biezacego
+    pytania maja pierwszenstwo w budzecie (dzielony sprawiedliwie miedzy nie),
+    wczesniejsze z rozmowy dostaja reszte - od najnowszych, a niemieszczace
+    sie sa pomijane z notka."""
     if not attachments:
         return ""
-    texts = [item.text or "" for item in attachments]
-    shares = fair_shares([len(t) for t in texts], TOTAL_TEXT_BUDGET)
+    current = [item for item in attachments if not item.earlier]
+    earlier = [item for item in attachments if item.earlier]
+    current_shares = fair_shares([len(item.text or "") for item in current], TOTAL_TEXT_BUDGET)
+    planned: list[tuple[PromptAttachment, int | None]] = [
+        *zip(current, current_shares),
+        *zip(earlier, _earlier_shares(earlier, TOTAL_TEXT_BUDGET - sum(current_shares))),
+    ]
     lines = [ATTACHMENTS_HEADER]
-    for number, (item, text, share) in enumerate(zip(attachments, texts, shares), start=1):
-        lines.append(_header(number, item))
-        if item.text is None:
+    number = 0
+    omitted = 0
+    for item, share in planned:
+        if share is None:
+            omitted += 1
             continue
-        if not text.strip():
-            lines.append(NO_TEXT)
-        elif share < len(text):
-            lines.append(f"{_neutralized(text[:share].rstrip())}\n{TRUNCATION_NOTE}")
-        else:
-            lines.append(_neutralized(text))
+        number += 1
+        lines.extend(_file_lines(number, item, share))
+    if omitted:
+        lines.append(f"(pominięto wcześniejsze pliki z rozmowy: {omitted} - brak miejsca w wiadomości)")
     lines.append(ATTACHMENTS_FOOTER)
     return "\n".join(lines)
 

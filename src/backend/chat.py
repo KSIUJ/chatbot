@@ -60,15 +60,14 @@ class ChatTurn:
 
 
 def with_attachments(db: Session, turn: ChatTurn, requested_ids: Sequence[str]) -> ChatTurn:
-    """Tura uzupelniona o zalaczniki: podane id i - przy regeneracji - te
-    z powtarzanego pytania. Wolane przed zuzyciem limitu pytan i modelem.
+    """Tura uzupelniona o zalaczniki: podane id, przy regeneracji te
+    z powtarzanego pytania, a za nimi pliki wyslane wczesniej w tej rozmowie.
+    Wolane przed zuzyciem limitu pytan i modelem.
 
     Raises:
         AttachmentError: 404 attachment_not_found, 422 too_many_files albo
             422 images_unsupported.
     """
-    if not requested_ids and not turn.regenerate:
-        return turn
     resolved = resolve_turn_attachments(
         db,
         user_id=turn.user_id,

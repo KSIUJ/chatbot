@@ -95,6 +95,8 @@ export const fr: Translation = {
     uploading: (percent) => `Envoi… ${percent} %`,
     download: (name) => `Télécharger ${name}`,
     waitForUploads: 'Attendez la fin de l’envoi des fichiers',
+    earlierNote: (count) =>
+      `Cette conversation contient ${count} ${count === 1 ? 'fichier précédent' : 'fichiers précédents'} (le modèle ${count === 1 ? 'le' : 'les'} voit).`,
     dismiss: 'Fermer',
     problems: {
       tooLarge: (name, maxMb) =>
