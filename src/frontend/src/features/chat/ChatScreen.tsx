@@ -1,7 +1,6 @@
 import { useId } from 'react';
 import { Menu } from 'lucide-react';
 import type { AuthUser } from '../auth/useAuth';
-import { themeStyles } from '../preferences/themes';
 import type { Preferences } from '../preferences/usePreferences';
 import { useChat } from './useChat';
 import { useDrawer } from './useDrawer';
@@ -20,7 +19,6 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
   const chat = useChat(lang.htmlLang);
   const { isOpen: isDrawerOpen, open: openDrawer, close: closeDrawer, menuButtonRef, closeButtonRef } = useDrawer();
   const drawerId = useId();
-  const t = themeStyles[preferences.theme];
 
   const reloadConversation = () => {
     if (chat.activeId !== null) void chat.openConversation(chat.activeId);
@@ -38,9 +36,8 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
   };
 
   return (
-    <div className={`flex h-dvh ${t.app} font-sans transition-colors duration-300`}>
+    <div className="flex h-dvh bg-page text-fg font-sans">
       <ChatSidebar
-        t={t}
         preferences={preferences}
         user={user}
         conversations={chat.conversations}
@@ -59,13 +56,13 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
 
       {/* dimmed page behind the open mobile drawer */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-30 bg-black/50 md:hidden" aria-hidden="true" onClick={closeDrawer} />
+        <div className="fixed inset-0 z-30 bg-backdrop md:hidden" aria-hidden="true" onClick={closeDrawer} />
       )}
 
       {/* inert while the drawer is open: focus and screen readers stay in the drawer */}
       <div className="flex-1 min-w-0 flex flex-col h-dvh relative overflow-hidden" inert={isDrawerOpen}>
         {/* mobile top bar: the sidebar is a drawer below md */}
-        <header className={`md:hidden flex items-center gap-2 px-3 py-2 border-b ${t.sidebar}`}>
+        <header className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-line bg-surface">
           <button
             ref={menuButtonRef}
             type="button"
@@ -73,15 +70,14 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
             aria-label={lang.openMenu}
             aria-expanded={isDrawerOpen}
             aria-controls={drawerId}
-            className={`p-2 rounded-md ${t.text} ${t.hover}`}
+            className="p-2 rounded-control text-fg transition-colors hover:bg-surface-hover"
           >
             <Menu size={20} />
           </button>
-          <span className={`font-medium ${t.text} text-base tracking-tight truncate`}>{lang.appTitle}</span>
+          <span className="font-head text-base font-semibold text-fg truncate">{lang.appTitle}</span>
         </header>
 
         <ChatMessageList
-          t={t}
           lang={lang}
           messages={chat.messages}
           isWaiting={chat.isWaiting}
@@ -92,7 +88,7 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
           onRetry={() => void chat.retry()}
           onReload={reloadConversation}
         />
-        <ChatInput t={t} lang={lang} isWaiting={chat.isWaiting} onSend={chat.send} onStop={chat.stop} />
+        <ChatInput lang={lang} isWaiting={chat.isWaiting} onSend={chat.send} onStop={chat.stop} />
       </div>
     </div>
   );

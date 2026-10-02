@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Bot, Check, Copy, Loader2, RefreshCw } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
-import type { ThemeStyle } from '../preferences/themes';
 import { isMarker, type ChatMessage } from './conversations';
 import MessageSources from './MessageSources';
 
@@ -9,7 +8,6 @@ import MessageSources from './MessageSources';
 const NEAR_BOTTOM_PX = 120;
 
 interface ChatMessageListProps {
-  t: ThemeStyle;
   lang: Translation;
   messages: ChatMessage[];
   isWaiting: boolean;
@@ -21,16 +19,21 @@ interface ChatMessageListProps {
   onReload: () => void;
 }
 
-function BotAvatar({ t }: { t: ThemeStyle }) {
+// Flat bubbles with a hairline border, like the KSI login card. The bot's text
+// colour is set per use (regular answers, markers and typing dots differ).
+const BOT_BUBBLE = 'bg-surface border border-line';
+const USER_BUBBLE = 'bg-user border border-user-line text-user-fg';
+
+function BotAvatar() {
   return (
-    <div className={`h-10 w-10 ${t.botIcon} rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5`}>
-      <Bot size={22} />
+    <div className="h-9 w-9 shrink-0 mt-0.5 flex items-center justify-center rounded-card border border-line bg-surface text-fg shadow-ksi">
+      <Bot size={20} aria-hidden="true" />
     </div>
   );
 }
 
 export default function ChatMessageList({
-  t, lang, messages, isWaiting, isLoading, loadError, copiedId, onCopy, onRetry, onReload,
+  lang, messages, isWaiting, isLoading, loadError, copiedId, onCopy, onRetry, onReload,
 }: ChatMessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -66,7 +69,7 @@ export default function ChatMessageList({
     return (
       <main className="flex-1 flex items-center justify-center">
         <div role="status">
-          <Loader2 className={`w-6 h-6 animate-spin ${t.textMuted}`} />
+          <Loader2 className="w-6 h-6 animate-spin text-muted" />
           <span className="sr-only">{lang.loading}</span>
         </div>
       </main>
@@ -75,10 +78,10 @@ export default function ChatMessageList({
 
   if (loadError) {
     return (
-      <main className={`flex-1 flex flex-col items-center justify-center gap-3 ${t.text}`}>
+      <main className="flex-1 flex flex-col items-center justify-center gap-3 text-fg">
         <p className="text-sm">{lang.loadError}</p>
-        <button type="button" onClick={onReload} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm ${t.hover}`}>
-          <RefreshCw size={14} />
+        <button type="button" onClick={onReload} className="ksi-btn ksi-btn-secondary">
+          <RefreshCw size={14} aria-hidden="true" />
           {lang.retry}
         </button>
       </main>
@@ -94,8 +97,8 @@ export default function ChatMessageList({
       {/* empty conversation: greeting instead of a fake stored message */}
       {messages.length === 0 && !isWaiting && (
         <div className="flex gap-4 max-w-4xl mx-auto w-full">
-          <BotAvatar t={t} />
-          <div className={`p-5 rounded-2xl rounded-tl-sm border text-[15px] leading-relaxed max-w-[70%] ${t.msgBox}`}>
+          <BotAvatar />
+          <div className={`px-4 py-3 rounded-card text-sm leading-relaxed max-w-[70%] text-fg ${BOT_BUBBLE}`}>
             {lang.greeting}
           </div>
         </div>
@@ -115,24 +118,26 @@ export default function ChatMessageList({
 
         return (
           <div key={msg.id} className={`flex gap-4 max-w-4xl mx-auto w-full ${isUser ? 'flex-row-reverse' : ''}`}>
-            {!isUser && <BotAvatar t={t} />}
+            {!isUser && <BotAvatar />}
 
             <div className="flex flex-col gap-2 max-w-[70%]">
               <div
-                className={`p-5 relative rounded-2xl border text-[15px] leading-relaxed whitespace-pre-wrap break-words
-                  ${isUser ? `${t.userMsgBox} rounded-tr-sm` : `${t.msgBox} rounded-tl-sm`}
-                  ${marker && !hasPartialText ? 'opacity-80 italic' : ''}
-                  ${canCopy || isStreaming ? 'pr-14' : ''}`}
+                className={`px-4 py-3 relative rounded-card text-sm leading-relaxed whitespace-pre-wrap break-words
+                  ${isUser ? USER_BUBBLE : BOT_BUBBLE}
+                  ${isUser ? '' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}
+                  ${canCopy || isStreaming ? 'pr-12' : ''}`}
                 aria-busy={isStreaming || undefined}
               >
                 {text}
-                {hasPartialText && <span className="block mt-2 text-sm italic opacity-80">{markerText}</span>}
+                {hasPartialText && <span className="block mt-2 text-label italic text-muted">{markerText}</span>}
 
                 {canCopy && (
                   <button
                     type="button"
                     onClick={() => onCopy(msg)}
-                    className={`absolute top-3 right-3 p-1.5 rounded-md transition-colors ${isCopied ? t.copiedIcon : `${t.textMuted} ${t.hover}`}`}
+                    className={`absolute top-2 right-2 p-1.5 rounded-control transition-colors ${
+                      isCopied ? 'text-accent' : 'text-muted hover:bg-surface-hover hover:text-fg'
+                    }`}
                     title={isCopied ? lang.copied : lang.copy}
                     aria-label={isCopied ? lang.copied : lang.copy}
                   >
@@ -141,7 +146,7 @@ export default function ChatMessageList({
                 )}
               </div>
 
-              {sources.length > 0 && <MessageSources t={t} lang={lang} sources={sources} />}
+              {sources.length > 0 && <MessageSources lang={lang} sources={sources} />}
 
               {/* retry only on the latest failed / stopped answer */}
               {marker && msg.id === lastId && (
@@ -149,11 +154,11 @@ export default function ChatMessageList({
                   type="button"
                   onClick={onRetry}
                   disabled={isWaiting}
-                  className={`self-start flex items-center gap-1.5 p-1.5 rounded-md text-[11px] font-bold uppercase tracking-wide ${
-                    isWaiting ? 'opacity-50 cursor-not-allowed' : `${t.textMuted} ${t.hover}`
+                  className={`self-start flex items-center gap-1.5 px-1.5 py-1 rounded-control text-[11px] font-semibold uppercase tracking-[0.04em] text-muted transition-colors ${
+                    isWaiting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-surface-hover hover:text-fg'
                   }`}
                 >
-                  <RefreshCw size={13} />
+                  <RefreshCw size={13} aria-hidden="true" />
                   {lang.retry}
                 </button>
               )}
@@ -165,8 +170,8 @@ export default function ChatMessageList({
       {/* waiting for the answer */}
       {showTyping && (
         <div className="flex gap-4 max-w-4xl mx-auto w-full">
-          <BotAvatar t={t} />
-          <div role="status" className={`px-5 rounded-2xl rounded-tl-sm border flex items-center h-13 ${t.msgBox}`}>
+          <BotAvatar />
+          <div role="status" className={`px-4 rounded-card flex items-center h-11 text-muted ${BOT_BUBBLE}`}>
             <span className="sr-only">{lang.waitingPlaceholder}</span>
             <div className="flex gap-1.5 items-center" aria-hidden="true">
               <span className="w-2 h-2 rounded-full bg-current opacity-60 animate-bounce" style={{ animationDelay: '0ms' }} />

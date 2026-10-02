@@ -1,18 +1,17 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, Globe, Moon, Settings } from 'lucide-react';
 import { LANGUAGE_PREFERENCES, translations } from '../preferences/languages';
-import { THEME_PREFERENCES, type ThemeStyle } from '../preferences/themes';
+import { THEME_PREFERENCES } from '../preferences/themes';
 import type { Preferences } from '../preferences/usePreferences';
 
 type SettingsView = 'closed' | 'main' | 'language' | 'theme';
 
 interface SettingsMenuProps {
-  t: ThemeStyle;
   preferences: Preferences;
 }
 
 // "Settings" button in the sidebar with a popover for language and theme.
-export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
+export default function SettingsMenu({ preferences }: SettingsMenuProps) {
   const { lang, languagePreference, setLanguagePreference, themePreference, setThemePreference } = preferences;
   const [view, setView] = useState<SettingsView>('closed');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,19 +40,19 @@ export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
     };
   }, [isOpen]);
 
-  const menuItem = `w-full flex items-center justify-between px-4 py-2.5 ${t.hover} transition-colors text-sm text-left`;
+  const menuItem = 'w-full flex items-center justify-between px-3.5 py-2 text-sm text-left text-fg transition-colors hover:bg-surface-hover';
 
   const submenuHeader = (title: string) => (
-    <div className={`flex items-center gap-2 px-3 pb-2 pt-1 mb-1 border-b ${t.border}`}>
+    <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-0.5 mb-1 border-b border-line">
       <button
         type="button"
         onClick={() => setView('main')}
-        className={`p-1 ${t.hover} rounded-full`}
+        className="p-1 rounded-control text-muted transition-colors hover:bg-surface-hover hover:text-fg"
         aria-label={lang.back}
       >
-        <ArrowLeft size={16} className={t.textMuted} />
+        <ArrowLeft size={16} />
       </button>
-      <span className="text-sm font-medium">{title}</span>
+      <span className="text-sm font-semibold">{title}</span>
     </div>
   );
 
@@ -62,23 +61,23 @@ export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
       {isOpen && (
         <div
           id={popoverId}
-          className={`absolute bottom-full left-0 mb-5 w-56 ${t.popover} border rounded-2xl py-2 z-50 ${t.text}`}
+          className="absolute bottom-full left-0 mb-2 w-56 rounded-card border border-line bg-surface py-1.5 text-fg shadow-raised z-50"
         >
           {view === 'main' && (
             <>
               <button type="button" onClick={() => setView('language')} className={menuItem}>
                 <span className="flex items-center gap-3">
-                  <Globe size={18} className={t.textMuted} />
+                  <Globe size={16} className="text-muted" aria-hidden="true" />
                   {lang.language}
                 </span>
-                <ChevronRight size={16} className={t.textMuted} />
+                <ChevronRight size={16} className="text-muted" aria-hidden="true" />
               </button>
               <button type="button" onClick={() => setView('theme')} className={menuItem}>
                 <span className="flex items-center gap-3">
-                  <Moon size={18} className={t.textMuted} />
+                  <Moon size={16} className="text-muted" aria-hidden="true" />
                   {lang.theme}
                 </span>
-                <ChevronRight size={16} className={t.textMuted} />
+                <ChevronRight size={16} className="text-muted" aria-hidden="true" />
               </button>
             </>
           )}
@@ -98,7 +97,7 @@ export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
                   ) : (
                     <span lang={translations[option].htmlLang}>{translations[option].languageName}</span>
                   )}
-                  {languagePreference === option && <Check size={16} />}
+                  {languagePreference === option && <Check size={16} className="text-accent" aria-hidden="true" />}
                 </button>
               ))}
             </div>
@@ -115,7 +114,7 @@ export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
                   className={`${menuItem} capitalize`}
                 >
                   <span>{lang.themeNames[option]}</span>
-                  {themePreference === option && <Check size={16} />}
+                  {themePreference === option && <Check size={16} className="text-accent" aria-hidden="true" />}
                 </button>
               ))}
             </div>
@@ -130,11 +129,11 @@ export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
         aria-haspopup="true"
         aria-expanded={isOpen}
         aria-controls={isOpen ? popoverId : undefined}
-        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-xs font-medium ${
-          isOpen ? `${t.active} ${t.text}` : `${t.text} ${t.hover}`
+        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-control transition-colors text-xs font-medium text-fg ${
+          isOpen ? 'bg-accent-soft' : 'hover:bg-surface-hover'
         }`}
       >
-        <Settings size={15} />
+        <Settings size={15} aria-hidden="true" />
         {lang.settings}
       </button>
     </div>
