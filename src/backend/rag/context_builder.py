@@ -15,7 +15,9 @@ DEFAULT_K_OTHER = 5
 
 STAFF_HEADER = "PRACOWNIK (dane z USOS - najbardziej wiarygodne):"
 OFFICIAL_HEADER = "ZRODLA OFICJALNE (strony wydzialu, USOS - wiarygodne):"
-MORDOR_HEADER = "MATERIALY STUDENCKIE (mordor - notatki i skany, moga byc nieaktualne):"
+# Naglowki sekcji wewnatrz bloku KONTEKST - nazwy PRACOWNIK, zrodla oficjalne
+# i materialy studenckie z Mordoru wystepuja w prompcie systemowym (llm/generate.py).
+MORDOR_HEADER = "MATERIALY STUDENCKIE (Mordor - notatki i skany, moga zawierac bledy lub byc nieaktualne):"
 
 _default_retriever: Retriever | None = None
 

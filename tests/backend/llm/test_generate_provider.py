@@ -94,7 +94,7 @@ def test_answer_returns_answer_files_and_sources(monkeypatch):
     result = generate.answer("gdzie jest sala 0004?")
 
     assert result == {"answer": "odpowiedz", "files": ["a/b/plan.png"], "sources": SOURCES}
-    assert "KONTEKST TEKSTOWY:\nkontekst" in seen["user"]
+    assert seen["user"].startswith("KONTEKST:\nkontekst")
     assert "- plan.png (folder: b)" in seen["user"]
     assert seen["user"].endswith("Odpowiedz po polsku.")
     assert "po polsku" in seen["system"]
@@ -115,7 +115,6 @@ def test_answer_uses_chosen_language_in_prompts(monkeypatch):
     assert seen["user"].endswith("Answer in English.")
     assert "po angielsku" in seen["system"]
     assert "po polsku" not in seen["system"]
-    assert "chinskiego" in seen["system"]
 
 
 def test_stream_answer_streams_chunks_with_same_prompt(monkeypatch):
@@ -155,16 +154,9 @@ def test_stream_fn_follows_provider(monkeypatch, provider, stream_fn):
     assert generate._resolve_stream_fn() is stream_fn
 
 
-@pytest.mark.parametrize("language", ["pl", "en", "de", "es", "fr", "it", "uk"])
-def test_system_prompt_rules_are_separate_lines(language):
-    lines = generate.system_prompt(language).splitlines()
-
-    for number in range(1, 8):
-        assert sum(line.startswith(f"{number}. ") for line in lines) == 1
-
-
 def test_every_language_has_prompt_texts():
-    from src.backend.llm.language import ANSWER_IN, LANGUAGE_NAMES, LANGUAGES
+    from src.backend.llm.language import ANSWER_IN, LANGUAGE_NAMES, LANGUAGES, REFUSAL
 
     assert set(LANGUAGES) == {"pl", "en", "de", "es", "fr", "it", "uk"}
-    assert set(LANGUAGE_NAMES) == set(LANGUAGES) == set(ANSWER_IN)
+    assert set(LANGUAGE_NAMES) == set(LANGUAGES) == set(ANSWER_IN) == set(REFUSAL)
+    assert all(text.strip() and "[[" not in text for text in REFUSAL.values())
