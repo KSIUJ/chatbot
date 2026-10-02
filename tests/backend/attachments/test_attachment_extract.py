@@ -63,6 +63,8 @@ def test_broken_pdf_is_unreadable(tmp_path, data):
 
 def test_pdf_time_budget_stops_extraction(tmp_path, monkeypatch):
     # budzet czasu wyczerpany od razu - zostaje tylko pierwsza strona
+    # (sciezka bez OCR - z Tesseractem obowiazuje PDF_OCR_TIME_BUDGET_SECONDS)
+    monkeypatch.setattr(extract_module, "find_tessdata", lambda: None)
     monkeypatch.setattr(extract_module, "PDF_TIME_BUDGET_SECONDS", 0.0)
 
     result = extract(_file(tmp_path, pdf_bytes("jeden", "dwa")), "pdf")

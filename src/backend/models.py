@@ -4,7 +4,7 @@ import enum
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, JSON, SmallInteger, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, JSON, SmallInteger, String, Text, UniqueConstraint, false
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -313,6 +313,8 @@ class Attachment(Base):
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     # liczba stron PDF; NULL dla innych rodzajow
     pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # tekst (czesciowo) rozpoznany OCR-em ze skanu - model dostaje ostrzezenie
+    ocr: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     # reguly heurystyki (security/injection.py) pasujace do tekstu pliku
     injection_rules: Mapped[list[str]] = mapped_column(JSON, default=list)
 

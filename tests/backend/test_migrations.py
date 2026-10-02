@@ -130,3 +130,28 @@ def test_attachments_migration_up_and_down(alembic_config):
 
     command.upgrade(config, "head")
     assert {"attachments", "daily_attachment_usage"} <= _tables(url)
+
+
+OCR_REVISION = "b7d2e4f6a8c1"
+
+
+def test_attachment_ocr_migration_up_and_down(alembic_config):
+    config, url = alembic_config
+
+    command.upgrade(config, OCR_REVISION)
+    engine = create_engine(url)
+    try:
+        columns = {c["name"]: c for c in inspect(engine).get_columns("attachments")}
+    finally:
+        engine.dispose()
+    assert "ocr" in columns
+    assert columns["ocr"]["nullable"] is False
+
+    command.downgrade(config, ATTACHMENTS_REVISION)
+    engine = create_engine(url)
+    try:
+        assert "ocr" not in {c["name"] for c in inspect(engine).get_columns("attachments")}
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")

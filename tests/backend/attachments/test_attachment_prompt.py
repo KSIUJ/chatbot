@@ -154,3 +154,77 @@ def test_stream_answer_passes_block_and_images(monkeypatch):
     assert list(stream.chunks) == ["ok"]
     assert "TEKST" in seen["user"]
     assert seen["images"] == [image]
+
+
+# --- pliki wczesniej w rozmowie i OCR --------------------------------------------------
+
+def test_earlier_files_follow_current_ones_and_are_marked():
+    block = attachments_block([
+        PromptAttachment(name="nowy.txt", kind="txt", text="NOWY"),
+        PromptAttachment(name="stary.pdf", kind="pdf", text="STARY", pages=2, earlier=True),
+    ])
+
+    lines = block.splitlines()
+    assert "--- PLIK 1: nowy.txt (TXT) ---" in lines
+    assert "--- PLIK 2 (wcześniej w rozmowie): stary.pdf (PDF, stron: 2) ---" in lines
+    assert block.index("NOWY") < block.index("STARY")
+
+
+def test_current_files_have_priority_in_the_budget(monkeypatch):
+    monkeypatch.setattr(block_module, "TOTAL_TEXT_BUDGET", 100)
+    monkeypatch.setattr(block_module, "MIN_EARLIER_CHARS", 20)
+
+    block = attachments_block([
+        PromptAttachment(name="nowy.txt", kind="txt", text="N" * 90),
+        PromptAttachment(name="stary1.txt", kind="txt", text="S" * 500, earlier=True),
+        PromptAttachment(name="stary2.txt", kind="txt", text="T" * 500, earlier=True),
+    ])
+
+    assert "N" * 90 in block
+    assert "stary1.txt" not in block
+    assert "stary2.txt" not in block
+    assert "(pominięto wcześniejsze pliki z rozmowy: 2 - brak miejsca w wiadomości)" in block
+
+
+def test_earlier_files_get_what_is_left_newest_first(monkeypatch):
+    monkeypatch.setattr(block_module, "TOTAL_TEXT_BUDGET", 100)
+    monkeypatch.setattr(block_module, "MIN_EARLIER_CHARS", 20)
+
+    block = attachments_block([
+        PromptAttachment(name="nowy.txt", kind="txt", text="N" * 40),
+        PromptAttachment(name="nowszy.txt", kind="txt", text="A" * 45, earlier=True),
+        PromptAttachment(name="starszy.txt", kind="txt", text="B" * 45, earlier=True),
+        PromptAttachment(name="najstarszy.txt", kind="txt", text="C" * 45, earlier=True),
+    ])
+
+    assert "A" * 45 in block
+    # zostalo 15 znakow - ponizej MIN_EARLIER_CHARS, wiec dwa starsze pominiete
+    assert "starszy.txt" not in block
+    assert "pominięto wcześniejsze pliki z rozmowy: 2" in block
+
+
+def test_short_remaining_budget_still_fits_a_short_earlier_file(monkeypatch):
+    monkeypatch.setattr(block_module, "TOTAL_TEXT_BUDGET", 100)
+    monkeypatch.setattr(block_module, "MIN_EARLIER_CHARS", 50)
+
+    block = attachments_block([
+        PromptAttachment(name="nowy.txt", kind="txt", text="N" * 80),
+        PromptAttachment(name="krotki.txt", kind="txt", text="K" * 10, earlier=True),
+    ])
+
+    assert "K" * 10 in block
+    assert "pominięto" not in block
+
+
+def test_earlier_image_not_attached_is_described():
+    block = attachments_block([
+        PromptAttachment(name="plan.png", kind="png", text=None, earlier=True),
+    ])
+
+    assert "--- PLIK 1 (wcześniej w rozmowie): plan.png (obraz PNG, nie dołączony do tej wiadomości) ---" in block
+
+
+def test_ocr_text_is_marked_in_header():
+    block = attachments_block([PromptAttachment(name="skan.pdf", kind="pdf", text="tekst", pages=1, ocr=True)])
+
+    assert "--- PLIK 1: skan.pdf (PDF, stron: 1, tekst rozpoznany OCR, może zawierać błędy) ---" in block

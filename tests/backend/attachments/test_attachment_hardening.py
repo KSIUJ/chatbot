@@ -105,6 +105,8 @@ def _fake_worker(tmp_path, body: str):
 
 
 def test_slow_pdf_extraction_is_killed_after_timeout(tmp_path, monkeypatch):
+    # sciezka bez OCR (z Tesseractem obowiazuje PDF_OCR_HARD_TIMEOUT_SECONDS)
+    monkeypatch.setattr(extract_module, "find_tessdata", lambda: None)
     marker = tmp_path / "finished.txt"
     script = _fake_worker(tmp_path, f"""
         import time, pathlib
@@ -248,7 +250,7 @@ def test_worker_truncates_text_itself(tmp_path):
 def test_library_prints_cannot_corrupt_worker_json(tmp_path, monkeypatch, capfd):
     from src.backend.attachments import pdf_worker
 
-    def noisy(path, max_pages, max_chars, budget):
+    def noisy(*args):
         print("komunikat biblioteki")
         return {"ok": True, "text": "tekst", "pages": 1, "truncated": False}
 

@@ -18,9 +18,13 @@ interface ChatInputProps {
   // set while the admins have the chat switched off: banner instead of sending
   offNotice: string | null;
   attachments: AttachmentsController;
+  // files sent earlier in this conversation (the server adds them to every question)
+  earlierFiles: number;
 }
 
-export default function ChatInput({ lang, isWaiting, onSend, onStop, offNotice, attachments }: ChatInputProps) {
+export default function ChatInput({
+  lang, isWaiting, onSend, onStop, offNotice, attachments, earlierFiles,
+}: ChatInputProps) {
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -111,6 +115,12 @@ export default function ChatInput({ lang, isWaiting, onSend, onStop, offNotice, 
           </div>
         )}
         <PendingChips lang={lang} items={attachments.items} onRemove={attachments.remove} />
+        {earlierFiles > 0 && (
+          <p className="mb-1.5 flex items-center gap-1.5 text-[11px] text-muted">
+            <Paperclip size={12} className="shrink-0" aria-hidden="true" />
+            {lang.attachments.earlierNote(earlierFiles)}
+          </p>
+        )}
       </div>
 
       <div className="max-w-2xl mx-auto relative mb-4">

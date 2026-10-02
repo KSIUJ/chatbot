@@ -2,14 +2,19 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    # dane jezykowe Tesseracta z pakietow tesseract-ocr-pol/-eng (Debian 13)
+    TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 
 WORKDIR /app
 
 # build-essential: czesc zaleznosci RAG (np. chromadb/hnswlib) moze wymagac
 # kompilacji, gdy brakuje gotowego wheela. curl: healthcheck w docker-compose.
+# tesseract-ocr + dane pol/eng: OCR zeskanowanych PDF-ow w zalacznikach
+# (PyMuPDF uzywa wbudowanego Tesseracta, potrzebuje plikow .traineddata).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential curl \
+        tesseract-ocr tesseract-ocr-pol tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

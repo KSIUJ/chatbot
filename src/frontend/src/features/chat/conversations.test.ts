@@ -5,6 +5,7 @@ import {
   STREAM_ERROR_INVALID_EVENT,
   STREAM_ERROR_INVALID_RESPONSE,
   deleteConversation,
+  earlierFileCount,
   fetchConversationMessages,
   newConversationId,
   parseSseChunk,
@@ -362,5 +363,36 @@ describe('attachments in conversations', () => {
 
     const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse(String(init?.body))).toMatchObject({ attachment_ids: ['f1', 'f2'] });
+  });
+});
+
+describe('earlierFileCount', () => {
+  const file = (id: string) => ({ id, name: `${id}.pdf`, size: 1, type: 'pdf' as const });
+  const question = (id: string, files: string[]): ChatMessage => ({
+    id, sender: 'user', text: 'q', ...(files.length > 0 ? { attachments: files.map(file) } : {}),
+  });
+  const answer = (id: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id, sender: 'bot', text: 'a', ...extra });
+
+  it('counts files of answered questions', () => {
+    expect(earlierFileCount([question('q1', ['a', 'b']), answer('a1'), question('q2', ['c']), answer('a2')])).toBe(3);
+  });
+
+  it('ignores files of questions that got no saved answer', () => {
+    expect(earlierFileCount([
+      question('q1', ['a']),
+      answer('e1', { text: '', status: 'error' }),
+      question('q2', ['b']),
+      answer('s1', { text: '', status: 'stopped' }),
+      question('q3', ['c']),
+    ])).toBe(0);
+  });
+
+  it('counts a partially stopped or streaming answer', () => {
+    expect(earlierFileCount([question('q1', ['a']), answer('s1', { text: 'czesc', status: 'stopped' })])).toBe(1);
+    expect(earlierFileCount([question('q1', ['a']), answer('s1', { status: 'streaming' })])).toBe(1);
+  });
+
+  it('is zero without attachments', () => {
+    expect(earlierFileCount([question('q1', []), answer('a1')])).toBe(0);
   });
 });

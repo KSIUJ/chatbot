@@ -34,6 +34,22 @@ def pdf_bytes(*pages: str, user_password: str | None = None) -> bytes:
     return doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw=user_password, owner_pw="owner")
 
 
+def scanned_pdf_bytes(*pages: str, dpi: int = 200) -> bytes:
+    """PDF ze stronami-obrazami (jak skan): tekst renderowany do obrazu
+    i wstawiany na pusta strone, wiec PDF nie ma warstwy tekstowej."""
+    scanned = pymupdf.open()
+    for text in pages:
+        source = pymupdf.open()
+        page = source.new_page()
+        # czcionka bazowa "helv" nie ma polskich znakow (wyjda jako "?") -
+        # testy OCR sprawdzaja slowa bez nich
+        page.insert_textbox(pymupdf.Rect(60, 60, 540, 780), text, fontsize=18, fontname="helv")
+        image = page.get_pixmap(dpi=dpi).tobytes("png")
+        target = scanned.new_page()
+        target.insert_image(target.rect, stream=image)
+    return scanned.tobytes()
+
+
 def docx_bytes(*paragraphs: str, document_xml: str | None = None) -> bytes:
     """Minimalny DOCX: [Content_Types].xml i word/document.xml z akapitami."""
     if document_xml is None:

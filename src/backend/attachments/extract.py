@@ -1,6 +1,8 @@
 """Wyciaganie tekstu z zalacznika - raz, przy wysylaniu pliku.
 
-- PDF: PyMuPDF w OSOBNYM PROCESIE (pdf_worker.py) z twardym limitem czasu
+- PDF: PyMuPDF w OSOBNYM PROCESIE (pdf_worker.py); strony-skany sa
+  rozpoznawane OCR-em (Tesseract w MuPDF), gdy sa dane jezykowe pol i eng
+  (find_tessdata) - wtedy dluzsze limity czasu. Twardy limit czasu
   PDF_HARD_TIMEOUT_SECONDS (po nim proces jest zabijany) i na Linuksie
   limitem pamieci - zlosliwy PDF nie zawiesi jedynego workera uvicorna.
   Najwyzej MAX_PDF_PAGES stron i PDF_TIME_BUDGET_SECONDS sekund czytania;
@@ -53,6 +55,21 @@ PYTHON_EXECUTABLE: str = sys.executable
 PDF_WORKER_MAX_OUTPUT_BYTES = MAX_EXTRACTED_CHARS * 6 + 64 * 1024
 # Zmienne srodowiska przekazywane procesowi PDF (reszta, w tym sekrety, nie)
 _WORKER_ENV_KEEP: Final = ("PATH", "SYSTEMROOT", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP")
+
+# OCR skanow (Tesseract wbudowany w MuPDF): potrzebne dane jezykowe pol i eng.
+# Katalog z TESSDATA_PREFIX albo standardowe miejsca pakietow Debiana.
+OCR_LANGUAGES: Final = ("pol", "eng")
+TESSDATA_CANDIDATES: tuple[str, ...] = (
+    "/usr/share/tesseract-ocr/5/tessdata",
+    "/usr/share/tesseract-ocr/4.00/tessdata",
+    "/usr/share/tessdata",
+)
+# najwyzej tyle stron OCR na plik (OCR strony to ~1-3 s CPU)
+MAX_OCR_PAGES = 20
+# dluzsze limity dla sciezki z OCR (budzet czytania i twardy kill)
+PDF_OCR_TIME_BUDGET_SECONDS = 100.0
+PDF_OCR_HARD_TIMEOUT_SECONDS = 120.0
+_ocr_unavailable_logged = False
 MAX_DOCX_ENTRIES = 1000
 MAX_DOCX_XML_BYTES = 20 * 1024 * 1024
 
@@ -78,6 +95,8 @@ class Extraction:
     text: str | None
     # liczba stron PDF (wszystkich, nie tylko odczytanych)
     pages: int | None = None
+    # tekst (czesciowo) rozpoznany OCR-em ze skanu
+    ocr: bool = False
 
 
 def _normalized(text: str) -> str:
@@ -97,11 +116,32 @@ def _capped(text: str, truncated: bool = False) -> str:
 
 # --- PDF (osobny proces) -------------------------------------------------------------
 
-def _worker_env() -> dict[str, str]:
+def _has_ocr_languages(directory: Path) -> bool:
+    return all((directory / f"{language}.traineddata").is_file() for language in OCR_LANGUAGES)
+
+
+def find_tessdata() -> Path | None:
+    """Katalog danych Tesseracta z jezykami pol i eng (TESSDATA_PREFIX albo
+    TESSDATA_CANDIDATES); None = OCR niedostepny (np. lokalnie na Windows)."""
+    env_dir = os.getenv("TESSDATA_PREFIX", "").strip()
+    for candidate in (env_dir, *TESSDATA_CANDIDATES):
+        if candidate and _has_ocr_languages(Path(candidate)):
+            return Path(candidate)
+    return None
+
+
+def _worker_timeout(tessdata: Path | None) -> float:
+    return PDF_OCR_HARD_TIMEOUT_SECONDS if tessdata is not None else PDF_HARD_TIMEOUT_SECONDS
+
+
+def _worker_env(tessdata: Path | None) -> dict[str, str]:
     """Minimalne srodowisko procesu potomnego - bez kluczy API, DATABASE_URL
-    i sekretow OIDC. SYSTEMROOT jest potrzebny Pythonowi na Windows."""
+    i sekretow OIDC. SYSTEMROOT jest potrzebny Pythonowi na Windows,
+    TESSDATA_PREFIX - OCR-owi."""
     env = {name: os.environ[name] for name in _WORKER_ENV_KEEP if name in os.environ}
     env["PYTHONIOENCODING"] = "utf-8"
+    if tessdata is not None:
+        env["TESSDATA_PREFIX"] = str(tessdata)
     return env
 
 
@@ -116,18 +156,21 @@ def _read_capped(process: subprocess.Popen[bytes], limit: int) -> bytes:
     return data
 
 
-def _run_pdf_worker(path: Path) -> bytes:
+def _run_pdf_worker(path: Path, tessdata: Path | None) -> bytes:
     """stdout procesu potomnego (najwyzej PDF_WORKER_MAX_OUTPUT_BYTES). Proces
-    jest zabijany po PDF_HARD_TIMEOUT_SECONDS i zawsze na niego czekamy, wiec
-    nic nie zostaje w tle."""
+    jest zabijany po PDF_HARD_TIMEOUT_SECONDS (z OCR: PDF_OCR_HARD_TIMEOUT_SECONDS)
+    i zawsze na niego czekamy, wiec nic nie zostaje w tle."""
+    budget = PDF_OCR_TIME_BUDGET_SECONDS if tessdata is not None else PDF_TIME_BUDGET_SECONDS
     command = [
         PYTHON_EXECUTABLE, "-I", str(PDF_WORKER_SCRIPT), str(path),
-        str(MAX_PDF_PAGES), str(MAX_EXTRACTED_CHARS), str(PDF_TIME_BUDGET_SECONDS), str(PDF_MEMORY_LIMIT_MB),
+        str(MAX_PDF_PAGES), str(MAX_EXTRACTED_CHARS), str(budget), str(PDF_MEMORY_LIMIT_MB),
+        str(tessdata) if tessdata is not None else "", str(MAX_OCR_PAGES),
     ]
     limit = PDF_WORKER_MAX_OUTPUT_BYTES
     try:
         process = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=_worker_env()
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            env=_worker_env(tessdata),
         )
     except OSError as exc:
         raise ExtractionFailed(f"cannot start pdf worker: {exc}") from exc
@@ -135,7 +178,7 @@ def _run_pdf_worker(path: Path) -> bytes:
         with ThreadPoolExecutor(max_workers=1) as reader:
             output = reader.submit(_read_capped, process, limit)
             try:
-                process.wait(timeout=PDF_HARD_TIMEOUT_SECONDS)
+                process.wait(timeout=_worker_timeout(tessdata))
             except subprocess.TimeoutExpired as exc:
                 process.kill()
                 process.wait()
@@ -149,8 +192,18 @@ def _run_pdf_worker(path: Path) -> bytes:
     return data
 
 
+def _log_missing_ocr_once() -> None:
+    global _ocr_unavailable_logged
+    if not _ocr_unavailable_logged:
+        _ocr_unavailable_logged = True
+        logger.warning(
+            "OCR unavailable (no Tesseract data for %s) - scanned PDFs get no text", "+".join(OCR_LANGUAGES)
+        )
+
+
 def _pdf(path: Path) -> Extraction:
-    output = _run_pdf_worker(path)
+    tessdata = find_tessdata()
+    output = _run_pdf_worker(path, tessdata)
     try:
         result = json.loads(output)
     except ValueError as exc:
@@ -159,9 +212,15 @@ def _pdf(path: Path) -> Extraction:
         error = result.get("error") if isinstance(result, dict) else None
         raise UnreadableFile(f"unreadable pdf: {error}")
     text, pages, truncated = result.get("text"), result.get("pages"), result.get("truncated")
-    if not isinstance(text, str) or not isinstance(pages, int) or not isinstance(truncated, bool):
+    ocr = result.get("ocr", False)
+    if (
+        not isinstance(text, str) or not isinstance(pages, int) or not isinstance(truncated, bool)
+        or not isinstance(ocr, bool)
+    ):
         raise UnreadableFile("pdf worker returned malformed result")
-    return Extraction(text=_capped(text, truncated), pages=pages)
+    if tessdata is None and not text.strip():
+        _log_missing_ocr_once()
+    return Extraction(text=_capped(text, truncated), pages=pages, ocr=ocr)
 
 
 # --- DOCX ----------------------------------------------------------------------------

@@ -140,6 +140,8 @@ export interface AttachmentTranslation {
   download: (name: string) => string;
   // send button title while files are still uploading
   waitForUploads: string;
+  // note above the input: files sent earlier in this conversation
+  earlierNote: (count: number) => string;
   dismiss: string;
   problems: {
     tooLarge: (name: string | null, maxMb: number | null) => string;

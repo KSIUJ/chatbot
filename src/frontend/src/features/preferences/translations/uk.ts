@@ -95,6 +95,15 @@ export const uk: Translation = {
     uploading: (percent) => `Надсилання… ${percent}%`,
     download: (name) => `Завантажити ${name}`,
     waitForUploads: 'Зачекайте, доки файли надішлються',
+    earlierNote: (count) => {
+      const mod10 = count % 10;
+      const mod100 = count % 100;
+      const files =
+        mod10 === 1 && mod100 !== 11 ? 'попередній файл'
+          : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'попередні файли'
+            : 'попередніх файлів';
+      return `Розмова містить ${count} ${files} (модель їх бачить).`;
+    },
     dismiss: 'Закрити',
     problems: {
       tooLarge: (name, maxMb) =>

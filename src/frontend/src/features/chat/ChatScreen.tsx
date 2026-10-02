@@ -3,6 +3,7 @@ import { Menu } from 'lucide-react';
 import AdminPanel from '../admin/AdminPanel';
 import type { AuthUser } from '../auth/useAuth';
 import type { Preferences } from '../preferences/usePreferences';
+import { earlierFileCount } from './conversations';
 import { useAttachments } from './useAttachments';
 import { useChat } from './useChat';
 import { useDrawer } from './useDrawer';
@@ -188,6 +189,7 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
             onStop={chat.stop}
             offNotice={offNotice}
             attachments={attachments}
+            earlierFiles={earlierFileCount(chat.messages)}
           />
         </div>
       </div>
