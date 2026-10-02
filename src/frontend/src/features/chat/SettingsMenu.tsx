@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft, Check, ChevronRight, Globe, Moon, Settings } from 'lucide-react';
-import { LANGUAGES, translations } from '../preferences/languages';
+import { LANGUAGE_PREFERENCES, translations } from '../preferences/languages';
 import { THEME_PREFERENCES, type ThemeStyle } from '../preferences/themes';
 import type { Preferences } from '../preferences/usePreferences';
 
@@ -13,7 +13,7 @@ interface SettingsMenuProps {
 
 // "Settings" button in the sidebar with a popover for language and theme.
 export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
-  const { lang, language, setLanguage, themePreference, setThemePreference } = preferences;
+  const { lang, languagePreference, setLanguagePreference, themePreference, setThemePreference } = preferences;
   const [view, setView] = useState<SettingsView>('closed');
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -86,10 +86,19 @@ export default function SettingsMenu({ t, preferences }: SettingsMenuProps) {
           {view === 'language' && (
             <div className="flex flex-col">
               {submenuHeader(lang.language)}
-              {LANGUAGES.map((option) => (
-                <button key={option} type="button" onClick={() => setLanguage(option)} className={menuItem}>
-                  <span lang={translations[option].htmlLang}>{translations[option].languageName}</span>
-                  {language === option && <Check size={16} />}
+              {LANGUAGE_PREFERENCES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setLanguagePreference(option)}
+                  className={menuItem}
+                >
+                  {option === 'system' ? (
+                    <span>{lang.systemLanguage}</span>
+                  ) : (
+                    <span lang={translations[option].htmlLang}>{translations[option].languageName}</span>
+                  )}
+                  {languagePreference === option && <Check size={16} />}
                 </button>
               ))}
             </div>

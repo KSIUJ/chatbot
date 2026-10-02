@@ -8,23 +8,9 @@ from typing import NamedTuple, TypedDict
 from ..rag.context_builder import retrieve_context
 from ..rag.sources import Source
 from . import claude_client, cursor_client, ollama_client, openrouter_client
-from .language import DEFAULT_LANGUAGE, Language
+from .language import ANSWER_IN, DEFAULT_LANGUAGE, LANGUAGE_NAMES, Language
 from .provider import current_provider
 from .rewrite import condense
-
-# Jezyk odpowiedzi w regule 1 promptu systemowego
-_LANGUAGE_NAMES: dict[Language, str] = {
-    "pl": "po polsku",
-    "en": "po angielsku (English)",
-    "fr": "po francusku (français)",
-}
-
-# Ostatnia linia wiadomosci uzytkownika - w jezyku odpowiedzi
-_ANSWER_IN: dict[Language, str] = {
-    "pl": "Odpowiedz po polsku.",
-    "en": "Answer in English.",
-    "fr": "Réponds en français.",
-}
 
 _SYSTEM_PROMPT_TEMPLATE = (
     "Jestes asystentem Wydzialu Matematyki i Informatyki UJ. ZASADY:\n"
@@ -98,7 +84,7 @@ class _Prompt(NamedTuple):
 
 def system_prompt(language: Language = DEFAULT_LANGUAGE) -> str:
     """Prompt systemowy z regula jezyka odpowiedzi."""
-    return _SYSTEM_PROMPT_TEMPLATE.format(language=_LANGUAGE_NAMES[language])
+    return _SYSTEM_PROMPT_TEMPLATE.format(language=LANGUAGE_NAMES[language])
 
 
 SYSTEM_PROMPT = system_prompt()
@@ -164,7 +150,7 @@ def _build_prompt(
     if not parts:
         parts.append("(Brak pasujacego kontekstu i plikow w bazie.)")
 
-    user_message = "\n\n".join(parts) + f"\n\nPYTANIE: {query}\n\n{_ANSWER_IN[language]}"
+    user_message = "\n\n".join(parts) + f"\n\nPYTANIE: {query}\n\n{ANSWER_IN[language]}"
     return _Prompt(system_prompt(language), user_message, _trim_history(history), files, sources)
 
 

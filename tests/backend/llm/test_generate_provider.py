@@ -155,9 +155,16 @@ def test_stream_fn_follows_provider(monkeypatch, provider, stream_fn):
     assert generate._resolve_stream_fn() is stream_fn
 
 
-@pytest.mark.parametrize("language", ["pl", "en", "fr"])
+@pytest.mark.parametrize("language", ["pl", "en", "de", "es", "fr", "it", "uk"])
 def test_system_prompt_rules_are_separate_lines(language):
     lines = generate.system_prompt(language).splitlines()
 
     for number in range(1, 8):
         assert sum(line.startswith(f"{number}. ") for line in lines) == 1
+
+
+def test_every_language_has_prompt_texts():
+    from src.backend.llm.language import ANSWER_IN, LANGUAGE_NAMES, LANGUAGES
+
+    assert set(LANGUAGES) == {"pl", "en", "de", "es", "fr", "it", "uk"}
+    assert set(LANGUAGE_NAMES) == set(LANGUAGES) == set(ANSWER_IN)

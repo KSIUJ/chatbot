@@ -60,6 +60,24 @@ def test_login_redirects_to_keycloak_with_pkce_and_sets_login_cookie(client):
         assert flag in cookie
 
 
+def _login_query(client, url: str) -> dict[str, str]:
+    r = client.get(url, follow_redirects=False)
+    assert r.status_code == 303
+    return {k: v[0] for k, v in parse_qs(urlsplit(r.headers["location"]).query).items()}
+
+
+def test_login_passes_interface_language_to_keycloak(client):
+    query = _login_query(client, "/auth/login?ui_locales=uk")
+
+    assert query["ui_locales"] == "uk"
+
+
+def test_login_ignores_unsupported_language(client):
+    for value in ("xx", "pl en", "", "<script>"):
+        query = _login_query(client, f"/auth/login?ui_locales={value}")
+        assert "ui_locales" not in query
+
+
 def test_login_when_keycloak_down_returns_to_frontend_with_error(client):
     client.keycloak.down = True
 

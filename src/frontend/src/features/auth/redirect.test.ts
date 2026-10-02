@@ -7,6 +7,7 @@ import {
   readLastRedirect,
   shouldAutoRedirect,
   visibleLoginError,
+  loginUrl,
 } from './redirect';
 
 class MemoryStorage {
@@ -83,5 +84,15 @@ describe('redirect mark', () => {
     const storage = new MemoryStorage();
     storage.setItem(AUTO_REDIRECT_GUARD_KEY, 'not-a-number');
     expect(readLastRedirect(storage)).toBeNull();
+  });
+});
+
+describe('loginUrl', () => {
+  it('passes the interface language to the KSI login page', () => {
+    expect(loginUrl('/api', 'uk')).toBe('/api/auth/login?ui_locales=uk');
+  });
+
+  it('encodes the language value', () => {
+    expect(loginUrl('/api', 'pl en')).toBe('/api/auth/login?ui_locales=pl%20en');
   });
 });
