@@ -9,6 +9,11 @@ bazy (session_factory). Przez cale generowanie i zapis trzyma blokade
 rozmowy. Gdy klient zniknie (Stop, zamkniecie karty) w trakcie pisania
 odpowiedzi, zapisuje pytanie i dotychczasowy tekst tak jak pelna odpowiedz,
 a strumien od modelu zamyka.
+
+Wiodacy znacznik [[NARUSZENIE]] (zasada 11 promptu) nigdy nie trafia do
+klienta: poczatek odpowiedzi jest buforowany, dopoki nie wiadomo, czy to
+znacznik (security/marker.py). Na koncu tury powstaje incydent, jesli
+pytanie pasowalo do heurystyki albo model dal znacznik.
 """
 
 from __future__ import annotations
@@ -29,12 +34,15 @@ from .chat import (
     ConversationNotOwned,
     SessionFactory,
     load_history,
+    record_turn_incident,
     save_answer,
     save_partial_answer,
 )
 from .history import conversation_lock
 from .llm.generate import AnswerStream
+from .llm.language import REFUSAL
 from .rag.sources import Source
+from .security.marker import MarkerFilter
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +78,14 @@ class _EmptyAnswer(RuntimeError):
 class _Progress:
     chunks: Iterator[str] | None = None
     sources: list[Source] = field(default_factory=list)
+    # tekst wyslany klientowi (bez znacznika [[NARUSZENIE]])
     parts: list[str] = field(default_factory=list)
+    # zdejmuje wiodacy znacznik, nawet rozciety miedzy kawalki
+    marker: MarkerFilter = field(default_factory=MarkerFilter)
     # odpowiedz zapisana albo porazka - wtedy niczego juz nie zapisujemy
     finished: bool = False
+    # jakas odpowiedz (pelna albo czesciowa) jest w bazie
+    saved: bool = False
 
 
 def sse_event(event: str, data: Mapping[str, object]) -> str:
@@ -112,13 +125,21 @@ async def chat_events(
         try:
             answer = await to_thread.run_sync(_start_answer, session_factory, turn, stream_answer)
             progress.chunks, progress.sources = answer.chunks, answer.sources
-            while (text := await to_thread.run_sync(next, answer.chunks, None)) is not None:
+            while (chunk := await to_thread.run_sync(next, answer.chunks, None)) is not None:
+                text = progress.marker.feed(chunk)
                 if not text:
                     continue
                 progress.parts.append(text)
                 yield sse_event("delta", {"text": text})
                 if await probe.is_disconnected():
                     return
+            tail = progress.marker.finish()
+            if progress.marker.detected and not "".join(progress.parts).strip() and not tail.strip():
+                # sam znacznik - stala odmowa zamiast pustej odpowiedzi i bledu
+                tail = REFUSAL[turn.language]
+            if tail:
+                progress.parts.append(tail)
+                yield sse_event("delta", {"text": tail})
             full_text = "".join(progress.parts).strip()
             if not full_text:
                 raise _EmptyAnswer("model returned no text")
@@ -137,6 +158,7 @@ async def chat_events(
             with anyio.CancelScope(shield=True):
                 message = await to_thread.run_sync(save_answer, session_factory, turn, full_text, progress.sources)
                 progress.finished = True
+                progress.saved = True
         except Exception:
             logger.exception("saving streamed answer failed (conversation %s)", turn.conversation_id)
             progress.finished = True
@@ -160,7 +182,8 @@ async def _acquire(lock: threading.Lock) -> None:
 
 
 async def _finish(session_factory: SessionFactory, turn: ChatTurn, progress: _Progress) -> None:
-    """Zamyka strumien od modelu i zapisuje przerwana odpowiedz (jesli jest)."""
+    """Zamyka strumien od modelu, zapisuje przerwana odpowiedz (jesli jest)
+    i zglasza incydent (heurystyka i/lub znacznik od modelu)."""
     if progress.chunks is not None:
         close = getattr(progress.chunks, "close", None)
         if close is not None:
@@ -168,11 +191,13 @@ async def _finish(session_factory: SessionFactory, turn: ChatTurn, progress: _Pr
                 await to_thread.run_sync(close)
             except Exception:
                 logger.exception("closing LLM stream failed (conversation %s)", turn.conversation_id)
-    if progress.finished or not progress.parts:
-        return
-    try:
-        await to_thread.run_sync(
-            partial(save_partial_answer, session_factory, turn, "".join(progress.parts), progress.sources)
-        )
-    except Exception:
-        logger.exception("saving partial answer failed (conversation %s)", turn.conversation_id)
+    if not progress.finished and progress.parts:
+        try:
+            saved = await to_thread.run_sync(
+                partial(save_partial_answer, session_factory, turn, "".join(progress.parts), progress.sources)
+            )
+            progress.saved = saved is not None
+        except Exception:
+            logger.exception("saving partial answer failed (conversation %s)", turn.conversation_id)
+    # record_turn_incident sam loguje swoje bledy
+    await to_thread.run_sync(record_turn_incident, session_factory, turn, progress.marker.detected, progress.saved)

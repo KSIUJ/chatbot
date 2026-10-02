@@ -7,9 +7,11 @@ czesciowej po Stop), wiec blad modelu zostawia rozmowe bez zmian.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .database import (
@@ -23,6 +25,9 @@ from .llm.language import Language
 from .models import Conversation, Message, MessageRole
 from .rag.sources import Source
 from .response import FeedbackState, MessageResponse, parse_sources
+from .security.incidents import record_incident
+
+logger = logging.getLogger(__name__)
 
 SessionFactory = Callable[[], Session]
 
@@ -41,6 +46,8 @@ class ChatTurn:
     language: Language
     # limit rozmow na konto - nowa rozmowa wypycha najstarsza
     max_per_user: int
+    # reguly heurystyki (security/injection.py) pasujace do pytania
+    injection_rules: tuple[str, ...] = ()
 
 
 def to_message_response(message: Message, feedback: FeedbackState | None = None) -> MessageResponse:
@@ -114,6 +121,51 @@ def save_answer(
     except Exception:
         db.rollback()
         raise
+    finally:
+        db.close()
+
+
+def _latest_question_id(db: Session, conversation_id: str) -> str | None:
+    """Id ostatniego pytania w rozmowie - tuz po zapisie odpowiedzi (pod
+    blokada rozmowy) to pytanie z biezacej tury, takze przy regeneracji."""
+    stmt = (
+        select(Message.id)
+        .where(Message.conversation_id == conversation_id, Message.role == MessageRole.USER)
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def record_turn_incident(
+    session_factory: SessionFactory, turn: ChatTurn, model_flagged: bool, answer_saved: bool
+) -> None:
+    """Incydent dla tury z trafieniem heurystyki i/lub znacznikiem od modelu
+    (jeden na pytanie). Wolane na koncu tury, takze po bledzie modelu; bez
+    zapisanej odpowiedzi incydent nie wskazuje wiadomosci.
+
+    Blad zapisu incydentu jest logowany i nie psuje odpowiedzi - uzytkownik
+    dostal juz odpowiedz, a proba i tak trafia do logow (warning ponizej)."""
+    if not turn.injection_rules and not model_flagged:
+        return
+    logger.warning(
+        "possible prompt injection: user %s, conversation %s, rules %s, model marker %s",
+        turn.user_id, turn.conversation_id, list(turn.injection_rules), model_flagged,
+    )
+    db = session_factory()
+    try:
+        record_incident(
+            db,
+            user_id=turn.user_id,
+            conversation_id=turn.conversation_id,
+            message_id=_latest_question_id(db, turn.conversation_id) if answer_saved else None,
+            question=turn.question,
+            rules=turn.injection_rules,
+            model_flagged=model_flagged,
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("recording security incident failed (conversation %s)", turn.conversation_id)
     finally:
         db.close()
 
