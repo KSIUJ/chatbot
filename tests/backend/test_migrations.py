@@ -59,3 +59,37 @@ def test_incidents_migration_up_and_down(alembic_config):
 
     command.upgrade(config, INCIDENTS_REVISION)
     assert "security_incidents" in _tables(url)
+
+
+LIMITS_REVISION = "e5b8c2d4f6a1"
+
+
+def test_limits_migration_up_and_down(alembic_config):
+    config, url = alembic_config
+
+    command.upgrade(config, LIMITS_REVISION)
+    tables = _tables(url)
+    assert {"app_settings", "user_limits", "daily_usage"} <= tables
+    engine = create_engine(url)
+    try:
+        inspector = inspect(engine)
+        usage_columns = {c["name"] for c in inspector.get_columns("daily_usage")}
+        usage_pk = inspector.get_pk_constraint("daily_usage")["constrained_columns"]
+        limit_columns = {c["name"] for c in inspector.get_columns("user_limits")}
+        setting_columns = {c["name"] for c in inspector.get_columns("app_settings")}
+        usage_indexes = {i["name"] for i in inspector.get_indexes("daily_usage")}
+    finally:
+        engine.dispose()
+    assert usage_columns == {"user_id", "day", "count"}
+    assert usage_pk == ["user_id", "day"]
+    assert {"user_id", "daily_limit", "note", "updated_by", "created_at", "updated_at"} <= limit_columns
+    assert {"key", "value", "updated_by", "updated_at"} <= setting_columns
+    assert "ix_daily_usage_day" in usage_indexes
+
+    command.downgrade(config, INCIDENTS_REVISION)
+    tables = _tables(url)
+    assert not {"app_settings", "user_limits", "daily_usage"} & tables
+    assert "security_incidents" in tables
+
+    command.upgrade(config, "head")
+    assert {"app_settings", "user_limits", "daily_usage"} <= _tables(url)

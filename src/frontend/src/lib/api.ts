@@ -33,16 +33,22 @@ const SESSION_LOST_CODES: ReadonlySet<AuthErrorCode> = new Set<AuthErrorCode>([
 // from the group) - useAuth then switches to the login flow.
 export const SESSION_LOST_EVENT = 'chatbot:session-lost';
 
-// A non-2xx API response. `code` is the login error code from the body, if any.
+// A non-2xx API response. `code` is the login error code from the body, if
+// any; `detail` is the raw `detail` of a JSON body (e.g. the daily limit info
+// of a 429) and `retryAfter` the Retry-After header, for callers that need them.
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code: AuthErrorCode | null;
+  readonly detail: unknown;
+  readonly retryAfter: string | null;
 
-  constructor(status: number, code: AuthErrorCode | null) {
+  constructor(status: number, code: AuthErrorCode | null, detail: unknown = null, retryAfter: string | null = null) {
     super(`API request failed with HTTP ${status}`);
     this.name = 'ApiRequestError';
     this.status = status;
     this.code = code;
+    this.detail = detail;
+    this.retryAfter = retryAfter;
   }
 
   // True when SESSION_LOST_EVENT was dispatched for this response.
@@ -59,15 +65,20 @@ interface ErrorBody {
   detail?: unknown;
 }
 
-async function readAuthErrorCode(response: Response): Promise<AuthErrorCode | null> {
+async function readErrorDetail(response: Response): Promise<unknown> {
   try {
     const { detail } = (await response.json()) as ErrorBody;
-    if (typeof detail === 'object' && detail !== null && 'code' in detail) {
-      const { code } = detail as { code: unknown };
-      return isAuthErrorCode(code) ? code : null;
-    }
+    return detail ?? null;
   } catch {
-    // response without JSON (e.g. a 502 from nginx) has no code
+    // response without JSON (e.g. a 502 from nginx) has no detail
+    return null;
+  }
+}
+
+function authErrorCodeOf(detail: unknown): AuthErrorCode | null {
+  if (typeof detail === 'object' && detail !== null && 'code' in detail) {
+    const { code } = detail as { code: unknown };
+    return isAuthErrorCode(code) ? code : null;
   }
   return null;
 }
@@ -77,8 +88,9 @@ async function readAuthErrorCode(response: Response): Promise<AuthErrorCode | nu
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const response = await fetch(`${API_BASE_URL}${path}`, { credentials: 'include', ...init });
   if (response.ok) return response;
-  const code = await readAuthErrorCode(response);
-  const error = new ApiRequestError(response.status, code);
+  const detail = await readErrorDetail(response);
+  const code = authErrorCodeOf(detail);
+  const error = new ApiRequestError(response.status, code, detail, response.headers.get('Retry-After'));
   if (error.sessionLost && code !== null) {
     window.dispatchEvent(new CustomEvent<AuthErrorCode>(SESSION_LOST_EVENT, { detail: code }));
   }

@@ -11,9 +11,10 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 - Wchodzą tylko osoby z grupy `/Członek` w Keycloaku KSI; członkostwo jest sprawdzane przy każdym zapytaniu.
 - Odpowiedzi można oceniać (kciuk w górę / w dół) i zgłaszać (błąd, nieaktualne, nieodpowiednie, inne); oceny z kopią pytania i odpowiedzi przegląda zarząd — grupa `OIDC_ADMIN_GROUP` (domyślnie `/Zarząd`) — przez `/api/admin/feedback` (lista, obsługa zgłoszeń, eksport CSV).
 - Prompt systemowy zawiera dzisiejszą datę i rok akademicki; próby obejścia jego zasad (heurystyka backendu i znacznik od modelu) są zapisywane jako incydenty dla zarządu (`/Zarząd`) — `/api/admin/incidents`, z danymi osoby, kasowane po 180 dniach.
+- Każda osoba ma dzienny limit pytań (domyślnie 10); limity, zgłoszenia, incydenty i diagnostykę obsługuje zarząd w panelu administratora (niżej).
 
 ```
-src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie), history.py
+src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie), limits/, admin/, history.py
 src/frontend/    aplikacja React (+ nginx w obrazie Dockera)
 pipeline/        scrapers/ (mordor, strony, usos) i ingest/ (ładowanie danych do bazy RAG)
 alembic/         migracje bazy aplikacji
@@ -94,6 +95,17 @@ Klient `chatbot` w realmie `ksi`:
 Wdrożenie na `chat.ksi.sh`: zrób kopię bazy, ustaw w `.env` na serwerze `OIDC_REDIRECT_URI=https://chat.ksi.sh/api/auth/callback`, `OIDC_CLIENT_SECRET`, nowy `AUTH_SECRET_KEY` i klucz LLM, potem `git pull && docker compose up -d --build`. Reverse proxy z TLS musi przekazywać `/api/*` bez zmian i nie buforować ani nie kompresować odpowiedzi `text/event-stream` (inaczej odpowiedzi nie będą się pojawiać na bieżąco).
 
 Pozostałe zmienne (historia rozmów, RAG, modele) są opisane w `.env.example`.
+
+## Panel administratora
+
+Dostęp mają osoby z grupy `OIDC_ADMIN_GROUP` (domyślnie `/Zarząd`): w czacie *Ustawienia → Panel administratora*. Backend sprawdza grupę przy każdym zapytaniu `/api/admin/*` (bez niej 403).
+
+- **Limity** — globalny dzienny limit pytań na osobę (domyślnie `CHAT_DAILY_LIMIT=10`) i wyjątki per osoba: własny limit, bez limitu albo 0 (zablokowana), z notatką. Admini nie są zwolnieni z limitu — mogą nadać wyjątek sobie. Doba kończy się o północy czasu polskiego. Liczy się każde pytanie, które dochodzi do modelu (także regeneracja i ponowienie); pytanie wraca do puli tylko po błędzie po stronie serwera (błąd modelu, pusta odpowiedź, nieudany zapis), a rozłączenie lub przerwanie przez użytkownika (Stop, zamknięcie karty) w dowolnym momencie liczy się jak pytanie. Po wyczerpaniu limitu `/chat` i `/chat/stream` zwracają `429` (`rate_limited`, `reset_at`, nagłówek `Retry-After`), a użytkownik widzi komunikat z godziną odnowienia; stan zwraca `GET /api/usage`. Tu są też limity załączników (rozmiar pliku, plików w wiadomości, załączników dziennie, typy plików) — zapisywane już teraz, egzekwowane przez funkcję załączników (`get_attachment_limits(db)` w `src/backend/limits/settings.py`).
+- **Zgłoszenia** — zgłoszone odpowiedzi z kopią pytania, odpowiedzi i źródeł; rozwiązanie / odrzucenie z notatką, eksport CSV.
+- **Incydenty** — próby obejścia promptu z danymi osoby i dopasowanymi regułami.
+- **Diagnostyka** — dostawca i model, czas działania, statystyki wywołań modelu od startu (błędy, średni czas i p95, ostatni błąd), pytania i aktywni użytkownicy (dziś / 7 dni), liczba kont, rozmów i wiadomości, otwarte zgłoszenia i incydenty, rozmiar indeksu RAG i data ostatniego ingestu, rozmiar bazy i wolne miejsce na dysku.
+
+Wartości z `.env` (`CHAT_DAILY_LIMIT`, `ATTACHMENT_*`) są domyślne — zmiana w panelu zapisuje się w bazie (tabela `app_settings`) i ma pierwszeństwo. Dzienne liczniki starsze niż 90 dni są kasowane w tle.
 
 ## Autorzy
 

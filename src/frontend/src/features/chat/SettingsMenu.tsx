@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Globe, Moon, Settings } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Globe, Moon, Settings, ShieldCheck } from 'lucide-react';
 import { LANGUAGE_PREFERENCES, translations } from '../preferences/languages';
 import { THEME_PREFERENCES } from '../preferences/themes';
 import type { Preferences } from '../preferences/usePreferences';
@@ -8,10 +8,13 @@ type SettingsView = 'closed' | 'main' | 'language' | 'theme';
 
 interface SettingsMenuProps {
   preferences: Preferences;
+  // only for the admin group: opens the admin panel
+  onOpenAdmin?: () => void;
 }
 
-// "Settings" button in the sidebar with a popover for language and theme.
-export default function SettingsMenu({ preferences }: SettingsMenuProps) {
+// "Settings" button in the sidebar with a popover for language and theme
+// (and the admin panel entry for admins).
+export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuProps) {
   const { lang, languagePreference, setLanguagePreference, themePreference, setThemePreference } = preferences;
   const [view, setView] = useState<SettingsView>('closed');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,6 +44,13 @@ export default function SettingsMenu({ preferences }: SettingsMenuProps) {
   }, [isOpen]);
 
   const menuItem = 'w-full flex items-center justify-between px-3.5 py-2 text-sm text-left text-fg transition-colors hover:bg-surface-hover';
+
+  // focus goes back to the Settings button first, so closing the panel can return to it
+  const openAdmin = () => {
+    buttonRef.current?.focus();
+    setView('closed');
+    onOpenAdmin?.();
+  };
 
   const submenuHeader = (title: string) => (
     <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-0.5 mb-1 border-b border-line">
@@ -79,6 +89,14 @@ export default function SettingsMenu({ preferences }: SettingsMenuProps) {
                 </span>
                 <ChevronRight size={16} className="text-muted" aria-hidden="true" />
               </button>
+              {onOpenAdmin && (
+                <button type="button" onClick={openAdmin} className={`${menuItem} border-t border-line mt-1 pt-2.5`}>
+                  <span className="flex items-center gap-3">
+                    <ShieldCheck size={16} className="text-muted" aria-hidden="true" />
+                    {lang.admin.title}
+                  </span>
+                </button>
+              )}
             </>
           )}
 

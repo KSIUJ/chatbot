@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, JSON, SmallInteger, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, JSON, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -203,6 +203,54 @@ class UsageCounter(Base):
 
     key: Mapped[str] = mapped_column(String(50), primary_key=True)
     value: Mapped[int] = mapped_column(default=0, nullable=False)
+
+
+class AppSetting(Base):
+    """Globalne ustawienie zmieniane przez zarzad w panelu administratora
+    (klucz -> wartosc JSON), np. dzienny limit pytan i limity zalacznikow.
+    Brak wiersza = wartosc domyslna z env (patrz limits/settings.py)."""
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[int | str | list[str]] = mapped_column(JSON, nullable=False)
+    updated_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class UserLimit(Base):
+    """Wyjatek od globalnego dziennego limitu pytan dla jednej osoby.
+    daily_limit NULL = bez limitu, 0 = zablokowany. Admini nie maja wyjatku
+    z urzedu - moga go sobie nadac jak kazdemu."""
+    __tablename__ = "user_limits"
+    __table_args__ = (
+        CheckConstraint("daily_limit IS NULL OR daily_limit >= 0", name="ck_user_limits_daily_limit"),
+    )
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class DailyUsage(Base):
+    """Liczba pytan do modelu danej osoby w danym dniu (doba wg czasu
+    polskiego, od polnocy). Zwiekszana atomowo przed wywolaniem modelu,
+    zmniejszana, gdy odpowiedz nie zostala zapisana. Wiersze starsze niz
+    USAGE_RETENTION_DAYS sprzata zadanie w tle (limits/usage.py)."""
+    __tablename__ = "daily_usage"
+    __table_args__ = (
+        CheckConstraint("count >= 0", name="ck_daily_usage_count"),
+    )
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True, index=True)
+    count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
 class UserSession(Base):
