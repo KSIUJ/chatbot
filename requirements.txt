@@ -5,6 +5,10 @@ python-dotenv
 fastapi
 uvicorn[standard]
 
+# Data w prompcie systemowym (src/backend/llm/dates.py): strefa Europe/Warsaw
+# takze na Windows i w obrazie slim (bez systemowej bazy stref czasowych)
+tzdata
+
 # Claude API (src/backend/llm/claude_client.py) - opcjonalny dostawca LLM,
 # wlaczany przez LLM_PROVIDER=claude (patrz .env.example)
 anthropic

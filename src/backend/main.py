@@ -17,7 +17,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
 from .auth import get_auth_settings, require_member, router as auth_router, verify_origin
-from .chat import ChatTurn, ConversationNotOwned, load_history, save_exchange, to_message_response
+from .chat import (
+    ChatTurn,
+    ConversationNotOwned,
+    load_history,
+    record_turn_incident,
+    save_exchange,
+    to_message_response,
+)
 from .chat_stream import SSE_HEADERS, chat_events
 from .config import APP_NAME, FRONTEND_ORIGINS
 from .feedback import admin_router as feedback_admin_router, conversation_feedback, router as feedback_router
@@ -44,7 +51,12 @@ from .history import (
     retention_loop,
 )
 from .llm.generate import answer as rag_answer, stream_answer as rag_stream
+from .llm.language import REFUSAL
 from .feedback.service import EMPTY_STATE
+from .security import admin_router as security_admin_router
+from .security.incidents import purge_old_incidents
+from .security.injection import detect_injection
+from .security.marker import strip_violation_marker
 from .models import Conversation, MessageRole, User
 from .request import ChatRequest
 from .response import (
@@ -74,10 +86,12 @@ configure_logging()
 
 
 def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:
-    """Zadania sprzatania w tle: nieuzywane rozmowy i wygasle sesje logowania."""
+    """Zadania sprzatania w tle: nieuzywane rozmowy, wygasle sesje logowania
+    i incydenty bezpieczenstwa starsze niz INCIDENT_RETENTION_DAYS."""
     return {
         "conversations": lambda db: purge_expired_conversations(db, settings.retention_days),
         "sessions": purge_expired_sessions,
+        "incidents": purge_old_incidents,
     }
 
 
@@ -120,6 +134,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(feedback_router)
 app.include_router(feedback_admin_router)
+app.include_router(security_admin_router)
 
 
 def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Conversation:
@@ -133,7 +148,9 @@ def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Co
 
 def _new_turn(payload: ChatRequest, user: User, history_settings: HistorySettings) -> ChatTurn:
     """Tura czatu z zapytania. Id nowej rozmowy nadaje klient (32 hex), wiec
-    ponowienie po bledzie albo przerwaniu trafia do tej samej rozmowy."""
+    ponowienie po bledzie albo przerwaniu trafia do tej samej rozmowy.
+    Heurystyka prob obejscia promptu dziala tu, przed wywolaniem modelu -
+    niczego nie blokuje, trafienia trafiaja do incydentu na koncu tury."""
     return ChatTurn(
         user_id=user.id,
         conversation_id=payload.conversation_id or uuid4().hex,
@@ -141,6 +158,7 @@ def _new_turn(payload: ChatRequest, user: User, history_settings: HistorySetting
         regenerate=payload.regenerate,
         language=payload.language,
         max_per_user=history_settings.max_per_user,
+        injection_rules=tuple(detect_injection(payload.message)),
     )
 
 
@@ -201,19 +219,31 @@ def chat(
     db: Session = Depends(get_db),
     user: User = Depends(require_member),
     history_settings: HistorySettings = Depends(get_history_settings),
+    session_factory: sessionmaker[Session] = Depends(get_session_factory),
 ) -> ChatResponse:
-    """Pytanie do czatu, odpowiedz w calosci (JSON)."""
+    """Pytanie do czatu, odpowiedz w calosci (JSON). Wiodacy znacznik
+    [[NARUSZENIE]] jest zdejmowany przed zapisem i zglaszany jako incydent."""
     turn = _new_turn(payload, user, history_settings)
+    model_flagged = False
+    saved = False
     # zapytania o te sama rozmowe ida po kolei
     with conversation_lock(turn.conversation_id):
         try:
-            history = load_history(db, turn)
-        except ConversationNotOwned:
-            raise HTTPException(status_code=404, detail="conversation not found") from None
-        # najpierw odpowiedz: blad LLM zostawia rozmowe bez zmian, nie kasuje
-        # najstarszej rozmowy i nie zostawia pustej
-        result = rag_answer(turn.question, history=history, language=turn.language)
-        assistant_message = save_exchange(db, turn, result["answer"], result["sources"])
+            try:
+                history = load_history(db, turn)
+            except ConversationNotOwned:
+                raise HTTPException(status_code=404, detail="conversation not found") from None
+            # najpierw odpowiedz: blad LLM zostawia rozmowe bez zmian, nie kasuje
+            # najstarszej rozmowy i nie zostawia pustej
+            result = rag_answer(turn.question, history=history, language=turn.language)
+            answer_text, model_flagged = strip_violation_marker(result["answer"])
+            if model_flagged and not answer_text.strip():
+                answer_text = REFUSAL[turn.language]
+            assistant_message = save_exchange(db, turn, answer_text, result["sources"])
+            saved = True
+        finally:
+            # takze po bledzie modelu - trafienie heurystyki ma zostac zgloszone
+            record_turn_incident(session_factory, turn, model_flagged, saved)
     return ChatResponse(conversation_id=turn.conversation_id, message=to_message_response(assistant_message))
 
 

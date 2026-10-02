@@ -151,6 +151,51 @@ class MessageFeedback(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class SecurityIncident(Base):
+    """Proba obejscia promptu systemowego - do przegladu przez zarzad KSI.
+
+    Zrodlo: "heuristic" (security/injection.py), "model" (odpowiedz zaczela sie
+    od [[NARUSZENIE]]) albo "both". Najwyzej jeden wiersz na pytanie
+    uzytkownika (message_id); regeneracja odpowiedzi aktualizuje ten sam wiersz.
+
+    W przeciwienstwie do ocen incydent wskazuje osobe (user_id) - zarzad musi
+    wiedziec, kto probowal. conversation_id i message_id to zwykle kopie bez FK
+    (rozmowy sa kasowane po CHAT_HISTORY_RETENTION_DAYS), wiec tresc pytania
+    jest kopiowana. Wiersze starsze niz INCIDENT_RETENTION_DAYS sprzata
+    zadanie w tle (security/incidents.py).
+    """
+    __tablename__ = "security_incidents"
+    __table_args__ = (
+        UniqueConstraint("message_id", name="uq_security_incidents_message"),
+        CheckConstraint("source IN ('heuristic', 'model', 'both')", name="ck_security_incidents_source"),
+        CheckConstraint("status IN ('open', 'resolved', 'dismissed')", name="ck_security_incidents_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    conversation_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # id pytania uzytkownika (messages.id); NULL gdy pytanie nie zostalo zapisane
+    message_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+
+    source: Mapped[str] = mapped_column(String(10), nullable=False)
+    # nazwy regul heurystyki (RULE_NAMES); pusta lista gdy zglosil tylko model
+    rules: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+    # open | resolved | dismissed (jak zgloszenia odpowiedzi)
+    status: Mapped[str] = mapped_column(String(20), index=True, default="open", nullable=False)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class UsageCounter(Base):
     """Liczniki statystyk (GET /stats), ktore nie maleja, gdy stare rozmowy
     sa kasowane - liczenie wierszy w messages spadaloby po kazdym czyszczeniu."""
