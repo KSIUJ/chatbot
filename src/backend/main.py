@@ -1,4 +1,5 @@
-"""Aplikacja FastAPI: czat, historia rozmow, logowanie, oceny odpowiedzi i statystyki.
+"""Aplikacja FastAPI: czat, historia rozmow, logowanie, oceny odpowiedzi,
+dzienne limity pytan, panel administratora i statystyki.
 
 Za nginxem endpointy sa pod /api/* (nginx obcina prefiks), backend widzi
 sciezki bez /api.
@@ -8,6 +9,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import AsyncIterator
+from functools import partial
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -16,6 +18,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
+from .admin import router as admin_router
 from .auth import get_auth_settings, require_member, router as auth_router, verify_origin
 from .chat import (
     ChatTurn,
@@ -40,6 +43,23 @@ from .database import (
     get_session_factory,
 )
 from .auth.service import purge_expired_sessions
+from .limits import (
+    ChatDisabled,
+    LimitExceeded,
+    chat_disabled_handler,
+    ensure_chat_enabled,
+    limit_exceeded_handler,
+    router as limits_router,
+)
+from .limits.settings import get_default_limits
+from .limits.usage import (
+    Clock,
+    Reservation,
+    consume_question,
+    get_clock,
+    purge_old_usage,
+    refund_in_new_session,
+)
 from .history import (
     CleanupJob,
     HistorySettings,
@@ -86,12 +106,14 @@ configure_logging()
 
 
 def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:
-    """Zadania sprzatania w tle: nieuzywane rozmowy, wygasle sesje logowania
-    i incydenty bezpieczenstwa starsze niz INCIDENT_RETENTION_DAYS."""
+    """Zadania sprzatania w tle: nieuzywane rozmowy, wygasle sesje logowania,
+    incydenty bezpieczenstwa starsze niz INCIDENT_RETENTION_DAYS i dzienne
+    liczniki pytan starsze niz USAGE_RETENTION_DAYS."""
     return {
         "conversations": lambda db: purge_expired_conversations(db, settings.retention_days),
         "sessions": purge_expired_sessions,
         "incidents": purge_old_incidents,
+        "daily_usage": purge_old_usage,
     }
 
 
@@ -105,9 +127,11 @@ def start_retention_task() -> asyncio.Task[None]:
 
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Brak/bledna konfiguracja OIDC albo CHAT_HISTORY_* zatrzymuje start z opisem bledu
+    # Brak/bledna konfiguracja OIDC, CHAT_HISTORY_* albo limitow (CHAT_DAILY_LIMIT,
+    # ATTACHMENT_*) zatrzymuje start z opisem bledu
     get_auth_settings()
     get_history_settings()
+    get_default_limits()
     task = start_retention_task()
     try:
         yield
@@ -120,6 +144,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 # verify_origin sprawdza naglowek Origin przy kazdym POST/PUT/PATCH/DELETE
 app = FastAPI(title=APP_NAME, dependencies=[Depends(verify_origin)], lifespan=lifespan)
+# wyczerpany dzienny limit pytan -> 429 z kodem rate_limited (przed strumieniem)
+app.add_exception_handler(LimitExceeded, limit_exceeded_handler)
+# czat wylaczony przez zarzad -> 503 chat_disabled (przed limitem i modelem)
+app.add_exception_handler(ChatDisabled, chat_disabled_handler)
 
 # CORS potrzebny tylko gdy frontend i API sa na roznych originach (w Dockerze
 # i w vite z proxy jest jeden origin). Z ciasteczkami nie wolno uzyc "*".
@@ -135,6 +163,8 @@ app.include_router(auth_router)
 app.include_router(feedback_router)
 app.include_router(feedback_admin_router)
 app.include_router(security_admin_router)
+app.include_router(limits_router)
+app.include_router(admin_router)
 
 
 def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Conversation:
@@ -220,19 +250,25 @@ def chat(
     user: User = Depends(require_member),
     history_settings: HistorySettings = Depends(get_history_settings),
     session_factory: sessionmaker[Session] = Depends(get_session_factory),
+    clock: Clock = Depends(get_clock),
 ) -> ChatResponse:
     """Pytanie do czatu, odpowiedz w calosci (JSON). Wiodacy znacznik
-    [[NARUSZENIE]] jest zdejmowany przed zapisem i zglaszany jako incydent."""
+    [[NARUSZENIE]] jest zdejmowany przed zapisem i zglaszany jako incydent.
+    Wyczerpany dzienny limit -> 429 (rate_limited), model nie jest wolany.
+    Czat wylaczony przez zarzad -> 503 (chat_disabled) przed czymkolwiek."""
+    ensure_chat_enabled(db)
     turn = _new_turn(payload, user, history_settings)
     model_flagged = False
     saved = False
     # zapytania o te sama rozmowe ida po kolei
     with conversation_lock(turn.conversation_id):
         try:
-            try:
-                history = load_history(db, turn)
-            except ConversationNotOwned:
-                raise HTTPException(status_code=404, detail="conversation not found") from None
+            history = load_history(db, turn)
+        except ConversationNotOwned:
+            raise HTTPException(status_code=404, detail="conversation not found") from None
+        # LimitExceeded -> 429; pytanie odrzucone limitem nie jest incydentem
+        reservation = consume_question(db, user.id, clock())
+        try:
             # najpierw odpowiedz: blad LLM zostawia rozmowe bez zmian, nie kasuje
             # najstarszej rozmowy i nie zostawia pustej
             result = rag_answer(turn.question, history=history, language=turn.language)
@@ -242,23 +278,32 @@ def chat(
             assistant_message = save_exchange(db, turn, answer_text, result["sources"])
             saved = True
         finally:
+            if not saved:
+                # blad serwera (model albo zapis; synchroniczny /chat nie jest
+                # przerywany rozlaczeniem klienta) - pytanie wraca do limitu;
+                # najpierw rollback, bo przerwany zapis trzymalby blokade SQLite
+                db.rollback()
+                refund_in_new_session(session_factory, reservation)
             # takze po bledzie modelu - trafienie heurystyki ma zostac zgloszone
             record_turn_incident(session_factory, turn, model_flagged, saved)
     return ChatResponse(conversation_id=turn.conversation_id, message=to_message_response(assistant_message))
 
 
 def _prepare_stream_turn(
-    db: Session, payload: ChatRequest, user: User, history_settings: HistorySettings
-) -> ChatTurn:
-    """Tura dla strumienia; cudza rozmowa -> 404 jeszcze przed strumieniem.
-    Sesja zapytania jest potem zamykana - strumien uzywa wlasnych sesji, a ta
-    trzymalaby polaczenie z puli przez cale generowanie."""
+    db: Session, payload: ChatRequest, user: User, history_settings: HistorySettings, clock: Clock
+) -> tuple[ChatTurn, Reservation]:
+    """Tura dla strumienia; wylaczony czat -> 503 (ChatDisabled, przed
+    czymkolwiek), cudza rozmowa -> 404, wyczerpany limit -> 429
+    (LimitExceeded) - jeszcze przed strumieniem. Sesja zapytania jest potem
+    zamykana - strumien uzywa wlasnych sesji, a ta trzymalaby polaczenie
+    z puli przez cale generowanie."""
     try:
+        ensure_chat_enabled(db)
         turn = _new_turn(payload, user, history_settings)
         conversation = db.get(Conversation, turn.conversation_id, populate_existing=True)
         if conversation is not None and conversation.user_id != turn.user_id:
             raise HTTPException(status_code=404, detail="conversation not found")
-        return turn
+        return turn, consume_question(db, user.id, clock())
     finally:
         db.close()
 
@@ -275,13 +320,15 @@ async def chat_stream(
     user: User = Depends(require_member),
     history_settings: HistorySettings = Depends(get_history_settings),
     session_factory: sessionmaker[Session] = Depends(get_session_factory),
+    clock: Clock = Depends(get_clock),
 ) -> StreamingResponse:
     """Pytanie do czatu, odpowiedz strumieniowana (SSE, patrz chat_stream.py).
-    Bledy logowania, originu, walidacji i 404 wracaja jako zwykle odpowiedzi
-    HTTP, zanim zacznie sie strumien."""
-    turn = await run_in_threadpool(_prepare_stream_turn, db, payload, user, history_settings)
+    Bledy logowania, originu, walidacji, 503 (czat wylaczony), 404 i 429 (dzienny limit) wracaja
+    jako zwykle odpowiedzi HTTP, zanim zacznie sie strumien."""
+    turn, reservation = await run_in_threadpool(_prepare_stream_turn, db, payload, user, history_settings, clock)
+    refund = partial(refund_in_new_session, session_factory, reservation)
     return StreamingResponse(
-        chat_events(request, session_factory, turn, rag_stream),
+        chat_events(request, session_factory, turn, rag_stream, refund=refund),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )

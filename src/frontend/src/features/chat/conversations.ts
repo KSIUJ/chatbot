@@ -2,6 +2,7 @@ import { ApiRequestError, apiFetch, apiJson } from '../../lib/api';
 import type { HtmlLang } from '../preferences/languages';
 import { parseFeedback, type MessageFeedback } from './feedback';
 import { parseSources, type Source } from './sources';
+import type { RateLimitInfo } from './usage';
 
 // Chat API: history list, single conversation, delete, send. The server is the
 // source of truth for conversations; the browser only remembers the open one.
@@ -17,6 +18,8 @@ export interface ChatMessage {
   sources?: Source[];
   // the current user's rating / report of a bot answer
   feedback?: MessageFeedback;
+  // on an "error" marker: the question was refused by the daily limit
+  rateLimit?: RateLimitInfo;
 }
 
 export function isMarker(message: ChatMessage): boolean {

@@ -4,6 +4,7 @@ import type { AuthUser } from '../auth/useAuth';
 import type { Preferences } from '../preferences/usePreferences';
 import type { ConversationSummary } from './conversations';
 import type { HistoryLimits } from './useChat';
+import type { UsageStatus } from './usage';
 import SettingsMenu from './SettingsMenu';
 
 interface ChatSidebarProps {
@@ -13,6 +14,10 @@ interface ChatSidebarProps {
   activeId: string | null;
   limits: HistoryLimits | null;
   historyError: boolean;
+  // today's questions vs. the daily limit (hint hidden while unknown or unlimited)
+  usage: UsageStatus | null;
+  // only for admins
+  onOpenAdmin?: () => void;
   onNewChat: () => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
@@ -31,6 +36,8 @@ export default function ChatSidebar({
   activeId,
   limits,
   historyError,
+  usage,
+  onOpenAdmin,
   onNewChat,
   onOpen,
   onDelete,
@@ -146,7 +153,7 @@ export default function ChatSidebar({
 
       {/* settings + account */}
       <div className="p-3 space-y-0.5">
-        <SettingsMenu preferences={preferences} />
+        <SettingsMenu preferences={preferences} onOpenAdmin={onOpenAdmin} />
 
         {/* who is logged in */}
         <div className="px-2.5 pt-2 mt-1 border-t border-line">
@@ -159,6 +166,9 @@ export default function ChatSidebar({
             <p className="text-[11px] truncate text-muted" title={user.email}>
               {user.email}
             </p>
+          )}
+          {usage !== null && usage.limit !== null && (
+            <p className="text-[11px] text-muted tabular-nums">{lang.usageToday(usage.used, usage.limit)}</p>
           )}
         </div>
 

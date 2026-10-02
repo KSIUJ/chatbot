@@ -84,6 +84,21 @@ describe('apiFetch', () => {
     expect(sessionLostCodes).toEqual([]);
   });
 
+  it('keeps the error detail and Retry-After for callers (e.g. the daily limit)', async () => {
+    const detail = { code: 'rate_limited', limit: 10, reset_at: '2026-10-02T22:00:00+00:00' };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ detail }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '7200' },
+      }),
+    );
+
+    const error = await apiFetch('/chat/stream').catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ status: 429, code: null, detail, retryAfter: '7200', sessionLost: false });
+    expect(sessionLostCodes).toEqual([]);
+  });
+
   it('ignores unknown codes in the error body', async () => {
     fetchMock.mockResolvedValue(jsonResponse(500, errorBody('database_down')));
 
