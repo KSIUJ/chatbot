@@ -209,7 +209,12 @@ class OIDCClient:
     # --- przeplyw logowania -----------------------------------------------
 
     def build_authorization_url(
-        self, state: str, nonce: str, code_challenge: str, ui_locales: str | None = None
+        self,
+        state: str,
+        nonce: str,
+        code_challenge: str,
+        ui_locales: str | None = None,
+        prompt: str | None = None,
     ) -> str:
         params = {
             "response_type": "code",
@@ -224,6 +229,9 @@ class OIDCClient:
         if ui_locales:
             # jezyk strony logowania Keycloaka (standardowy parametr OIDC)
             params["ui_locales"] = ui_locales
+        if prompt:
+            # prompt=login: Keycloak pokazuje formularz mimo trwajacej sesji SSO
+            params["prompt"] = prompt
         return f"{self.metadata().authorization_endpoint}?{urlencode(params)}"
 
     def _token_request(self, form: dict[str, str]) -> TokenSet:

@@ -2,7 +2,6 @@ import { Loader2 } from 'lucide-react';
 import ChatScreen from './features/chat/ChatScreen';
 import LoginScreen from './features/auth/LoginScreen';
 import { useAuth } from './features/auth/useAuth';
-import { isDarkTheme } from './features/preferences/themes';
 import { usePreferences } from './features/preferences/usePreferences';
 
 export default function App() {
@@ -13,11 +12,8 @@ export default function App() {
   // checking the session with the backend, or already redirecting to KSI login
   if (state.status === 'loading') {
     return (
-      <div
-        role="status"
-        className={`min-h-screen flex items-center justify-center ${isDarkTheme(preferences.theme) ? 'bg-[#121212]' : 'bg-white'}`}
-      >
-        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+      <div role="status" className="min-h-dvh flex items-center justify-center bg-page">
+        <Loader2 className="w-6 h-6 animate-spin text-muted" />
         <span className="sr-only">{preferences.lang.loading}</span>
       </div>
     );

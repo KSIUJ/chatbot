@@ -95,4 +95,13 @@ describe('loginUrl', () => {
   it('encodes the language value', () => {
     expect(loginUrl('/api', 'pl en')).toBe('/api/auth/login?ui_locales=pl%20en');
   });
+
+  it('keeps the SSO session by default', () => {
+    expect(loginUrl('/api', 'pl')).not.toContain('prompt=');
+    expect(loginUrl('/api', 'pl', { forceLogin: false })).toBe('/api/auth/login?ui_locales=pl');
+  });
+
+  it('asks Keycloak for the login form to switch accounts', () => {
+    expect(loginUrl('/api', 'pl', { forceLogin: true })).toBe('/api/auth/login?ui_locales=pl&prompt=login');
+  });
 });

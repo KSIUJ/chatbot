@@ -7,7 +7,7 @@ import {
   type LanguagePreference,
   type Translation,
 } from './languages';
-import { THEME_STORAGE_KEY, parseThemePreference, type ThemeKey, type ThemePreference } from './themes';
+import { THEME_STORAGE_KEY, applyTheme, parseThemePreference, type ThemeKey, type ThemePreference } from './themes';
 import { useResolvedTheme } from './useResolvedTheme';
 
 export interface Preferences {
@@ -51,6 +51,12 @@ export function usePreferences(): Preferences {
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, themePreference);
   }, [themePreference]);
+
+  // the KSI colour tokens follow the resolved theme (.dark on <html>);
+  // public/theme-init.js already set it before the first paint
+  useEffect(() => {
+    applyTheme(document.documentElement, theme);
+  }, [theme]);
 
   // screen readers and spell checking follow the rendered language
   useEffect(() => {

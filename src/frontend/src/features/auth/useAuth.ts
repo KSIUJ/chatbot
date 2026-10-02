@@ -18,6 +18,7 @@ import {
   shouldAutoRedirect,
   visibleLoginError,
   type LoginError,
+  type LoginOptions,
 } from './redirect';
 
 export interface AuthUser {
@@ -75,11 +76,11 @@ async function fetchCurrentUser(): Promise<ResolvedAuthState> {
 }
 
 // full navigation (not fetch) - the backend redirects on to Keycloak
-function goToLogin(language: string): void {
+function goToLogin(language: string, options: LoginOptions = {}): void {
   redirecting = true;
   const storage = getSessionStorage();
   if (storage !== null) markRedirect(storage, Date.now());
-  window.location.assign(loginUrl(API_BASE_URL, language));
+  window.location.assign(loginUrl(API_BASE_URL, language, options));
 }
 
 // Without a session: go straight to Keycloak (returns null) or, for real errors
@@ -180,7 +181,7 @@ export function useAuth(language: string) {
     setState({ status: 'unauthenticated', error: null });
   }, []);
 
-  const login = useCallback(() => goToLogin(languageRef.current), []);
+  const login = useCallback((options: LoginOptions = {}) => goToLogin(languageRef.current, options), []);
 
   return { state, login, logout };
 }

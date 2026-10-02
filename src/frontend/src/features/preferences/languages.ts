@@ -25,9 +25,10 @@ export interface Translation {
   loading: string;
   ksiWebsite: string;
   // login screen
-  authorization: string;
   logIn: string;
   tryAgain: string;
+  // second action after a refused login: Keycloak form despite the SSO session
+  logInAnotherAccount: string;
   redirecting: string;
   loginErrors: Record<LoginError, string>;
   // sidebar
