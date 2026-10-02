@@ -320,3 +320,47 @@ describe('conversation requests', () => {
     await expect(deleteConversation('abc')).rejects.toMatchObject({ status: 502 });
   });
 });
+
+describe('attachments in conversations', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps valid attachments of user questions', () => {
+    const question: ApiMessage = {
+      ...msg('user', 'Streszcz plik', 'q1'),
+      attachments: [{ id: 'f1', name: 'plan.pdf', size: 1200, type: 'pdf' }, { id: 'bad' }],
+    };
+
+    expect(toChatMessages([question])).toEqual([
+      {
+        id: 'q1',
+        sender: 'user',
+        text: 'Streszcz plik',
+        attachments: [{ id: 'f1', name: 'plan.pdf', size: 1200, type: 'pdf' }],
+      },
+    ]);
+  });
+
+  it('sends attachment ids with the question', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('', { status: 200, headers: { 'Content-Type': 'text/event-stream' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await streamMessage(
+      {
+        message: 'Streszcz',
+        conversationId: 'c1',
+        regenerate: false,
+        language: 'pl',
+        signal: new AbortController().signal,
+        attachmentIds: ['f1', 'f2'],
+      },
+      { onDelta: () => undefined, onDone: () => undefined, onError: () => undefined },
+    );
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(String(init?.body))).toMatchObject({ attachment_ids: ['f1', 'f2'] });
+  });
+});

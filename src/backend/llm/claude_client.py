@@ -4,10 +4,11 @@ interfejs chat(system, user, history=None) -> str i stream_chat(...) ->
 kawalki tekstu co ollama_client.py.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING
 
+from .images import ImageInput
 from .provider import env_setting
 
 if TYPE_CHECKING:
@@ -31,9 +32,21 @@ def _client(timeout: int) -> tuple[ModuleType, "Anthropic"]:
     return anthropic, anthropic.Anthropic(api_key=api_key, timeout=timeout)
 
 
+def _user_content(user: str, images: Sequence[ImageInput] | None) -> str | list[dict[str, object]]:
+    """Tresc pytania: sam tekst albo bloki obrazow (base64) i na koncu tekst."""
+    if not images:
+        return user
+    blocks: list[dict[str, object]] = [
+        {"type": "image", "source": {"type": "base64", "media_type": image.mime, "data": image.base64()}}
+        for image in images
+    ]
+    blocks.append({"type": "text", "text": user})
+    return blocks
+
+
 def _request(
     system: str, user: str, history: list[dict[str, str]] | None, model: str | None,
-    temperature: float, max_tokens: int,
+    temperature: float, max_tokens: int, images: Sequence[ImageInput] | None = None,
 ) -> dict:
     # Claude API przyjmuje historie jako natywne messages przed biezacym pytaniem.
     return {
@@ -41,7 +54,7 @@ def _request(
         "max_tokens": max_tokens,
         "temperature": temperature,
         "system": system,
-        "messages": [*(history or []), {"role": "user", "content": user}],
+        "messages": [*(history or []), {"role": "user", "content": _user_content(user, images)}],
     }
 
 
@@ -66,11 +79,14 @@ def chat(
     temperature: float = 0.2,
     timeout: int = 300,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    images: Sequence[ImageInput] | None = None,
 ) -> str:
-    """Wysyla rozmowe do Claude API i zwraca polaczony tekst odpowiedzi."""
+    """Wysyla rozmowe do Claude API i zwraca polaczony tekst odpowiedzi.
+    images - obrazy z zalacznikow, dolaczane do biezacego pytania."""
     anthropic, client = _client(timeout)
+    request = _request(system, user, history, model, temperature, max_tokens, images)
     try:
-        response = client.messages.create(**_request(system, user, history, model, temperature, max_tokens))
+        response = client.messages.create(**request)
     except Exception as e:
         translated = _translate_error(anthropic, e)
         if translated is None:
@@ -88,12 +104,14 @@ def stream_chat(
     temperature: float = 0.2,
     timeout: int = 300,
     max_tokens: int = DEFAULT_MAX_TOKENS,
+    images: Sequence[ImageInput] | None = None,
 ) -> Iterator[str]:
     """Jak chat(), ale oddaje kawalki tekstu na biezaco (messages.stream).
     Zamkniecie generatora zamyka strumien i polaczenie."""
     anthropic, client = _client(timeout)
     try:
-        with client.messages.stream(**_request(system, user, history, model, temperature, max_tokens)) as stream:
+        request = _request(system, user, history, model, temperature, max_tokens, images)
+        with client.messages.stream(**request) as stream:
             yield from stream.text_stream
     except Exception as e:
         translated = _translate_error(anthropic, e)

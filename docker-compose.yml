@@ -40,6 +40,8 @@ services:
       - chatbot-db:/app/db
       - chatbot-dataset:/app/dataset
       - chatbot-data:/app/data
+      # zalaczniki z czatu (ATTACHMENTS_DIR=uploads -> /app/uploads)
+      - chatbot-uploads:/app/uploads
       - hf-cache:/root/.cache/huggingface
     ports:
       - "127.0.0.1:8000:8000"
@@ -63,4 +65,5 @@ volumes:
   chatbot-db:
   chatbot-dataset:
   chatbot-data:
+  chatbot-uploads:
   hf-cache:

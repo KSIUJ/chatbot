@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Bot, Loader2, RefreshCw } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
 import AnswerActions from './AnswerActions';
+import { SentChips } from './AttachmentChips';
+import { describeAttachmentProblem } from './attachmentText';
 import { isMarker, type ChatMessage } from './conversations';
 import { EMPTY_FEEDBACK, canGiveFeedback, type Rating, type ReportReason } from './feedback';
 import MessageSources from './MessageSources';
@@ -122,9 +124,14 @@ export default function ChatMessageList({
         const isStreaming = msg.status === 'streaming';
         // a stopped answer keeps the text received so far, with a note below
         const hasPartialText = msg.status === 'stopped' && msg.text !== '';
+        // refused before any answer (daily limit, attachments): a clear message, no retry
+        const isRefusal = msg.rateLimit !== undefined || msg.attachmentProblem !== undefined;
         const markerText = msg.rateLimit
           ? lang.rateLimited(msg.rateLimit.limit, formatResetTime(msg.rateLimit.resetAt, lang.htmlLang))
-          : msg.status === 'stopped' ? lang.stopped : lang.error;
+          : msg.attachmentProblem
+            ? describeAttachmentProblem(msg.attachmentProblem, lang)
+            : msg.status === 'stopped' ? lang.stopped : lang.error;
+        const sentAttachments = isUser ? msg.attachments ?? [] : [];
         const text = marker && !hasPartialText ? markerText : msg.text;
         const hasActions = canGiveFeedback(msg);
         const sources = !isUser && msg.status === undefined ? msg.sources ?? [] : [];
@@ -137,13 +144,15 @@ export default function ChatMessageList({
               <div
                 className={`px-4 py-3 relative rounded-card text-sm leading-relaxed whitespace-pre-wrap break-words
                   ${isUser ? USER_BUBBLE : BOT_BUBBLE}
-                  ${isUser ? '' : msg.rateLimit ? 'text-fg' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}`}
+                  ${isUser ? '' : isRefusal ? 'text-fg' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}`}
                 aria-busy={isStreaming || undefined}
-                role={msg.rateLimit ? 'alert' : undefined}
+                role={isRefusal ? 'alert' : undefined}
               >
                 {text}
                 {hasPartialText && <span className="block mt-2 text-label italic text-muted">{markerText}</span>}
               </div>
+
+              {sentAttachments.length > 0 && <SentChips lang={lang} attachments={sentAttachments} />}
 
               {sources.length > 0 && <MessageSources lang={lang} sources={sources} />}
 
@@ -161,7 +170,7 @@ export default function ChatMessageList({
 
               {/* retry only on the latest failed / stopped answer - not after
                   the daily limit, it would be refused again until the reset */}
-              {marker && !msg.rateLimit && msg.id === lastId && (
+              {marker && !isRefusal && msg.id === lastId && (
                 <button
                   type="button"
                   onClick={onRetry}

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .attachments.service import link_attachments, resolve_turn_attachments
 from .database import (
     add_message,
     create_conversation,
@@ -21,10 +22,13 @@ from .database import (
     get_messages,
 )
 from .history import make_room_for_new_conversation
+from .limits.settings import get_attachment_limits
+from .llm.attachments import PromptAttachment
 from .llm.language import Language
-from .models import Conversation, Message, MessageRole
+from .llm.provider import provider_supports_images
+from .models import Attachment, Conversation, Message, MessageRole
 from .rag.sources import Source
-from .response import FeedbackState, MessageResponse, parse_sources
+from .response import AttachmentInfo, FeedbackState, MessageResponse, parse_sources
 from .security.incidents import record_incident
 
 logger = logging.getLogger(__name__)
@@ -46,11 +50,59 @@ class ChatTurn:
     language: Language
     # limit rozmow na konto - nowa rozmowa wypycha najstarsza
     max_per_user: int
-    # reguly heurystyki (security/injection.py) pasujace do pytania
+    # reguly heurystyki (security/injection.py) pasujace do pytania i (z
+    # prefiksem "attachment:") do tresci zalacznikow
     injection_rules: tuple[str, ...] = ()
+    # zalaczniki dla modelu (tekst, obrazy)
+    attachments: tuple[PromptAttachment, ...] = ()
+    # niewyslane zalaczniki przypinane do pytania po zapisie odpowiedzi
+    attachment_ids: tuple[str, ...] = ()
 
 
-def to_message_response(message: Message, feedback: FeedbackState | None = None) -> MessageResponse:
+def with_attachments(db: Session, turn: ChatTurn, requested_ids: Sequence[str]) -> ChatTurn:
+    """Tura uzupelniona o zalaczniki: podane id i - przy regeneracji - te
+    z powtarzanego pytania. Wolane przed zuzyciem limitu pytan i modelem.
+
+    Raises:
+        AttachmentError: 404 attachment_not_found, 422 too_many_files albo
+            422 images_unsupported.
+    """
+    if not requested_ids and not turn.regenerate:
+        return turn
+    resolved = resolve_turn_attachments(
+        db,
+        user_id=turn.user_id,
+        conversation_id=turn.conversation_id,
+        requested_ids=requested_ids,
+        regenerate=turn.regenerate,
+        max_files=get_attachment_limits(db).max_files_per_message,
+        images_supported=provider_supports_images(),
+    )
+    if not resolved.prompt:
+        return turn
+    return replace(
+        turn,
+        attachments=resolved.prompt,
+        attachment_ids=resolved.link_ids,
+        injection_rules=tuple(dict.fromkeys([*turn.injection_rules, *resolved.injection_rules])),
+    )
+
+
+def model_kwargs(turn: ChatTurn) -> dict[str, object]:
+    """Argumenty answer()/stream_answer() dla tury; attachments tylko gdy sa."""
+    kwargs: dict[str, object] = {"language": turn.language}
+    if turn.attachments:
+        kwargs["attachments"] = list(turn.attachments)
+    return kwargs
+
+
+def attachment_infos(rows: Sequence[Attachment]) -> list[AttachmentInfo]:
+    return [AttachmentInfo(id=row.id, name=row.name, size=row.size, type=row.kind) for row in rows]
+
+
+def to_message_response(
+    message: Message, feedback: FeedbackState | None = None, attachments: Sequence[Attachment] = ()
+) -> MessageResponse:
     return MessageResponse(
         id=message.id,
         role=message.role,
@@ -58,6 +110,7 @@ def to_message_response(message: Message, feedback: FeedbackState | None = None)
         created_at=message.created_at,
         sources=parse_sources(message.sources),
         feedback=feedback,
+        attachments=attachment_infos(attachments),
     )
 
 
@@ -93,6 +146,7 @@ def save_exchange(db: Session, turn: ChatTurn, answer_text: str, sources: Sequen
     Nowa rozmowa: zrobienie miejsca (limit na konto), zalozenie rozmowy,
     pytanie, odpowiedz. Istniejaca: pytanie + odpowiedz, a przy regeneracji
     stara odpowiedz znika w tym samym commicie, w ktorym zapisuje sie nowa.
+    Niewyslane zalaczniki tury sa przypinane do pytania w commicie odpowiedzi.
 
     Raises:
         ConversationNotOwned: rozmowa o tym id nalezy do innego konta.
@@ -101,13 +155,16 @@ def save_exchange(db: Session, turn: ChatTurn, answer_text: str, sources: Sequen
     if conversation is None:
         make_room_for_new_conversation(db, turn.user_id, turn.max_per_user)
         create_conversation(db, user_id=turn.user_id, conversation_id=turn.conversation_id)
-        add_message(db, turn.conversation_id, MessageRole.USER, turn.question)
+        question_id: str | None = add_message(db, turn.conversation_id, MessageRole.USER, turn.question).id
     elif conversation.user_id != turn.user_id:
         raise ConversationNotOwned(turn.conversation_id)
     elif turn.regenerate:
         delete_last_assistant_message(db, conversation.id)
+        question_id = _latest_question_id(db, conversation.id)
     else:
-        add_message(db, conversation.id, MessageRole.USER, turn.question)
+        question_id = add_message(db, conversation.id, MessageRole.USER, turn.question).id
+    if question_id is not None:
+        link_attachments(db, turn.user_id, turn.conversation_id, question_id, turn.attachment_ids)
     return add_message(db, turn.conversation_id, MessageRole.ASSISTANT, answer_text, sources)
 
 

@@ -265,3 +265,38 @@ def test_closing_stream_early_closes_http_response(transport):
     stream.close()
 
     assert transport.response.closed
+
+
+# --- obrazy (zalaczniki) -----------------------------------------------------------
+
+def test_chat_sends_images_as_data_url_content_parts(transport):
+    from src.backend.llm.images import ImageInput
+
+    openrouter_client.chat(system="s", user="opisz", images=[ImageInput("image/jpeg", b"\xff\xd8\xff")])
+
+    assert transport.payload["messages"][-1] == {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "opisz"},
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,/9j/"}},
+        ],
+    }
+
+
+def test_stream_chat_sends_images(transport):
+    from src.backend.llm.images import ImageInput
+
+    transport.response = FakeStreamResponse([_sse(_delta("ok")), b"data: [DONE]"])
+
+    assert list(openrouter_client.stream_chat(system="s", user="u", images=[ImageInput("image/png", b"x")])) == ["ok"]
+    content = transport.payload["messages"][-1]["content"]
+    assert content[1]["image_url"]["url"] == "data:image/png;base64,eA=="
+
+
+def test_model_without_vision_surfaces_api_error(transport):
+    from src.backend.llm.images import ImageInput
+
+    transport.response = FakeResponse(status_code=404, payload={"error": {"message": "No endpoints found that support image input"}})
+
+    with pytest.raises(RuntimeError, match="OpenRouter"):
+        openrouter_client.chat(system="s", user="u", images=[ImageInput("image/png", b"x")])

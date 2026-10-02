@@ -160,3 +160,15 @@ def test_every_language_has_prompt_texts():
     assert set(LANGUAGES) == {"pl", "en", "de", "es", "fr", "it", "uk"}
     assert set(LANGUAGE_NAMES) == set(LANGUAGES) == set(ANSWER_IN) == set(REFUSAL)
     assert all(text.strip() and "[[" not in text for text in REFUSAL.values())
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected"),
+    [("claude", True), ("openrouter", True), ("ollama", True), ("cursor", False)],
+)
+def test_vision_capability_per_provider(monkeypatch, provider, expected):
+    from src.backend.llm.provider import provider_supports_images
+
+    monkeypatch.setenv("LLM_PROVIDER", provider)
+
+    assert provider_supports_images() is expected

@@ -2,7 +2,7 @@
 
 import os
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import NamedTuple, TypedDict
@@ -11,6 +11,8 @@ from ..rag.context_builder import retrieve_context
 from ..rag.sources import Source
 from . import claude_client, cursor_client, ollama_client, openrouter_client
 from . import stats as llm_stats
+from .attachments import PromptAttachment, attachments_block, images_of
+from .images import ImageInput
 from .dates import academic_year, polish_date, warsaw_now
 from .language import ANSWER_IN, DEFAULT_LANGUAGE, LANGUAGE_NAMES, Language
 from .provider import current_provider, env_setting
@@ -108,6 +110,17 @@ class _Prompt(NamedTuple):
     history: list[dict[str, str]]
     files: list[str]
     sources: list[Source]
+    # obrazy z zalacznikow - tylko dla dostawcow z obsluga obrazow
+    images: list[ImageInput]
+
+
+def _model_kwargs(prompt: _Prompt) -> dict[str, object]:
+    """Argumenty wywolania klienta LLM; images tylko gdy sa obrazy (cursor
+    i atrapy w testach nie znaja tego argumentu)."""
+    kwargs: dict[str, object] = {"system": prompt.system, "user": prompt.user, "history": prompt.history}
+    if prompt.images:
+        kwargs["images"] = prompt.images
+    return kwargs
 
 
 def utc_now() -> datetime:
@@ -178,7 +191,7 @@ def _measured_chat(chat: ChatFn, prompt: _Prompt) -> str:
     """Wywolanie modelu z zapisem czasu i bledu w statystykach (llm/stats.py)."""
     started = time.monotonic()
     try:
-        reply = chat(system=prompt.system, user=prompt.user, history=prompt.history)
+        reply = chat(**_model_kwargs(prompt))
     except Exception as exc:
         llm_stats.current_stats().record_error(time.monotonic() - started, exc)
         raise
@@ -214,13 +227,21 @@ def _build_prompt(
     k_other: int,
     history: list[dict[str, str]] | None,
     language: Language,
+    attachments: Sequence[PromptAttachment] = (),
 ) -> _Prompt:
-    """Kondensacja pytania, retrieval i prompt - wspolne dla answer() i stream_answer()."""
+    """Kondensacja pytania, retrieval i prompt - wspolne dla answer() i stream_answer().
+    Blok zalacznikow (jesli sa) stoi miedzy KONTEKSTEM a pytaniem."""
     search_query = condense(query, history)
     context, files, sources = retrieve_context(search_query, k_mordor=k_mordor, k_other=k_other)
 
-    user_message = f"{_context_block(context, files)}\n\nPYTANIE: {query}\n\n{ANSWER_IN[language]}"
-    return _Prompt(system_prompt(language), user_message, _trim_history(history), files, sources)
+    blocks = [_context_block(context, files)]
+    if attachments:
+        blocks.append(attachments_block(attachments))
+    blocks.extend([f"PYTANIE: {query}", ANSWER_IN[language]])
+    user_message = "\n\n".join(blocks)
+    return _Prompt(
+        system_prompt(language), user_message, _trim_history(history), files, sources, images_of(attachments)
+    )
 
 
 def answer(
@@ -229,10 +250,11 @@ def answer(
     k_other: int = 5,
     history: list[dict[str, str]] | None = None,
     language: Language = DEFAULT_LANGUAGE,
+    attachments: Sequence[PromptAttachment] = (),
 ) -> Answer:
     """Odpowiada na pytanie z uzyciem RAG; zwraca tekst, sciezki dolaczanych
-    plikow i zrodla."""
-    prompt = _build_prompt(query, k_mordor, k_other, history, language)
+    plikow i zrodla. `attachments` - pliki uzytkownika do tego pytania."""
+    prompt = _build_prompt(query, k_mordor, k_other, history, language, attachments)
     reply = _measured_chat(_resolve_chat_fn(), prompt)
     return {"answer": reply, "files": prompt.files, "sources": prompt.sources}
 
@@ -243,9 +265,10 @@ def stream_answer(
     k_other: int = 5,
     history: list[dict[str, str]] | None = None,
     language: Language = DEFAULT_LANGUAGE,
+    attachments: Sequence[PromptAttachment] = (),
 ) -> AnswerStream:
     """Jak answer(), ale tekst przychodzi kawalkami. Retrieval dzieje sie od
     razu, zapytanie do modelu - przy pierwszym kawalku."""
-    prompt = _build_prompt(query, k_mordor, k_other, history, language)
-    chunks = _resolve_stream_fn()(system=prompt.system, user=prompt.user, history=prompt.history)
+    prompt = _build_prompt(query, k_mordor, k_other, history, language, attachments)
+    chunks = _resolve_stream_fn()(**_model_kwargs(prompt))
     return AnswerStream(chunks=_measured_stream(chunks), files=prompt.files, sources=prompt.sources)

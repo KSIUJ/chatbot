@@ -253,6 +253,72 @@ class DailyUsage(Base):
     count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
+class DailyAttachmentUsage(Base):
+    """Liczba wyslanych plikow (zalacznikow) danej osoby w danym dniu - jak
+    daily_usage, tylko dla limitu attachments.max_per_day. Zwiekszana przed
+    zapisem pliku, zmniejszana, gdy plik zostal odrzucony."""
+    __tablename__ = "daily_attachment_usage"
+    __table_args__ = (
+        CheckConstraint("count >= 0", name="ck_daily_attachment_usage_count"),
+    )
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True, index=True)
+    count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class Attachment(Base):
+    """Plik dolaczony przez uzytkownika do pytania (PDF, DOCX, TXT, obraz).
+
+    Plik lezy na dysku w ATTACHMENTS_DIR pod losowa nazwa (storage_key) -
+    nazwa od uzytkownika (name) sluzy tylko do wyswietlania i pobierania.
+    Tekst jest wyciagany raz, przy wysylaniu pliku (obrazy nie maja tekstu).
+
+    Niewyslany zalacznik ma conversation_id i message_id NULL; po udanej
+    odpowiedzi jest przypinany do pytania. Znika razem z rozmowa, a
+    niewyslany - po 24 h (attachments/service.py). SQLite nie wymusza
+    kluczy obcych, wiec kasowanie jest zawsze jawne w kodzie.
+    """
+    __tablename__ = "attachments"
+    __table_args__ = (
+        UniqueConstraint("storage_key", name="uq_attachments_storage_key"),
+        CheckConstraint(
+            "kind IN ('pdf', 'docx', 'txt', 'png', 'jpeg', 'webp')", name="ck_attachments_kind"
+        ),
+        CheckConstraint("size >= 0", name="ck_attachments_size"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    conversation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    # pytanie, z ktorym plik zostal wyslany
+    message_id: Mapped[str | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+
+    # bezpieczna nazwa do wyswietlenia (attachments/sniff.py)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # rodzaj rozpoznany po zawartosci: pdf | docx | txt | png | jpeg | webp
+    kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    mime: Mapped[str] = mapped_column(String(100), nullable=False)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    # losowa nazwa pliku w ATTACHMENTS_DIR (32 hex)
+    storage_key: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    # wyciagniety tekst (z limitem dlugosci); NULL dla obrazow
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # liczba stron PDF; NULL dla innych rodzajow
+    pages: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # reguly heurystyki (security/injection.py) pasujace do tekstu pliku
+    injection_rules: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class UserSession(Base):
     """Sesja aplikacji po zalogowaniu przez Keycloak.
 

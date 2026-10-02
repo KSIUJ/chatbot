@@ -1,4 +1,5 @@
 import { ApiRequestError, apiJson } from '../../lib/api';
+import { parseAttachmentLimits, type AttachmentLimits } from './attachments';
 
 // Daily question limit and the admins' chat switch: GET /usage, the 429
 // "rate_limited" and the 503 "chat_disabled" answers of POST /chat/stream.
@@ -14,6 +15,8 @@ export interface UsageStatus {
   chatEnabled: boolean;
   // the admins' own text for the banner (null = translated default)
   chatDisabledMessage: string | null;
+  // attachment limits for the input (missing = older backend, no paperclip)
+  attachments?: AttachmentLimits;
 }
 
 // What a 503 chat_disabled tells: the admins' message, if they wrote one.
@@ -49,6 +52,7 @@ export function parseUsage(value: unknown): UsageStatus | null {
   if (!isRecord(value)) return null;
   const { used, limit, reset_at: resetAt, chat_enabled: enabled, chat_disabled_message: message } = value;
   if (!isCount(used) || !(limit === null || isCount(limit)) || !isIsoDate(resetAt)) return null;
+  const attachments = parseAttachmentLimits(value.attachments);
   return {
     used,
     limit,
@@ -56,6 +60,7 @@ export function parseUsage(value: unknown): UsageStatus | null {
     // a backend without the switch never disables the chat
     chatEnabled: enabled !== false,
     chatDisabledMessage: typeof message === 'string' && message !== '' ? message : null,
+    ...(attachments !== null ? { attachments } : {}),
   };
 }
 
@@ -86,9 +91,17 @@ export function parseRateLimit(error: unknown, now: Date = new Date()): RateLimi
 }
 
 // Usage right after a 429: the whole limit is used up until the reset.
-export function exhaustedUsage(info: RateLimitInfo): UsageStatus {
+// `attachments` (the last known attachment limits) are kept as they were.
+export function exhaustedUsage(info: RateLimitInfo, attachments?: AttachmentLimits): UsageStatus {
   // a 429 means the chat itself is on
-  return { used: info.limit, limit: info.limit, resetAt: info.resetAt, chatEnabled: true, chatDisabledMessage: null };
+  return {
+    used: info.limit,
+    limit: info.limit,
+    resetAt: info.resetAt,
+    chatEnabled: true,
+    chatDisabledMessage: null,
+    ...(attachments !== undefined ? { attachments } : {}),
+  };
 }
 
 // When the limit resets, in the interface language: just the time when it is

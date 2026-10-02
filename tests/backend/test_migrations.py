@@ -93,3 +93,40 @@ def test_limits_migration_up_and_down(alembic_config):
 
     command.upgrade(config, "head")
     assert {"app_settings", "user_limits", "daily_usage"} <= _tables(url)
+
+
+ATTACHMENTS_REVISION = "f1a7c3e9b2d4"
+
+
+def test_attachments_migration_up_and_down(alembic_config):
+    config, url = alembic_config
+
+    command.upgrade(config, ATTACHMENTS_REVISION)
+    assert {"attachments", "daily_attachment_usage"} <= _tables(url)
+    engine = create_engine(url)
+    try:
+        inspector = inspect(engine)
+        columns = {c["name"] for c in inspector.get_columns("attachments")}
+        indexes = {i["name"] for i in inspector.get_indexes("attachments")}
+        usage_columns = {c["name"] for c in inspector.get_columns("daily_attachment_usage")}
+        usage_pk = inspector.get_pk_constraint("daily_attachment_usage")["constrained_columns"]
+    finally:
+        engine.dispose()
+    assert {
+        "id", "user_id", "conversation_id", "message_id", "name", "kind", "mime", "size",
+        "storage_key", "text", "pages", "injection_rules", "created_at",
+    } <= columns
+    assert {
+        "ix_attachments_user_id", "ix_attachments_conversation_id", "ix_attachments_message_id",
+        "ix_attachments_created_at",
+    } <= indexes
+    assert usage_columns == {"user_id", "day", "count"}
+    assert usage_pk == ["user_id", "day"]
+
+    command.downgrade(config, LIMITS_REVISION)
+    tables = _tables(url)
+    assert not {"attachments", "daily_attachment_usage"} & tables
+    assert "daily_usage" in tables
+
+    command.upgrade(config, "head")
+    assert {"attachments", "daily_attachment_usage"} <= _tables(url)
