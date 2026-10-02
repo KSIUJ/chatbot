@@ -25,7 +25,14 @@ import {
   type ReportReason,
 } from './feedback';
 import { describeStop, waitForStoppedExchange, type StoppedExchange } from './stopSync';
-import { exhaustedUsage, fetchUsage, parseRateLimit, type RateLimitInfo, type UsageStatus } from './usage';
+import {
+  exhaustedUsage,
+  fetchUsage,
+  parseChatDisabled,
+  parseRateLimit,
+  type RateLimitInfo,
+  type UsageStatus,
+} from './usage';
 
 export interface HistoryLimits {
   maxPerUser: number;
@@ -33,6 +40,8 @@ export interface HistoryLimits {
 }
 
 const COPIED_FEEDBACK_MS = 2000;
+// while the admins have the chat switched off, check now and then whether it is back
+const CHAT_SWITCH_POLL_MS = 30_000;
 
 let localIdCounter = 0;
 function localId(): string {
@@ -47,6 +56,14 @@ function errorMarker(): ChatMessage {
 // The question was refused by the daily limit (HTTP 429 before any answer).
 export function rateLimitMarker(id: string, rateLimit: RateLimitInfo): ChatMessage {
   return { id, sender: 'bot', text: '', status: 'error', rateLimit };
+}
+
+// The chat was switched off before the question reached the model: the local
+// question bubble goes away (the banner explains why) - nothing was saved.
+export function dropUnsentQuestion(messages: readonly ChatMessage[], question: string): ChatMessage[] {
+  const last = messages.at(-1);
+  if (last?.sender === 'user' && last.status === undefined && last.text === question) return messages.slice(0, -1);
+  return [...messages];
 }
 
 // Ends the answer being streamed: a partial answer becomes a "stopped" bubble
@@ -133,6 +150,14 @@ export function useChat(language: HtmlLang) {
       // a lost session is handled globally; otherwise keep the last value
     }
   }, []);
+
+  // chat switched off by the admins: poll until it is back on
+  const chatDisabled = usage?.chatEnabled === false;
+  useEffect(() => {
+    if (!chatDisabled) return;
+    const timer = window.setInterval(() => void refreshUsage(), CHAT_SWITCH_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [chatDisabled, refreshUsage]);
 
   // first load of the hint
   useEffect(() => {
@@ -289,6 +314,15 @@ export function useChat(language: HtmlLang) {
       if (signal.aborted || isSessionLost(error)) return;
       // daily limit used up: a clear message instead of the generic error,
       // and no automatic retry (it would fail the same way until the reset)
+      // chat switched off by the admins: the banner above the input says so,
+      // instead of an error bubble
+      const disabled = parseChatDisabled(error);
+      if (disabled !== null) {
+        setMessages((prev) => dropUnsentQuestion(prev, question));
+        setUsage((prev) => (prev === null ? prev : { ...prev, chatEnabled: false, chatDisabledMessage: disabled.adminMessage }));
+        void refreshUsage();
+        return;
+      }
       const rateLimit = parseRateLimit(error);
       if (rateLimit !== null) {
         replaceStream(rateLimitMarker(localId(), rateLimit));
@@ -317,7 +351,7 @@ export function useChat(language: HtmlLang) {
 
   const send = useCallback((text: string): boolean => {
     const question = text.trim();
-    if (!question || isWaiting || isLoadingConversation) return false;
+    if (!question || isWaiting || isLoadingConversation || chatDisabled) return false;
     const conversationId = activeId ?? newConversationId();
     setActiveId(conversationId);
     setMessages((prev) => [...prev, { id: localId(), sender: 'user', text: question }]);
@@ -325,7 +359,7 @@ export function useChat(language: HtmlLang) {
     cancelStopSync();
     void ask(question, conversationId, false, beginRequest());
     return true;
-  }, [activeId, ask, beginRequest, cancelStopSync, isLoadingConversation, isWaiting]);
+  }, [activeId, ask, beginRequest, cancelStopSync, chatDisabled, isLoadingConversation, isWaiting]);
 
   const stop = useCallback(() => {
     if (abortRef.current === null) return;
@@ -439,6 +473,8 @@ export function useChat(language: HtmlLang) {
     copiedId,
     feedbackErrorId,
     usage,
+    chatDisabled,
+    refreshUsage,
     openConversation,
     startNewChat,
     removeChat,

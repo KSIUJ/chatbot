@@ -1,7 +1,8 @@
 import { ApiRequestError, apiJson } from '../../lib/api';
 
-// Daily question limit: GET /usage and the 429 "rate_limited" answer of
-// POST /chat/stream. The day ends at midnight Polish time (server side).
+// Daily question limit and the admins' chat switch: GET /usage, the 429
+// "rate_limited" and the 503 "chat_disabled" answers of POST /chat/stream.
+// The day ends at midnight Polish time (server side).
 
 export interface UsageStatus {
   used: number;
@@ -9,6 +10,15 @@ export interface UsageStatus {
   limit: number | null;
   // ISO time of the next reset
   resetAt: string;
+  // false = the admins switched the chat off for everyone
+  chatEnabled: boolean;
+  // the admins' own text for the banner (null = translated default)
+  chatDisabledMessage: string | null;
+}
+
+// What a 503 chat_disabled tells: the admins' message, if they wrote one.
+export interface ChatDisabledInfo {
+  adminMessage: string | null;
 }
 
 // What a 429 tells about the exhausted limit.
@@ -18,6 +28,7 @@ export interface RateLimitInfo {
 }
 
 const RATE_LIMITED = 'rate_limited';
+const CHAT_DISABLED = 'chat_disabled';
 const MS_PER_SECOND = 1000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -36,9 +47,26 @@ function isIsoDate(value: unknown): value is string {
 // Server data is not trusted: anything malformed gives null (no hint shown).
 export function parseUsage(value: unknown): UsageStatus | null {
   if (!isRecord(value)) return null;
-  const { used, limit, reset_at: resetAt } = value;
+  const { used, limit, reset_at: resetAt, chat_enabled: enabled, chat_disabled_message: message } = value;
   if (!isCount(used) || !(limit === null || isCount(limit)) || !isIsoDate(resetAt)) return null;
-  return { used, limit, resetAt };
+  return {
+    used,
+    limit,
+    resetAt,
+    // a backend without the switch never disables the chat
+    chatEnabled: enabled !== false,
+    chatDisabledMessage: typeof message === 'string' && message !== '' ? message : null,
+  };
+}
+
+// The chat switch info of a 503 chat_disabled error, or null for any other error
+// (a 503 from the login server is something else).
+export function parseChatDisabled(error: unknown): ChatDisabledInfo | null {
+  if (!(error instanceof ApiRequestError) || error.status !== 503) return null;
+  const { detail } = error;
+  if (!isRecord(detail) || detail.code !== CHAT_DISABLED) return null;
+  const message = detail.admin_message;
+  return { adminMessage: typeof message === 'string' && message !== '' ? message : null };
 }
 
 // Reset time from the body, or now + Retry-After (seconds) when it is missing.
@@ -59,7 +87,8 @@ export function parseRateLimit(error: unknown, now: Date = new Date()): RateLimi
 
 // Usage right after a 429: the whole limit is used up until the reset.
 export function exhaustedUsage(info: RateLimitInfo): UsageStatus {
-  return { used: info.limit, limit: info.limit, resetAt: info.resetAt };
+  // a 429 means the chat itself is on
+  return { used: info.limit, limit: info.limit, resetAt: info.resetAt, chatEnabled: true, chatDisabledMessage: null };
 }
 
 // When the limit resets, in the interface language: just the time when it is

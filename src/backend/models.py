@@ -212,7 +212,7 @@ class AppSetting(Base):
     __tablename__ = "app_settings"
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
-    value: Mapped[int | str | list[str]] = mapped_column(JSON, nullable=False)
+    value: Mapped[bool | int | str | list[str]] = mapped_column(JSON, nullable=False)
     updated_by: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
