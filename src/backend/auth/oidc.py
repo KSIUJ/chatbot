@@ -208,7 +208,9 @@ class OIDCClient:
 
     # --- przeplyw logowania -----------------------------------------------
 
-    def build_authorization_url(self, state: str, nonce: str, code_challenge: str) -> str:
+    def build_authorization_url(
+        self, state: str, nonce: str, code_challenge: str, ui_locales: str | None = None
+    ) -> str:
         params = {
             "response_type": "code",
             "client_id": self._settings.client_id,
@@ -219,6 +221,9 @@ class OIDCClient:
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
+        if ui_locales:
+            # jezyk strony logowania Keycloaka (standardowy parametr OIDC)
+            params["ui_locales"] = ui_locales
         return f"{self.metadata().authorization_endpoint}?{urlencode(params)}"
 
     def _token_request(self, form: dict[str, str]) -> TokenSet:
