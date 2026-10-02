@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from './conversations';
-import { appendDelta, stopStreaming } from './useChat';
+import { appendDelta, dropUnsentQuestion, rateLimitMarker, stopStreaming } from './useChat';
 
 const question: ChatMessage = { id: 'q', sender: 'user', text: 'Kiedy sesja?' };
 
@@ -34,5 +34,29 @@ describe('stopStreaming', () => {
 
   it('adds an empty stopped marker when nothing arrived yet', () => {
     expect(stopStreaming([question], 'm')).toEqual([question, { id: 'm', sender: 'bot', text: '', status: 'stopped' }]);
+  });
+});
+
+describe('rateLimitMarker', () => {
+  it('is an error marker carrying the daily limit info', () => {
+    const info = { limit: 10, resetAt: '2026-10-02T22:00:00+00:00' };
+
+    expect(rateLimitMarker('m', info)).toEqual({ id: 'm', sender: 'bot', text: '', status: 'error', rateLimit: info });
+  });
+});
+
+describe('dropUnsentQuestion', () => {
+  it('removes the trailing local question that the server refused', () => {
+    const answer: ChatMessage = { id: 'a', sender: 'bot', text: 'W lutym.' };
+    const unsent: ChatMessage = { id: 'local-1', sender: 'user', text: 'Kiedy sesja?' };
+
+    expect(dropUnsentQuestion([question, answer, unsent], 'Kiedy sesja?')).toEqual([question, answer]);
+  });
+
+  it('keeps everything when the last message is not that question', () => {
+    const answer: ChatMessage = { id: 'a', sender: 'bot', text: 'W lutym.' };
+
+    expect(dropUnsentQuestion([question, answer], 'Kiedy sesja?')).toEqual([question, answer]);
+    expect(dropUnsentQuestion([question], 'Inne pytanie')).toEqual([question]);
   });
 });

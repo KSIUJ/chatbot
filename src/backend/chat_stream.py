@@ -10,6 +10,12 @@ rozmowy. Gdy klient zniknie (Stop, zamkniecie karty) w trakcie pisania
 odpowiedzi, zapisuje pytanie i dotychczasowy tekst tak jak pelna odpowiedz,
 a strumien od modelu zamyka.
 
+Dzienny limit pytan jest zuzywany przed strumieniem (main.py). Pytanie wraca
+do puli (`refund`) tylko po bledzie po stronie serwera: blad modelu, pusta
+odpowiedz, nieudany zapis. Rozlaczenie albo anulowanie przez klienta (w
+dowolnym momencie) nigdy nie zwraca pytania - inaczej petla "wyslij
+i rozlacz" dawalaby nielimitowane wywolania modelu.
+
 Wiodacy znacznik [[NARUSZENIE]] (zasada 11 promptu) nigdy nie trafia do
 klienta: poczatek odpowiedzi jest buforowany, dopoki nie wiadomo, czy to
 znacznik (security/marker.py). Na koncu tury powstaje incydent, jesli
@@ -62,6 +68,8 @@ LOCK_POLL_INTERVAL = 0.05
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 StreamAnswerFn = Callable[..., AnswerStream]
+# zwrot zuzytego pytania, gdy nic nie zostalo zapisane
+RefundFn = Callable[[], None]
 
 
 class DisconnectProbe(Protocol):
@@ -86,6 +94,8 @@ class _Progress:
     finished: bool = False
     # jakas odpowiedz (pelna albo czesciowa) jest w bazie
     saved: bool = False
+    # blad po stronie serwera (model, pusta odpowiedz, zapis) - pytanie wraca do limitu
+    server_failed: bool = False
 
 
 def sse_event(event: str, data: Mapping[str, object]) -> str:
@@ -112,8 +122,11 @@ async def chat_events(
     session_factory: SessionFactory,
     turn: ChatTurn,
     stream_answer: StreamAnswerFn,
+    refund: RefundFn | None = None,
 ) -> AsyncIterator[str]:
-    """Zdarzenia SSE dla jednej tury czatu (patrz opis modulu)."""
+    """Zdarzenia SSE dla jednej tury czatu (patrz opis modulu). `refund`
+    jest wolany raz, gdy tura konczy sie bledem serwera bez zapisanej
+    odpowiedzi - nigdy po rozlaczeniu klienta."""
     lock = conversation_lock(turn.conversation_id)
     progress = _Progress()
     await _acquire(lock)
@@ -150,6 +163,7 @@ async def chat_events(
         except Exception:
             logger.exception("streamed answer failed (conversation %s)", turn.conversation_id)
             progress.finished = True
+            progress.server_failed = True
             yield _error_event(LLM_FAILED)
             return
 
@@ -162,13 +176,14 @@ async def chat_events(
         except Exception:
             logger.exception("saving streamed answer failed (conversation %s)", turn.conversation_id)
             progress.finished = True
+            progress.server_failed = True
             yield _error_event(SAVE_FAILED)
             return
         yield sse_event("done", {"conversation_id": turn.conversation_id, "message": message.model_dump(mode="json")})
     finally:
         try:
             with anyio.CancelScope(shield=True):
-                await _finish(session_factory, turn, progress)
+                await _finish(session_factory, turn, progress, refund)
         finally:
             lock.release()
 
@@ -181,9 +196,13 @@ async def _acquire(lock: threading.Lock) -> None:
         await anyio.sleep(LOCK_POLL_INTERVAL)
 
 
-async def _finish(session_factory: SessionFactory, turn: ChatTurn, progress: _Progress) -> None:
-    """Zamyka strumien od modelu, zapisuje przerwana odpowiedz (jesli jest)
-    i zglasza incydent (heurystyka i/lub znacznik od modelu)."""
+async def _finish(
+    session_factory: SessionFactory, turn: ChatTurn, progress: _Progress, refund: RefundFn | None
+) -> None:
+    """Zamyka strumien od modelu, zapisuje przerwana odpowiedz (jesli jest),
+    zwraca pytanie do limitu po bledzie serwera (nie po rozlaczeniu klienta)
+    i zglasza incydent
+    (heurystyka i/lub znacznik od modelu)."""
     if progress.chunks is not None:
         close = getattr(progress.chunks, "close", None)
         if close is not None:
@@ -199,5 +218,10 @@ async def _finish(session_factory: SessionFactory, turn: ChatTurn, progress: _Pr
             progress.saved = saved is not None
         except Exception:
             logger.exception("saving partial answer failed (conversation %s)", turn.conversation_id)
+    if progress.server_failed and not progress.saved and refund is not None:
+        try:
+            await to_thread.run_sync(refund)
+        except Exception:
+            logger.exception("refunding question failed (conversation %s)", turn.conversation_id)
     # record_turn_incident sam loguje swoje bledy
     await to_thread.run_sync(record_turn_incident, session_factory, turn, progress.marker.detected, progress.saved)

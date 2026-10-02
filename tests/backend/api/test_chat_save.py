@@ -337,3 +337,131 @@ def test_lock_released_even_when_finish_raises(session_factory, user_id, monkeyp
     with pytest.raises(_Boom):
         anyio.run(run)
     assert not conversation_lock(CID).locked()
+
+
+# --- zwrot pytania do dziennego limitu (refund) ----------------------------------------
+
+class RefundCounter:
+    """Atrapa zwrotu zuzytego pytania - liczy wywolania."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self) -> None:
+        self.calls += 1
+
+
+def _run_events(session_factory, user_id: str, stream, probe: FakeProbe, refund: RefundCounter):
+    async def run():
+        return [_decode(e) async for e in chat_events(probe, session_factory, _turn(user_id), stream, refund=refund)]
+
+    return anyio.run(run)
+
+
+def test_saved_answer_is_not_refunded(session_factory, user_id):
+    refund = RefundCounter()
+
+    _run_events(session_factory, user_id, _stream_fn(TrackedChunks(["Dzie", "kanat"])), FakeProbe(), refund)
+
+    assert refund.calls == 0
+
+
+def test_stopped_stream_with_saved_partial_answer_counts(session_factory, user_id):
+    refund = RefundCounter()
+
+    _run_events(session_factory, user_id, _stream_fn(TrackedChunks(["Dzie", "kanat"])), FakeProbe(after=2), refund)
+
+    assert refund.calls == 0
+    assert len(_messages(session_factory)) == 2
+
+
+def test_failed_llm_call_is_refunded(session_factory, user_id):
+    refund = RefundCounter()
+
+    def broken(message, history=None, **kwargs):
+        raise RuntimeError("LLM down")
+
+    events = _run_events(session_factory, user_id, broken, FakeProbe(), refund)
+
+    assert [name for name, _ in events] == ["error"]
+    assert refund.calls == 1
+
+
+def test_client_gone_before_generation_is_counted(session_factory, user_id):
+    # rozlaczenie klienta nigdy nie zwraca pytania - inaczej petla "wyslij i
+    # rozlacz" dawalaby nielimitowane wywolania modelu
+    refund = RefundCounter()
+
+    _run_events(session_factory, user_id, _stream_fn(TrackedChunks(["x"])), FakeProbe(after=1), refund)
+
+    assert refund.calls == 0
+
+
+def test_disconnect_before_first_token_is_counted(session_factory, user_id):
+    refund = RefundCounter()
+    gate = threading.Event()
+    calls = []
+
+    def slow_chunks():
+        calls.append("llm")
+        gate.wait(timeout=5)
+        # pierwszy kawalek bez tekstu - klient znika, zanim cokolwiek dostal
+        yield ""
+        yield "Dzie"
+
+    def stream(message, history=None, **kwargs):
+        return AnswerStream(chunks=slow_chunks(), files=[], sources=[])
+
+    async def run():
+        # zamkniecie karty, gdy model jeszcze nie dal pierwszego kawalka
+        threading.Timer(0.3, gate.set).start()
+        with anyio.move_on_after(0.1):
+            async for _event in chat_events(FakeProbe(), session_factory, _turn(user_id), stream, refund=refund):
+                pass
+
+    anyio.run(run)
+
+    assert calls == ["llm"]
+    assert _messages(session_factory) == []
+    assert refund.calls == 0
+    assert not conversation_lock(CID).locked()
+
+
+def test_empty_answer_is_refunded(session_factory, user_id):
+    refund = RefundCounter()
+
+    events = _run_events(session_factory, user_id, _stream_fn(TrackedChunks(["", "  "])), FakeProbe(), refund)
+
+    assert events[-1][1]["code"] == "llm_failed"
+    assert refund.calls == 1
+
+
+def test_save_failure_is_refunded(session_factory, user_id, monkeypatch):
+    from src.backend import chat_stream
+
+    refund = RefundCounter()
+
+    def broken_save(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(chat_stream, "save_answer", broken_save)
+
+    events = _run_events(session_factory, user_id, _stream_fn(TrackedChunks(["Dzie", "kanat"])), FakeProbe(), refund)
+
+    assert events[-1][1]["code"] == "save_failed"
+    assert refund.calls == 1
+
+
+def test_failing_refund_does_not_break_the_stream(session_factory, user_id):
+    def broken_refund() -> None:
+        raise RuntimeError("db locked")
+
+    def broken(message, history=None, **kwargs):
+        raise RuntimeError("LLM down")
+
+    async def run():
+        return [_decode(e) async for e in chat_events(FakeProbe(), session_factory, _turn(user_id), broken,
+                                                       refund=broken_refund)]
+
+    assert [name for name, _ in anyio.run(run)] == ["error"]
+    assert not conversation_lock(CID).locked()

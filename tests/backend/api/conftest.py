@@ -16,6 +16,7 @@ from src.backend.auth.oidc import OIDCClient
 from src.backend.auth.settings import get_auth_settings
 from src.backend.database import get_db, get_session_factory
 from src.backend.history import get_history_settings
+from src.backend.limits.settings import ATTACHMENT_ENV_VARS, get_default_limits
 from src.backend.llm.generate import AnswerStream
 from src.backend.models import Base, User
 
@@ -42,6 +43,8 @@ TEST_ENV = {
     "AUTH_SECRET_KEY": "test-secret-key-that-is-long-enough-1234567890",
     "OIDC_REQUIRED_GROUP": MEMBER_GROUP,
     "FRONTEND_ORIGINS": "http://localhost:5173",
+    # wysoki limit, zeby testy z wieloma pytaniami nie trafialy w dzienny limit
+    "CHAT_DAILY_LIMIT": "1000",
 }
 
 
@@ -54,13 +57,17 @@ def auth_env(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.delenv(name, raising=False)
     for name in ("CHAT_HISTORY_MAX_PER_USER", "CHAT_HISTORY_RETENTION_DAYS", "CHAT_HISTORY_PURGE_INTERVAL_HOURS"):
         monkeypatch.delenv(name, raising=False)
+    for name in ATTACHMENT_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
     get_auth_settings.cache_clear()
     get_history_settings.cache_clear()
+    get_default_limits.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
     yield
     get_auth_settings.cache_clear()
     get_history_settings.cache_clear()
+    get_default_limits.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
 
