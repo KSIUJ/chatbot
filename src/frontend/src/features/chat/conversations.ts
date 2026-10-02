@@ -1,5 +1,6 @@
 import { ApiRequestError, apiFetch, apiJson } from '../../lib/api';
 import type { HtmlLang } from '../preferences/languages';
+import { parseAttachmentList, type AttachmentMeta, type AttachmentProblem } from './attachments';
 import { parseFeedback, type MessageFeedback } from './feedback';
 import { parseSources, type Source } from './sources';
 import type { RateLimitInfo } from './usage';
@@ -20,6 +21,26 @@ export interface ChatMessage {
   feedback?: MessageFeedback;
   // on an "error" marker: the question was refused by the daily limit
   rateLimit?: RateLimitInfo;
+  // files sent with a user question
+  attachments?: AttachmentMeta[];
+  // on an "error" marker: the question was refused because of its attachments
+  attachmentProblem?: AttachmentProblem;
+}
+
+// A bot reply after which the question (and its files) is saved on the server.
+function isSavedReply(reply: ChatMessage | undefined): boolean {
+  if (reply === undefined || reply.sender !== 'bot') return false;
+  if (reply.status === 'stopped') return reply.text !== '';
+  return reply.status !== 'error';
+}
+
+// Files sent earlier in the open conversation - the server adds them to every
+// next question, so the input says the model still sees them.
+export function earlierFileCount(messages: readonly ChatMessage[]): number {
+  return messages.reduce((count, message, index) => {
+    if (message.sender !== 'user' || !message.attachments) return count;
+    return isSavedReply(messages[index + 1]) ? count + message.attachments.length : count;
+  }, 0);
 }
 
 export function isMarker(message: ChatMessage): boolean {
@@ -46,6 +67,8 @@ export interface ApiMessage {
   sources?: unknown;
   // validated by parseFeedback; only answers in GET /conversations/{id} have it
   feedback?: unknown;
+  // validated by parseAttachmentList; files sent with a question
+  attachments?: unknown;
 }
 
 interface ConversationDetail {
@@ -64,7 +87,10 @@ export function newConversationId(): string {
 }
 
 function toChatMessage(m: ApiMessage): ChatMessage {
-  if (m.role === 'user') return { id: m.id, sender: 'user', text: m.content };
+  if (m.role === 'user') {
+    const attachments = parseAttachmentList(m.attachments);
+    return { id: m.id, sender: 'user', text: m.content, ...(attachments.length > 0 ? { attachments } : {}) };
+  }
   const sources = parseSources(m.sources);
   const feedback = parseFeedback(m.feedback);
   return {
@@ -238,6 +264,8 @@ interface SendMessageInput {
   regenerate: boolean;
   language: HtmlLang;
   signal: AbortSignal;
+  // ids from POST /attachments sent with this question
+  attachmentIds?: readonly string[];
 }
 
 export interface StreamHandlers {
@@ -259,6 +287,9 @@ export async function streamMessage(input: SendMessageInput, handlers: StreamHan
       conversation_id: input.conversationId,
       regenerate: input.regenerate,
       language: input.language,
+      ...(input.attachmentIds !== undefined && input.attachmentIds.length > 0
+        ? { attachment_ids: input.attachmentIds }
+        : {}),
     }),
     signal: input.signal,
   });

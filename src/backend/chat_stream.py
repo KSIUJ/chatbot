@@ -40,6 +40,7 @@ from .chat import (
     ConversationNotOwned,
     SessionFactory,
     load_history,
+    model_kwargs,
     record_turn_incident,
     save_answer,
     save_partial_answer,
@@ -114,7 +115,7 @@ def _start_answer(session_factory: SessionFactory, turn: ChatTurn, stream_answer
         history = load_history(db, turn)
     finally:
         db.close()
-    return stream_answer(turn.question, history=history, language=turn.language)
+    return stream_answer(turn.question, history=history, **model_kwargs(turn))
 
 
 async def chat_events(

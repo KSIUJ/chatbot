@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from './conversations';
-import { appendDelta, dropUnsentQuestion, rateLimitMarker, stopStreaming } from './useChat';
+import { appendDelta, attachmentMarker, dropUnsentQuestion, rateLimitMarker, stopStreaming, userQuestion } from './useChat';
 
 const question: ChatMessage = { id: 'q', sender: 'user', text: 'Kiedy sesja?' };
 
@@ -58,5 +58,27 @@ describe('dropUnsentQuestion', () => {
 
     expect(dropUnsentQuestion([question, answer], 'Kiedy sesja?')).toEqual([question, answer]);
     expect(dropUnsentQuestion([question], 'Inne pytanie')).toEqual([question]);
+  });
+});
+
+describe('attachments in chat bubbles', () => {
+  const file = { id: 'f1', name: 'plan.pdf', size: 10, type: 'pdf' as const };
+
+  it('keeps the attachments of a question', () => {
+    expect(userQuestion('q', 'Streszcz', [file])).toEqual({ id: 'q', sender: 'user', text: 'Streszcz', attachments: [file] });
+  });
+
+  it('adds no attachment field to a plain question', () => {
+    expect(userQuestion('q', 'Kiedy sesja?', [])).toEqual({ id: 'q', sender: 'user', text: 'Kiedy sesja?' });
+  });
+
+  it('marks a question refused because of its attachments', () => {
+    expect(attachmentMarker('m', { code: 'images_unsupported' })).toEqual({
+      id: 'm',
+      sender: 'bot',
+      text: '',
+      status: 'error',
+      attachmentProblem: { code: 'images_unsupported' },
+    });
   });
 });

@@ -18,3 +18,14 @@ def current_provider() -> str:
     """
     provider = env_setting("LLM_PROVIDER", OLLAMA).lower()
     return provider if provider in PROVIDERS else OLLAMA
+
+
+# Dostawcy, ktorym przekazujemy obrazy z zalacznikow. Cursor (jedno pole
+# tekstowe) nie przyjmuje obrazow. Model wybrany w OpenRouter/Ollamie moze ich
+# nie obslugiwac - wtedy blad API konczy sie zwyklym llm_failed.
+VISION_PROVIDERS = frozenset({OLLAMA, "claude", "openrouter"})
+
+
+def provider_supports_images(provider: str | None = None) -> bool:
+    """Czy dostawca (domyslnie biezacy) przyjmuje obrazy."""
+    return (provider or current_provider()) in VISION_PROVIDERS

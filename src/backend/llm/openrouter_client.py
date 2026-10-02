@@ -9,9 +9,10 @@ Klient uzywa requests (bez SDK openai).
 """
 
 import json
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 from .http_api import BearerApi, build_messages
+from .images import ImageInput
 from .provider import env_setting
 
 DEFAULT_MODEL = "google/gemini-2.5-flash"
@@ -33,6 +34,20 @@ _API = BearerApi(
 )
 
 
+def _messages(
+    system: str, user: str, history: list[dict[str, str]] | None, images: Sequence[ImageInput] | None
+) -> list[dict[str, object]]:
+    """Wiadomosci chat completions; z obrazami pytanie ma czesci: tekst
+    i obrazy jako adresy data: (format OpenAI, ktory OpenRouter przekazuje
+    dalej). Model bez obslugi obrazow zwroci blad API (-> llm_failed)."""
+    messages = build_messages(system, user, history)
+    if images:
+        parts: list[dict[str, object]] = [{"type": "text", "text": user}]
+        parts.extend({"type": "image_url", "image_url": {"url": image.data_url()}} for image in images)
+        messages[-1] = {"role": "user", "content": parts}
+    return messages
+
+
 def chat(
     system: str,
     user: str,
@@ -40,13 +55,14 @@ def chat(
     model: str | None = None,
     temperature: float = 0.2,
     timeout: int = DEFAULT_TIMEOUT,
+    images: Sequence[ImageInput] | None = None,
 ) -> str:
     """Wysyla rozmowe do OpenRouter i zwraca tekst pierwszego wyboru."""
     model = model or env_setting("OPENROUTER_MODEL", DEFAULT_MODEL)
 
     payload = {
         "model": model,
-        "messages": build_messages(system, user, history),
+        "messages": _messages(system, user, history, images),
         "temperature": temperature,
         "stream": False,
     }
@@ -70,12 +86,13 @@ def stream_chat(
     model: str | None = None,
     temperature: float = 0.2,
     timeout: int = DEFAULT_TIMEOUT,
+    images: Sequence[ImageInput] | None = None,
 ) -> Iterator[str]:
     """Jak chat(), ale oddaje kawalki odpowiedzi na biezaco (SSE z OpenRouter).
     Zamkniecie generatora zamyka polaczenie."""
     payload = {
         "model": model or env_setting("OPENROUTER_MODEL", DEFAULT_MODEL),
-        "messages": build_messages(system, user, history),
+        "messages": _messages(system, user, history, images),
         "temperature": temperature,
         "stream": True,
     }

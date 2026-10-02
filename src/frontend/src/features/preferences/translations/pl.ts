@@ -83,6 +83,43 @@ export const pl: Translation = {
   usageToday: (used, limit) => `Pytania dzisiaj: ${used}/${limit}`,
   chatOffTitle: 'Czat jest wyłączony',
   chatOffDefault: 'Zarząd KSI tymczasowo wyłączył chatbota. Spróbuj ponownie później.',
+  attachments: {
+    attach: 'Dołącz pliki',
+    dropHint: 'Upuść pliki, aby je dołączyć',
+    list: 'Dołączone pliki',
+    remove: (name) => `Usuń ${name}`,
+    cancel: (name) => `Anuluj wysyłanie ${name}`,
+    uploading: (percent) => `Wysyłanie… ${percent}%`,
+    download: (name) => `Pobierz ${name}`,
+    waitForUploads: 'Poczekaj, aż pliki się wyślą',
+    earlierNote: (count) => {
+      const mod10 = count % 10;
+      const mod100 = count % 100;
+      const files =
+        count === 1 ? 'wcześniejszy plik'
+          : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'wcześniejsze pliki'
+            : 'wcześniejszych plików';
+      return `Rozmowa zawiera ${count} ${files} (model je widzi).`;
+    },
+    dismiss: 'Zamknij',
+    problems: {
+      tooLarge: (name, maxMb) =>
+        `${name ?? 'Plik'} jest za duży${maxMb !== null ? ` (limit ${maxMb} MB)` : ''}.`,
+      empty: (name) => `${name} jest pusty.`,
+      unsupportedType: (name) => `${name}: ten rodzaj pliku nie jest obsługiwany (PDF, DOCX, TXT, PNG, JPG, WEBP).`,
+      unreadable: (name) => `Nie udało się odczytać ${name} (plik uszkodzony albo zabezpieczony hasłem).`,
+      uploadFailed: (name) => `Nie udało się wysłać ${name}. Spróbuj ponownie.`,
+      imagesUnsupported: 'Obecny model nie obsługuje obrazów. Usuń obrazy z pytania.',
+      tooMany: (max) => `Do jednego pytania możesz dołączyć najwyżej ${max} plików.`,
+      dailyLimit: (limit, time) => `Wykorzystano dzienny limit załączników (${limit}). Limit odnowi się o ${time}.`,
+      disabled: 'Załączniki są obecnie wyłączone.',
+      notFound: 'Załącznik nie jest już dostępny. Dołącz plik ponownie.',
+      uploadTimeout: (name) => `Wysyłanie ${name} trwało zbyt długo. Spróbuj ponownie.`,
+      busy: 'Za dużo plików wysyłanych naraz. Poczekaj chwilę.',
+      storageFull: 'Masz za dużo niewysłanych plików. Wyślij pytanie albo usuń część plików.',
+      storageUnavailable: 'Brak miejsca na serwerze na nowe pliki. Spróbuj później.',
+    },
+  },
   admin: {
     chatSwitch: 'Dostępność czatu',
     chatIsOn: 'Czat jest włączony.',
@@ -115,7 +152,7 @@ export const pl: Translation = {
     globalLimits: 'Limity globalne',
     dailyQuestionLimit: 'Pytania na osobę dziennie',
     attachments: 'Załączniki',
-    attachmentsNote: 'Limity załączników zaczną obowiązywać, gdy załączniki pojawią się w czacie.',
+    attachmentsNote: 'Limity dotyczą plików dołączanych do pytań w czacie. 0 załączników dziennie wyłącza załączniki.',
     maxFileMb: 'Maksymalny rozmiar pliku (MB)',
     maxFilesPerMessage: 'Plików w wiadomości',
     maxAttachmentsPerDay: 'Załączników na osobę dziennie',

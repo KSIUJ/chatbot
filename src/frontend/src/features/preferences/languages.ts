@@ -126,6 +126,41 @@ export interface AdminTranslation {
   generatedAt: (time: string) => string;
 }
 
+// Strings of file attachments in the question input and in sent questions.
+export interface AttachmentTranslation {
+  // paperclip button
+  attach: string;
+  // overlay while files are dragged over the chat
+  dropHint: string;
+  // aria label of the chip list above the input
+  list: string;
+  remove: (name: string) => string;
+  cancel: (name: string) => string;
+  uploading: (percent: number) => string;
+  download: (name: string) => string;
+  // send button title while files are still uploading
+  waitForUploads: string;
+  // note above the input: files sent earlier in this conversation
+  earlierNote: (count: number) => string;
+  dismiss: string;
+  problems: {
+    tooLarge: (name: string | null, maxMb: number | null) => string;
+    empty: (name: string) => string;
+    unsupportedType: (name: string) => string;
+    unreadable: (name: string) => string;
+    uploadFailed: (name: string) => string;
+    imagesUnsupported: string;
+    tooMany: (max: number) => string;
+    dailyLimit: (limit: number, time: string) => string;
+    disabled: string;
+    notFound: string;
+    uploadTimeout: (name: string) => string;
+    busy: string;
+    storageFull: string;
+    storageUnavailable: string;
+  };
+}
+
 export interface Translation {
   // value of <html lang>
   htmlLang: HtmlLang;
@@ -195,6 +230,7 @@ export interface Translation {
   // banner above the input while the admins have the chat switched off
   chatOffTitle: string;
   chatOffDefault: string;
+  attachments: AttachmentTranslation;
   admin: AdminTranslation;
 }
 

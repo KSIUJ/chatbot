@@ -5,8 +5,8 @@ moze je zmienic w panelu administratora - wtedy obowiazuje wiersz w tabeli
 app_settings. Zakresy wartosci sa tu w jednym miejscu: uzywa ich parser env
 i walidacja API adminow.
 
-Zalaczniki: limity sa juz zapisywane i edytowalne, a egzekwuje je dopiero
-funkcja zalacznikow - czyta je jednym wywolaniem get_attachment_limits(db).
+Zalaczniki: limity egzekwuje src/backend/attachments/ (wysylanie pliku
+i pytanie z zalacznikami) - czyta je jednym wywolaniem get_attachment_limits(db).
 
 Wylacznik czatu (chat_enabled, chat_disabled_message): zarzad moze jednym
 przyciskiem zablokowac pytania wszystkim (takze sobie), np. gdy model zle
@@ -60,6 +60,9 @@ USER_DAILY_LIMIT_RANGE = IntRange(0, 1000)
 MAX_FILE_MB_RANGE = IntRange(1, 50)
 MAX_FILES_PER_MESSAGE_RANGE = IntRange(1, 20)
 MAX_ATTACHMENTS_PER_DAY_RANGE = IntRange(0, 500)
+# Staly limit rozmiaru obrazu (MB) - tyle przyjmuje Claude API na jeden obraz;
+# obowiazuje mniejszy z niego i max_file_mb.
+MAX_IMAGE_MB = 5
 
 
 @dataclass(frozen=True)

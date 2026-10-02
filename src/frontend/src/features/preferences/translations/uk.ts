@@ -86,6 +86,44 @@ export const uk: Translation = {
   usageToday: (used, limit) => `Запитань сьогодні: ${used}/${limit}`,
   chatOffTitle: 'Чат вимкнено',
   chatOffDefault: 'Правління KSI тимчасово вимкнуло чат-бота. Спробуйте пізніше.',
+  attachments: {
+    attach: 'Прикріпити файли',
+    dropHint: 'Перетягніть файли сюди, щоб прикріпити',
+    list: 'Прикріплені файли',
+    remove: (name) => `Видалити ${name}`,
+    cancel: (name) => `Скасувати надсилання ${name}`,
+    uploading: (percent) => `Надсилання… ${percent}%`,
+    download: (name) => `Завантажити ${name}`,
+    waitForUploads: 'Зачекайте, доки файли надішлються',
+    earlierNote: (count) => {
+      const mod10 = count % 10;
+      const mod100 = count % 100;
+      const files =
+        mod10 === 1 && mod100 !== 11 ? 'попередній файл'
+          : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'попередні файли'
+            : 'попередніх файлів';
+      return `Розмова містить ${count} ${files} (модель їх бачить).`;
+    },
+    dismiss: 'Закрити',
+    problems: {
+      tooLarge: (name, maxMb) =>
+        `${name ?? 'Файл'} завеликий${maxMb !== null ? ` (ліміт ${maxMb} МБ)` : ''}.`,
+      empty: (name) => `${name} порожній.`,
+      unsupportedType: (name) => `${name}: цей тип файлу не підтримується (PDF, DOCX, TXT, PNG, JPG, WEBP).`,
+      unreadable: (name) => `Не вдалося прочитати ${name} (файл пошкоджений або захищений паролем).`,
+      uploadFailed: (name) => `Не вдалося надіслати ${name}. Спробуйте ще раз.`,
+      imagesUnsupported: 'Поточна модель не підтримує зображень. Видаліть зображення із запитання.',
+      tooMany: (max) => `До одного запитання можна прикріпити щонайбільше ${max} файлів.`,
+      dailyLimit: (limit, time) =>
+        `Ви використали денний ліміт вкладень (${limit}). Ліміт оновиться о ${time}.`,
+      disabled: 'Вкладення зараз вимкнені.',
+      notFound: 'Це вкладення більше недоступне. Прикріпіть файл ще раз.',
+      uploadTimeout: (name) => `Надсилання ${name} тривало надто довго. Спробуйте ще раз.`,
+      busy: 'Забагато файлів надсилається одночасно. Зачекайте трохи.',
+      storageFull: 'У вас забагато ненадісланих файлів. Надішліть запитання або видаліть частину файлів.',
+      storageUnavailable: 'На сервері немає місця для нових файлів. Спробуйте пізніше.',
+    },
+  },
   admin: {
     chatSwitch: 'Доступність чату',
     chatIsOn: 'Чат увімкнено.',
@@ -118,7 +156,7 @@ export const uk: Translation = {
     globalLimits: 'Глобальні ліміти',
     dailyQuestionLimit: 'Запитань на особу на день',
     attachments: 'Вкладення',
-    attachmentsNote: 'Ліміти вкладень почнуть діяти, коли вкладення з’являться в чаті.',
+    attachmentsNote: 'Ліміти для файлів, прикріплених до запитань у чаті. 0 вкладень на день вимикає вкладення.',
     maxFileMb: 'Максимальний розмір файлу (МБ)',
     maxFilesPerMessage: 'Файлів у повідомленні',
     maxAttachmentsPerDay: 'Вкладень на особу на день',

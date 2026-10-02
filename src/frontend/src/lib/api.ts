@@ -83,18 +83,24 @@ function authErrorCodeOf(detail: unknown): AuthErrorCode | null {
   return null;
 }
 
+// The error for a non-2xx response (also used by requests made without fetch,
+// e.g. uploads with progress); a lost session is announced with SESSION_LOST_EVENT.
+export function apiErrorFrom(status: number, detail: unknown, retryAfter: string | null): ApiRequestError {
+  const code = authErrorCodeOf(detail);
+  const error = new ApiRequestError(status, code, detail, retryAfter);
+  if (error.sessionLost && code !== null) {
+    window.dispatchEvent(new CustomEvent<AuthErrorCode>(SESSION_LOST_EVENT, { detail: code }));
+  }
+  return error;
+}
+
 // fetch to the API with the session cookie. Throws ApiRequestError for a
 // non-2xx response; a lost session is also announced with SESSION_LOST_EVENT.
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const response = await fetch(`${API_BASE_URL}${path}`, { credentials: 'include', ...init });
   if (response.ok) return response;
   const detail = await readErrorDetail(response);
-  const code = authErrorCodeOf(detail);
-  const error = new ApiRequestError(response.status, code, detail, response.headers.get('Retry-After'));
-  if (error.sessionLost && code !== null) {
-    window.dispatchEvent(new CustomEvent<AuthErrorCode>(SESSION_LOST_EVENT, { detail: code }));
-  }
-  throw error;
+  throw apiErrorFrom(response.status, detail, response.headers.get('Retry-After'));
 }
 
 export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
