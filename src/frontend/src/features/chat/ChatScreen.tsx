@@ -1,8 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import { Menu } from 'lucide-react';
 import AdminPanel from '../admin/AdminPanel';
 import type { AuthUser } from '../auth/useAuth';
 import type { Preferences } from '../preferences/usePreferences';
+import { earlierFileCount } from './conversations';
+import { useAttachments } from './useAttachments';
 import { useChat } from './useChat';
 import { useDrawer } from './useDrawer';
 import ChatSidebar from './ChatSidebar';
@@ -15,9 +17,19 @@ interface ChatScreenProps {
   onLogout: () => void;
 }
 
+// a drag carries files (not text or a link from the page)
+function hasFiles(event: DragEvent<HTMLElement>): boolean {
+  return Array.from(event.dataTransfer.types).includes('Files');
+}
+
 export default function ChatScreen({ user, preferences, onLogout }: ChatScreenProps) {
   const { lang } = preferences;
   const chat = useChat(lang.htmlLang);
+  const { refreshUsage } = chat;
+  const attachments = useAttachments(chat.usage?.attachments ?? null, refreshUsage);
+  // files dragged over the chat column: overlay with a hint
+  const [isDragging, setIsDragging] = useState(false);
+  const dragDepthRef = useRef(0);
   const { isOpen: isDrawerOpen, open: openDrawer, close: closeDrawer, menuButtonRef, closeButtonRef } = useDrawer();
   const drawerId = useId();
   // full-screen admin view over the chat (admins only; the API checks it again)
@@ -38,6 +50,34 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
 
   // banner over the input while the admins have the chat switched off
   const offNotice = chat.chatDisabled ? chat.usage?.chatDisabledMessage ?? lang.chatOffDefault : null;
+  const canDrop = attachments.limits !== null && offNotice === null;
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!canDrop || !hasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDragging(true);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!canDrop || !hasFiles(event)) return;
+    // allows the drop
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = () => {
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDragging(false);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    dragDepthRef.current = 0;
+    setIsDragging(false);
+    if (!canDrop || !hasFiles(event)) return;
+    event.preventDefault();
+    attachments.addFiles(Array.from(event.dataTransfer.files));
+  };
 
   const closeAdmin = () => {
     setIsAdminOpen(false);
@@ -96,7 +136,22 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
         )}
 
         {/* inert while the drawer is open: focus and screen readers stay in the drawer */}
-        <div className="flex-1 min-w-0 flex flex-col h-dvh relative overflow-hidden" inert={isDrawerOpen}>
+        <div
+          className="flex-1 min-w-0 flex flex-col h-dvh relative overflow-hidden"
+          inert={isDrawerOpen}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {isDragging && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-card border-2 border-dashed border-accent bg-page/85 text-sm font-semibold text-fg"
+            >
+              {lang.attachments.dropHint}
+            </div>
+          )}
           {/* mobile top bar: the sidebar is a drawer below md */}
           <header className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-line bg-surface">
             <button
@@ -127,7 +182,15 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
             onRetry={() => void chat.retry()}
             onReload={reloadConversation}
           />
-          <ChatInput lang={lang} isWaiting={chat.isWaiting} onSend={chat.send} onStop={chat.stop} offNotice={offNotice} />
+          <ChatInput
+            lang={lang}
+            isWaiting={chat.isWaiting}
+            onSend={chat.send}
+            onStop={chat.stop}
+            offNotice={offNotice}
+            attachments={attachments}
+            earlierFiles={earlierFileCount(chat.messages)}
+          />
         </div>
       </div>
     </>

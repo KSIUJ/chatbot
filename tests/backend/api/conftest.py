@@ -49,9 +49,11 @@ TEST_ENV = {
 
 
 @pytest.fixture
-def auth_env(monkeypatch: pytest.MonkeyPatch):
+def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
     for name, value in TEST_ENV.items():
         monkeypatch.setenv(name, value)
+    # zalaczniki trafiaja do katalogu testu, nie do ./uploads
+    monkeypatch.setenv("ATTACHMENTS_DIR", str(tmp_path / "uploads"))
     for name in ("AUTH_COOKIE_SECURE", "AUTH_FRONTEND_URL", "OIDC_POST_LOGOUT_REDIRECT_URI", "OIDC_SCOPES",
                  "OIDC_ADMIN_GROUP"):
         monkeypatch.delenv(name, raising=False)
@@ -107,12 +109,20 @@ def client(auth_env, keycloak: FakeKeycloak, session_factory, monkeypatch: pytes
 
     calls: list[dict[str, object]] = []
 
+    def record(message, history, language, kwargs) -> None:
+        calls.append({
+            "message": message,
+            "history": list(history or []),
+            "language": language,
+            "attachments": list(kwargs.get("attachments") or []),
+        })
+
     def fake_answer(message, history=None, language="pl", **kwargs):
-        calls.append({"message": message, "history": list(history or []), "language": language})
+        record(message, history, language, kwargs)
         return {"answer": f"odpowiedz na: {message}", "files": [], "sources": list(FAKE_SOURCES)}
 
     def fake_stream(message, history=None, language="pl", **kwargs):
-        calls.append({"message": message, "history": list(history or []), "language": language})
+        record(message, history, language, kwargs)
         return AnswerStream(
             chunks=iter(["odpowiedz ", "na: ", message]), files=[], sources=list(FAKE_SOURCES)
         )

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiRequestError, isSessionLost } from '../../lib/api';
 import { ACTIVE_CONVERSATION_KEY, rememberActiveConversation } from '../../lib/chatStorage';
 import type { HtmlLang } from '../preferences/languages';
+import { attachmentProblemOf, type AttachmentMeta, type AttachmentProblem } from './attachments';
 import {
   deleteConversation,
   fetchConversationMessages,
@@ -56,6 +57,16 @@ function errorMarker(): ChatMessage {
 // The question was refused by the daily limit (HTTP 429 before any answer).
 export function rateLimitMarker(id: string, rateLimit: RateLimitInfo): ChatMessage {
   return { id, sender: 'bot', text: '', status: 'error', rateLimit };
+}
+
+// The question was refused because of its attachments (HTTP 404/422 before any answer).
+export function attachmentMarker(id: string, attachmentProblem: AttachmentProblem): ChatMessage {
+  return { id, sender: 'bot', text: '', status: 'error', attachmentProblem };
+}
+
+// A local question bubble; the attachment chips only when there are any.
+export function userQuestion(id: string, text: string, attachments: readonly AttachmentMeta[]): ChatMessage {
+  return { id, sender: 'user', text, ...(attachments.length > 0 ? { attachments: [...attachments] } : {}) };
 }
 
 // The chat was switched off before the question reached the model: the local
@@ -286,6 +297,7 @@ export function useChat(language: HtmlLang) {
     conversationId: string,
     regenerate: boolean,
     controller: AbortController,
+    attachmentIds: readonly string[] = [],
   ) => {
     const { signal } = controller;
     // id of the bot bubble that grows while the answer streams in
@@ -293,7 +305,7 @@ export function useChat(language: HtmlLang) {
     const replaceStream = (message: ChatMessage) =>
       setMessages((prev) => [...prev.filter((m) => m.id !== streamId), message]);
     try {
-      await streamMessage({ message: question, conversationId, regenerate, language, signal }, {
+      await streamMessage({ message: question, conversationId, regenerate, language, signal, attachmentIds }, {
         onDelta: (text) => {
           if (!signal.aborted && text !== '') setMessages((prev) => appendDelta(prev, streamId, text));
         },
@@ -326,7 +338,14 @@ export function useChat(language: HtmlLang) {
       const rateLimit = parseRateLimit(error);
       if (rateLimit !== null) {
         replaceStream(rateLimitMarker(localId(), rateLimit));
-        setUsage(exhaustedUsage(rateLimit));
+        setUsage((prev) => exhaustedUsage(rateLimit, prev?.attachments));
+        return;
+      }
+      // refused because of its attachments (missing file, images the model
+      // cannot see, too many files): a clear message, no retry - it would fail again
+      const attachmentProblem = attachmentProblemOf(error);
+      if (attachmentProblem !== null) {
+        replaceStream(attachmentMarker(localId(), attachmentProblem));
         return;
       }
       if (error instanceof ApiRequestError && error.status === 404) {
@@ -349,15 +368,16 @@ export function useChat(language: HtmlLang) {
     return controller;
   }, []);
 
-  const send = useCallback((text: string): boolean => {
+  // `attachments` - uploaded files sent with the question
+  const send = useCallback((text: string, attachments: readonly AttachmentMeta[] = []): boolean => {
     const question = text.trim();
     if (!question || isWaiting || isLoadingConversation || chatDisabled) return false;
     const conversationId = activeId ?? newConversationId();
     setActiveId(conversationId);
-    setMessages((prev) => [...prev, { id: localId(), sender: 'user', text: question }]);
+    setMessages((prev) => [...prev, userQuestion(localId(), question, attachments)]);
     // a new question supersedes the stopped one (its answer refreshes the list)
     cancelStopSync();
-    void ask(question, conversationId, false, beginRequest());
+    void ask(question, conversationId, false, beginRequest(), attachments.map((a) => a.id));
     return true;
   }, [activeId, ask, beginRequest, cancelStopSync, chatDisabled, isLoadingConversation, isWaiting]);
 
@@ -400,7 +420,9 @@ export function useChat(language: HtmlLang) {
     }
     // stopped or switched to another conversation meanwhile
     if (controller.signal.aborted || token !== loadTokenRef.current) return;
-    void ask(lastQuestion.text, conversationId, regenerate, controller);
+    // the same files: still unsent after a failure, or already in this conversation
+    const attachmentIds = (lastQuestion.attachments ?? []).map((a) => a.id);
+    void ask(lastQuestion.text, conversationId, regenerate, controller, attachmentIds);
   }, [activeId, ask, beginRequest, isWaiting, messages]);
 
   const copy = useCallback((message: ChatMessage) => {

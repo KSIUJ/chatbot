@@ -19,14 +19,19 @@ from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
 from .admin import router as admin_router
+from .attachments.errors import AttachmentError, attachment_error_handler
+from .attachments.router import router as attachments_router
+from .attachments.service import attachments_by_message, purge_stale_attachments
 from .auth import get_auth_settings, require_member, router as auth_router, verify_origin
 from .chat import (
     ChatTurn,
     ConversationNotOwned,
     load_history,
+    model_kwargs,
     record_turn_incident,
     save_exchange,
     to_message_response,
+    with_attachments,
 )
 from .chat_stream import SSE_HEADERS, chat_events
 from .config import APP_NAME, FRONTEND_ORIGINS
@@ -106,14 +111,16 @@ configure_logging()
 
 
 def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:
-    """Zadania sprzatania w tle: nieuzywane rozmowy, wygasle sesje logowania,
-    incydenty bezpieczenstwa starsze niz INCIDENT_RETENTION_DAYS i dzienne
-    liczniki pytan starsze niz USAGE_RETENTION_DAYS."""
+    """Zadania sprzatania w tle: nieuzywane rozmowy (razem z zalacznikami),
+    wygasle sesje logowania, incydenty bezpieczenstwa starsze niz
+    INCIDENT_RETENTION_DAYS, dzienne liczniki starsze niz USAGE_RETENTION_DAYS
+    i niewyslane zalaczniki starsze niz doba."""
     return {
         "conversations": lambda db: purge_expired_conversations(db, settings.retention_days),
         "sessions": purge_expired_sessions,
         "incidents": purge_old_incidents,
         "daily_usage": purge_old_usage,
+        "attachments": purge_stale_attachments,
     }
 
 
@@ -148,6 +155,8 @@ app = FastAPI(title=APP_NAME, dependencies=[Depends(verify_origin)], lifespan=li
 app.add_exception_handler(LimitExceeded, limit_exceeded_handler)
 # czat wylaczony przez zarzad -> 503 chat_disabled (przed limitem i modelem)
 app.add_exception_handler(ChatDisabled, chat_disabled_handler)
+# odrzucony plik / zalacznik w pytaniu -> kod w detail.code (attachments/errors.py)
+app.add_exception_handler(AttachmentError, attachment_error_handler)
 
 # CORS potrzebny tylko gdy frontend i API sa na roznych originach (w Dockerze
 # i w vite z proxy jest jeden origin). Z ciasteczkami nie wolno uzyc "*".
@@ -156,7 +165,8 @@ app.add_middleware(
     allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Content-Type"],
+    # X-Filename: nazwa pliku przy POST /attachments
+    allow_headers=["Content-Type", "X-Filename"],
 )
 
 app.include_router(auth_router)
@@ -165,6 +175,7 @@ app.include_router(feedback_admin_router)
 app.include_router(security_admin_router)
 app.include_router(limits_router)
 app.include_router(admin_router)
+app.include_router(attachments_router)
 
 
 def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Conversation:
@@ -219,16 +230,22 @@ def get_conversation(
     conversation_id: str, db: Session = Depends(get_db), user: User = Depends(require_member)
 ) -> ConversationResponse:
     """Rozmowa razem z wiadomosciami; odpowiedzi asystenta niosa ocene
-    biezacego uzytkownika (stan lapek po przeladowaniu)."""
+    biezacego uzytkownika (stan lapek po przeladowaniu), pytania - metadane
+    wyslanych zalacznikow."""
     conversation = _get_owned_conversation(db, conversation_id, user)
 
     messages = get_messages(db, conversation_id)
     feedback = conversation_feedback(db, user.id, conversation_id)
+    attachments = attachments_by_message(db, conversation_id)
     return ConversationResponse(
         id=conversation.id,
         created_at=conversation.created_at,
         messages=[
-            to_message_response(m, feedback.get(m.id, EMPTY_STATE) if m.role == MessageRole.ASSISTANT else None)
+            to_message_response(
+                m,
+                feedback.get(m.id, EMPTY_STATE) if m.role == MessageRole.ASSISTANT else None,
+                attachments.get(m.id, ()),
+            )
             for m in messages
         ],
     )
@@ -266,12 +283,14 @@ def chat(
             history = load_history(db, turn)
         except ConversationNotOwned:
             raise HTTPException(status_code=404, detail="conversation not found") from None
+        # AttachmentError (404/422) - przed limitem i modelem
+        turn = with_attachments(db, turn, payload.attachment_ids)
         # LimitExceeded -> 429; pytanie odrzucone limitem nie jest incydentem
         reservation = consume_question(db, user.id, clock())
         try:
             # najpierw odpowiedz: blad LLM zostawia rozmowe bez zmian, nie kasuje
             # najstarszej rozmowy i nie zostawia pustej
-            result = rag_answer(turn.question, history=history, language=turn.language)
+            result = rag_answer(turn.question, history=history, **model_kwargs(turn))
             answer_text, model_flagged = strip_violation_marker(result["answer"])
             if model_flagged and not answer_text.strip():
                 answer_text = REFUSAL[turn.language]
@@ -303,6 +322,8 @@ def _prepare_stream_turn(
         conversation = db.get(Conversation, turn.conversation_id, populate_existing=True)
         if conversation is not None and conversation.user_id != turn.user_id:
             raise HTTPException(status_code=404, detail="conversation not found")
+        # zalaczniki (404/422) przed limitem - odrzucone pytanie nic nie kosztuje
+        turn = with_attachments(db, turn, payload.attachment_ids)
         return turn, consume_question(db, user.id, clock())
     finally:
         db.close()

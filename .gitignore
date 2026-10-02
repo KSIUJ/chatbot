@@ -9,6 +9,8 @@ dataset/
 *.db
 *.db.bak*
 pipeline/scrapers/usos/.last_request_time
+# zalaczniki z czatu (ATTACHMENTS_DIR)
+uploads/
 
 # python
 .venv/

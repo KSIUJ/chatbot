@@ -111,3 +111,24 @@ def test_closing_stream_early_closes_http_response(fake_post):
 
     assert holder["response"].closed
     assert holder["response"].read_lines == 1
+
+
+# --- obrazy (zalaczniki) -----------------------------------------------------------
+
+def test_stream_chat_sends_images_as_base64_field(fake_post):
+    from src.backend.llm.images import ImageInput
+
+    calls, _ = fake_post
+
+    list(ollama_client.stream_chat(system="s", user="opisz", images=[ImageInput("image/png", b"x")]))
+
+    message = calls[-1]["json"]["messages"][-1]
+    assert message == {"role": "user", "content": "opisz", "images": ["eA=="]}
+
+
+def test_stream_chat_without_images_has_no_images_field(fake_post):
+    calls, _ = fake_post
+
+    list(ollama_client.stream_chat(system="s", user="u"))
+
+    assert "images" not in calls[-1]["json"]["messages"][-1]
