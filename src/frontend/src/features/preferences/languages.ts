@@ -1,3 +1,5 @@
+import type { AttachmentType, IncidentSource, LimitMode, ReviewStatus } from '../admin/adminApi';
+import type { AdminTab } from '../admin/tabs';
 import type { LoginError } from '../auth/redirect';
 import type { ReportReason } from '../chat/feedback';
 import type { SourceKind } from '../chat/sources';
@@ -14,6 +16,104 @@ import { uk } from './translations/uk';
 // value of <html lang>, the answer language sent to the API and ui_locales
 // passed to the KSI login page.
 export type HtmlLang = 'pl' | 'en' | 'de' | 'es' | 'fr' | 'it' | 'uk';
+
+// Strings of the admin panel (only shown to the admin group).
+export interface AdminTranslation {
+  title: string;
+  backToChat: string;
+  sections: string;
+  tabs: Record<AdminTab, string>;
+  loadError: string;
+  saveError: string;
+  saved: string;
+  save: string;
+  refresh: string;
+  previousPage: string;
+  nextPage: string;
+  pageInfo: (from: number, to: number, total: number) => string;
+  unknown: string;
+  // limits
+  globalLimits: string;
+  dailyQuestionLimit: string;
+  attachments: string;
+  attachmentsNote: string;
+  maxFileMb: string;
+  maxFilesPerMessage: string;
+  maxAttachmentsPerDay: string;
+  allowedTypes: string;
+  typeNames: Record<AttachmentType, string>;
+  defaultValue: (value: string) => string;
+  users: string;
+  searchUsers: string;
+  search: string;
+  noUsers: string;
+  usedToday: string;
+  lastLogin: string;
+  limitModes: Record<LimitMode, string>;
+  customLimit: string;
+  blockedHint: string;
+  note: string;
+  editLimit: string;
+  // reports and incidents
+  status: string;
+  allStatuses: string;
+  statuses: Record<ReviewStatus, string>;
+  exportCsv: string;
+  noReports: string;
+  noIncidents: string;
+  question: string;
+  answer: string;
+  noQuestion: string;
+  answerGone: string;
+  comment: string;
+  reason: string;
+  answerLanguage: string;
+  reportedAt: string;
+  reviewedAt: string;
+  adminNote: string;
+  resolve: string;
+  dismiss: string;
+  reopen: string;
+  showDetails: string;
+  hideDetails: string;
+  person: string;
+  deletedAccount: string;
+  rules: string;
+  detectedBy: string;
+  incidentSources: Record<IncidentSource, string>;
+  // diagnostics
+  model: string;
+  provider: string;
+  modelName: string;
+  uptime: string;
+  calls: string;
+  errors: string;
+  avgLatency: string;
+  p95Latency: string;
+  lastError: string;
+  recentWindow: (count: number) => string;
+  usage: string;
+  questionsToday: string;
+  questions7d: string;
+  activeToday: string;
+  active7d: string;
+  data: string;
+  usersCount: string;
+  conversations: string;
+  messages: string;
+  openReports: string;
+  openIncidents: string;
+  ragIndex: string;
+  vectorCount: string;
+  lexicalCount: string;
+  lexicalSize: string;
+  lastIngest: string;
+  storage: string;
+  databaseSize: string;
+  diskFree: string;
+  unavailable: string;
+  generatedAt: (time: string) => string;
+}
 
 export interface Translation {
   // value of <html lang>
@@ -78,6 +178,10 @@ export interface Translation {
   reportSubmit: string;
   reportError: string;
   cancel: string;
+  // daily question limit
+  rateLimited: (limit: number, time: string) => string;
+  usageToday: (used: number, limit: number) => string;
+  admin: AdminTranslation;
 }
 
 export const translations: Record<HtmlLang, Translation> = { pl, en, de, es, fr, it, uk };

@@ -62,6 +62,17 @@ def warsaw_now(moment: datetime) -> datetime:
     return aware.astimezone(timezone(eu_warsaw_offset(aware)))
 
 
+def warsaw_midnight(day: date) -> datetime:
+    """Polnoc rozpoczynajaca dzien `day` w czasie polskim (aware). Zmiana
+    czasu w UE jest o 01:00 UTC, wiec polnoc zawsze istnieje i jest jedna."""
+    zone = _warsaw_zone()
+    if zone is not None:
+        return datetime.combine(day, datetime.min.time(), zone)
+    # o 00:00 UTC tego dnia obowiazuje jeszcze przesuniecie z polnocy lokalnej
+    offset = eu_warsaw_offset(datetime.combine(day, datetime.min.time(), timezone.utc))
+    return datetime.combine(day, datetime.min.time(), timezone(offset))
+
+
 def polish_date(day: date) -> str:
     """Np. "2 października 2026 (piątek)"."""
     return f"{day.day} {_MONTHS_GENITIVE[day.month - 1]} {day.year} ({_WEEKDAYS[day.weekday()]})"

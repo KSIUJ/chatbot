@@ -1,6 +1,7 @@
 """Generowanie odpowiedzi: kondensacja pytania, kontekst z RAG i wywolanie LLM."""
 
 import os
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,9 +10,10 @@ from typing import NamedTuple, TypedDict
 from ..rag.context_builder import retrieve_context
 from ..rag.sources import Source
 from . import claude_client, cursor_client, ollama_client, openrouter_client
+from . import stats as llm_stats
 from .dates import academic_year, polish_date, warsaw_now
 from .language import ANSWER_IN, DEFAULT_LANGUAGE, LANGUAGE_NAMES, Language
-from .provider import current_provider
+from .provider import current_provider, env_setting
 from .rewrite import condense
 
 # Tresc zatwierdzona przez wlasciciela repo - zmiany tylko po uzgodnieniu.
@@ -68,6 +70,21 @@ _PROVIDERS: dict[str, ProviderFns] = {
     "cursor": ProviderFns(cursor_client.chat, cursor_client.stream_chat),
     "openrouter": ProviderFns(openrouter_client.chat, openrouter_client.stream_chat),
 }
+
+
+# Zmienna env z nazwa modelu i wartosc domyslna klienta - do diagnostyki
+_MODEL_SETTINGS: dict[str, tuple[str, str]] = {
+    "ollama": ("OLLAMA_MODEL", ollama_client.DEFAULT_MODEL),
+    "claude": ("CLAUDE_MODEL", claude_client.DEFAULT_MODEL),
+    "cursor": ("CURSOR_MODEL", cursor_client.DEFAULT_MODEL),
+    "openrouter": ("OPENROUTER_MODEL", openrouter_client.DEFAULT_MODEL),
+}
+
+
+def current_model() -> str:
+    """Nazwa modelu wybranego dostawcy (env albo domyslna klienta)."""
+    env_name, default = _MODEL_SETTINGS[current_provider()]
+    return env_setting(env_name, default)
 
 
 class Answer(TypedDict):
@@ -157,6 +174,40 @@ def _resolve_stream_fn() -> StreamFn:
     return _PROVIDERS[current_provider()].stream
 
 
+def _measured_chat(chat: ChatFn, prompt: _Prompt) -> str:
+    """Wywolanie modelu z zapisem czasu i bledu w statystykach (llm/stats.py)."""
+    started = time.monotonic()
+    try:
+        reply = chat(system=prompt.system, user=prompt.user, history=prompt.history)
+    except Exception as exc:
+        llm_stats.current_stats().record_error(time.monotonic() - started, exc)
+        raise
+    llm_stats.current_stats().record_success(time.monotonic() - started)
+    return reply
+
+
+def _measured_stream(chunks: Iterator[str]) -> Iterator[str]:
+    """Kawalki od modelu z zapisem w statystykach: czas od pierwszego next()
+    do konca odpowiedzi albo bledu. Strumien przerwany przez klienta (Stop)
+    nie jest liczony; zamkniecie przekazujemy do strumienia od modelu."""
+    started = time.monotonic()
+    finished = False
+    try:
+        for chunk in chunks:
+            yield chunk
+        finished = True
+    except Exception as exc:
+        llm_stats.current_stats().record_error(time.monotonic() - started, exc)
+        raise
+    finally:
+        if finished:
+            llm_stats.current_stats().record_success(time.monotonic() - started)
+        else:
+            close = getattr(chunks, "close", None)
+            if close is not None:
+                close()
+
+
 def _build_prompt(
     query: str,
     k_mordor: int,
@@ -182,7 +233,7 @@ def answer(
     """Odpowiada na pytanie z uzyciem RAG; zwraca tekst, sciezki dolaczanych
     plikow i zrodla."""
     prompt = _build_prompt(query, k_mordor, k_other, history, language)
-    reply = _resolve_chat_fn()(system=prompt.system, user=prompt.user, history=prompt.history)
+    reply = _measured_chat(_resolve_chat_fn(), prompt)
     return {"answer": reply, "files": prompt.files, "sources": prompt.sources}
 
 
@@ -197,4 +248,4 @@ def stream_answer(
     razu, zapytanie do modelu - przy pierwszym kawalku."""
     prompt = _build_prompt(query, k_mordor, k_other, history, language)
     chunks = _resolve_stream_fn()(system=prompt.system, user=prompt.user, history=prompt.history)
-    return AnswerStream(chunks=chunks, files=prompt.files, sources=prompt.sources)
+    return AnswerStream(chunks=_measured_stream(chunks), files=prompt.files, sources=prompt.sources)

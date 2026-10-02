@@ -6,6 +6,7 @@ import { isMarker, type ChatMessage } from './conversations';
 import { EMPTY_FEEDBACK, canGiveFeedback, type Rating, type ReportReason } from './feedback';
 import MessageSources from './MessageSources';
 import ReportDialog from './ReportDialog';
+import { formatResetTime } from './usage';
 
 // How close to the bottom (px) still counts as "reading the latest answer".
 const NEAR_BOTTOM_PX = 120;
@@ -121,7 +122,9 @@ export default function ChatMessageList({
         const isStreaming = msg.status === 'streaming';
         // a stopped answer keeps the text received so far, with a note below
         const hasPartialText = msg.status === 'stopped' && msg.text !== '';
-        const markerText = msg.status === 'stopped' ? lang.stopped : lang.error;
+        const markerText = msg.rateLimit
+          ? lang.rateLimited(msg.rateLimit.limit, formatResetTime(msg.rateLimit.resetAt, lang.htmlLang))
+          : msg.status === 'stopped' ? lang.stopped : lang.error;
         const text = marker && !hasPartialText ? markerText : msg.text;
         const hasActions = canGiveFeedback(msg);
         const sources = !isUser && msg.status === undefined ? msg.sources ?? [] : [];
@@ -134,8 +137,9 @@ export default function ChatMessageList({
               <div
                 className={`px-4 py-3 relative rounded-card text-sm leading-relaxed whitespace-pre-wrap break-words
                   ${isUser ? USER_BUBBLE : BOT_BUBBLE}
-                  ${isUser ? '' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}`}
+                  ${isUser ? '' : msg.rateLimit ? 'text-fg' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}`}
                 aria-busy={isStreaming || undefined}
+                role={msg.rateLimit ? 'alert' : undefined}
               >
                 {text}
                 {hasPartialText && <span className="block mt-2 text-label italic text-muted">{markerText}</span>}
@@ -155,8 +159,9 @@ export default function ChatMessageList({
                 />
               )}
 
-              {/* retry only on the latest failed / stopped answer */}
-              {marker && msg.id === lastId && (
+              {/* retry only on the latest failed / stopped answer - not after
+                  the daily limit, it would be refused again until the reset */}
+              {marker && !msg.rateLimit && msg.id === lastId && (
                 <button
                   type="button"
                   onClick={onRetry}

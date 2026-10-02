@@ -25,6 +25,7 @@ import {
   type ReportReason,
 } from './feedback';
 import { describeStop, waitForStoppedExchange, type StoppedExchange } from './stopSync';
+import { exhaustedUsage, fetchUsage, parseRateLimit, type RateLimitInfo, type UsageStatus } from './usage';
 
 export interface HistoryLimits {
   maxPerUser: number;
@@ -41,6 +42,11 @@ function localId(): string {
 
 function errorMarker(): ChatMessage {
   return { id: localId(), sender: 'bot', text: '', status: 'error' };
+}
+
+// The question was refused by the daily limit (HTTP 429 before any answer).
+export function rateLimitMarker(id: string, rateLimit: RateLimitInfo): ChatMessage {
+  return { id, sender: 'bot', text: '', status: 'error', rateLimit };
 }
 
 // Ends the answer being streamed: a partial answer becomes a "stopped" bubble
@@ -82,6 +88,8 @@ export function useChat(language: HtmlLang) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // answer whose rating could not be saved (shows an error under it)
   const [feedbackErrorId, setFeedbackErrorId] = useState<string | null>(null);
+  // today's questions vs. the daily limit (null = unknown, hint hidden)
+  const [usage, setUsage] = useState<UsageStatus | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   // bumped on every switch, so work started for a previous conversation is ignored
@@ -117,6 +125,30 @@ export function useChat(language: HtmlLang) {
     }
   }, [applyHistory, applyHistoryError]);
 
+  // Best effort: the hint in the sidebar simply stays as it was on failure.
+  const refreshUsage = useCallback(async () => {
+    try {
+      setUsage(await fetchUsage());
+    } catch {
+      // a lost session is handled globally; otherwise keep the last value
+    }
+  }, []);
+
+  // first load of the hint
+  useEffect(() => {
+    let cancelled = false;
+    fetchUsage().then(
+      (value) => {
+        if (!cancelled) setUsage(value);
+      },
+      // no hint at all is fine; a lost session is handled globally
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const cancelPending = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -146,9 +178,11 @@ export function useChat(language: HtmlLang) {
     const done = waitForStoppedExchange({ conversationId, ...stopped, signal: controller.signal }).then(() => {
       if (stopSyncRef.current?.controller === controller) stopSyncRef.current = null;
       if (!controller.signal.aborted && token === loadTokenRef.current) void refreshHistory();
+      // a stopped answer counts only if the server saved part of it
+      void refreshUsage();
     });
     stopSyncRef.current = { conversationId, done, controller };
-  }, [cancelStopSync, refreshHistory]);
+  }, [cancelStopSync, refreshHistory, refreshUsage]);
 
   const openConversation = useCallback(async (id: string) => {
     cancelPending();
@@ -242,13 +276,25 @@ export function useChat(language: HtmlLang) {
           if (signal.aborted) return;
           replaceStream(reply);
           void refreshHistory();
+          void refreshUsage();
         },
         onError: () => {
-          if (!signal.aborted) replaceStream(errorMarker());
+          if (signal.aborted) return;
+          replaceStream(errorMarker());
+          // a failed answer is refunded by the server
+          void refreshUsage();
         },
       });
     } catch (error) {
       if (signal.aborted || isSessionLost(error)) return;
+      // daily limit used up: a clear message instead of the generic error,
+      // and no automatic retry (it would fail the same way until the reset)
+      const rateLimit = parseRateLimit(error);
+      if (rateLimit !== null) {
+        replaceStream(rateLimitMarker(localId(), rateLimit));
+        setUsage(exhaustedUsage(rateLimit));
+        return;
+      }
       if (error instanceof ApiRequestError && error.status === 404) {
         // id taken by another account (practically impossible): retry under a fresh id
         setActiveId(newConversationId());
@@ -260,7 +306,7 @@ export function useChat(language: HtmlLang) {
         setIsWaiting(false);
       }
     }
-  }, [language, refreshHistory]);
+  }, [language, refreshHistory, refreshUsage]);
 
   const beginRequest = useCallback((): AbortController => {
     const controller = new AbortController();
@@ -392,6 +438,7 @@ export function useChat(language: HtmlLang) {
     loadError,
     copiedId,
     feedbackErrorId,
+    usage,
     openConversation,
     startNewChat,
     removeChat,
