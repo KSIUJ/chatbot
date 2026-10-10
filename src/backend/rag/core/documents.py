@@ -1,16 +1,15 @@
 """
-Wspolny, znormalizowany schemat dokumentu uzywany przez caly RAG.
+Dokument w indeksie RAG - wspolny format wszystkich zrodel.
 
-Kazde z trzech zrodel danych (mordor, strony, usos) ma wlasny format wyjsciowy
-(patrz pipeline/ingest/from_*.py) - to jedyne miejsca,
-ktore znaja te specyfike. Reszta pipeline'u (encoder, vectorstore, retriever)
-operuje wylacznie na obiektach Document ponizej.
+Kazde zrodlo (src/backend/rag/sources/) zamienia swoje dane na Document;
+rdzen (encoder, vectorstore, indeks leksykalny, retrieval) zna tylko ten
+format. Nazwa zrodla w `source` musi byc zarejestrowana (rag/registry.py) -
+sprawdza to ingest.
 """
 
 import hashlib
 from dataclasses import dataclass, field
 
-VALID_SOURCES = ("mordor", "strony", "usos")
 VALID_CONTENT_TYPES = ("text", "image")
 
 
@@ -18,14 +17,16 @@ VALID_CONTENT_TYPES = ("text", "image")
 class Document:
     id: str
     source: str
+    # tekst do wyszukiwania (wektory i BM25)
     embed_text: str
     content_type: str
+    # tresc dla modelu (text) albo sciezka pliku (image)
     value: str
     metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        if self.source not in VALID_SOURCES:
-            raise ValueError(f"Nieznane zrodlo: {self.source!r} (oczekiwano jednego z {VALID_SOURCES})")
+        if not self.source:
+            raise ValueError("Dokument bez zrodla")
         if self.content_type not in VALID_CONTENT_TYPES:
             raise ValueError(
                 f"Nieznany content_type: {self.content_type!r} (oczekiwano jednego z {VALID_CONTENT_TYPES})"

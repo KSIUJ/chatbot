@@ -4,7 +4,7 @@ import os
 import re
 import sqlite3
 
-from .schema import Document
+from .documents import Document
 
 DEFAULT_DB_PATH = os.path.join("dataset", "lexical.db")
 TABLE = "chunks_fts"

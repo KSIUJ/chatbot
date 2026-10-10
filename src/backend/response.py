@@ -6,12 +6,12 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from .models import MessageRole
-from .rag.sources import SourceKind
+from .rag.core.citations import CitationKind
 
 
 class SourceResponse(BaseModel):
     """Zrodlo odpowiedzi: strona wydzialu, profil USOS albo plik z mordora."""
-    kind: SourceKind
+    kind: CitationKind
     title: str = Field(min_length=1)
     url: str | None = None
 

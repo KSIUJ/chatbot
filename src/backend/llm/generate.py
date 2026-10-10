@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import NamedTuple, TypedDict
 
-from ..rag.context_builder import retrieve_context
-from ..rag.sources import Source
+from ..rag.core.context import retrieve_context
+from ..rag.core.citations import Citation
 from . import claude_client, cursor_client, ollama_client, openrouter_client
 from . import stats as llm_stats
 from .attachments import PromptAttachment, attachments_block, images_of
@@ -92,7 +92,7 @@ def current_model() -> str:
 class Answer(TypedDict):
     answer: str
     files: list[str]
-    sources: list[Source]
+    sources: list[Citation]
 
 
 @dataclass(frozen=True)
@@ -101,7 +101,7 @@ class AnswerStream:
     pierwszym next()) oraz pliki i zrodla znane juz po retrievalu."""
     chunks: Iterator[str]
     files: list[str]
-    sources: list[Source]
+    sources: list[Citation]
 
 
 class _Prompt(NamedTuple):
@@ -109,7 +109,7 @@ class _Prompt(NamedTuple):
     user: str
     history: list[dict[str, str]]
     files: list[str]
-    sources: list[Source]
+    sources: list[Citation]
     # obrazy z zalacznikow - tylko dla dostawcow z obsluga obrazow
     images: list[ImageInput]
 
@@ -223,8 +223,6 @@ def _measured_stream(chunks: Iterator[str]) -> Iterator[str]:
 
 def _build_prompt(
     query: str,
-    k_mordor: int,
-    k_other: int,
     history: list[dict[str, str]] | None,
     language: Language,
     attachments: Sequence[PromptAttachment] = (),
@@ -232,7 +230,7 @@ def _build_prompt(
     """Kondensacja pytania, retrieval i prompt - wspolne dla answer() i stream_answer().
     Blok zalacznikow (jesli sa) stoi miedzy KONTEKSTEM a pytaniem."""
     search_query = condense(query, history)
-    context, files, sources = retrieve_context(search_query, k_mordor=k_mordor, k_other=k_other)
+    context, files, sources = retrieve_context(search_query)
 
     blocks = [_context_block(context, files)]
     if attachments:
@@ -246,29 +244,25 @@ def _build_prompt(
 
 def answer(
     query: str,
-    k_mordor: int = 5,
-    k_other: int = 5,
     history: list[dict[str, str]] | None = None,
     language: Language = DEFAULT_LANGUAGE,
     attachments: Sequence[PromptAttachment] = (),
 ) -> Answer:
     """Odpowiada na pytanie z uzyciem RAG; zwraca tekst, sciezki dolaczanych
     plikow i zrodla. `attachments` - pliki uzytkownika do tego pytania."""
-    prompt = _build_prompt(query, k_mordor, k_other, history, language, attachments)
+    prompt = _build_prompt(query, history, language, attachments)
     reply = _measured_chat(_resolve_chat_fn(), prompt)
     return {"answer": reply, "files": prompt.files, "sources": prompt.sources}
 
 
 def stream_answer(
     query: str,
-    k_mordor: int = 5,
-    k_other: int = 5,
     history: list[dict[str, str]] | None = None,
     language: Language = DEFAULT_LANGUAGE,
     attachments: Sequence[PromptAttachment] = (),
 ) -> AnswerStream:
     """Jak answer(), ale tekst przychodzi kawalkami. Retrieval dzieje sie od
     razu, zapytanie do modelu - przy pierwszym kawalku."""
-    prompt = _build_prompt(query, k_mordor, k_other, history, language, attachments)
+    prompt = _build_prompt(query, history, language, attachments)
     chunks = _resolve_stream_fn()(**_model_kwargs(prompt))
     return AnswerStream(chunks=_measured_stream(chunks), files=prompt.files, sources=prompt.sources)

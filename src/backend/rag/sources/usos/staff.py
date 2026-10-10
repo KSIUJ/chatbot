@@ -1,6 +1,6 @@
 """Wyszukiwarka pracownikow: slownik nazwisk z USOS + BM25 zawezony do zrodla usos."""
 
-from .lexical import LexicalIndex, tokenize
+from ...core.lexical import LexicalIndex, tokenize
 
 DEFAULT_LIMIT = 2
 MIN_STEM = 4

@@ -1,9 +1,11 @@
-"""Testy loaderow pipeline/ingest (from_strony, from_mordor) i wspolnego chunkingu."""
+"""Testy loaderow zrodel (strony, mordor) i wspolnego chunkingu."""
 
 import os
 
-from pipeline.ingest import chunking, from_mordor, from_strony
-from src.backend.rag.schema import make_id
+from src.backend.rag.core import chunking
+from src.backend.rag.sources.mordor import loader as from_mordor
+from src.backend.rag.sources.strony import loader as from_strony
+from src.backend.rag.core.documents import make_id
 
 SCRAPED = (
     "\n\nURL: https://matinf.uj.edu.pl/a\n\nDziekanat czynny pon-pt."

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .history import detach_feedback, make_title
 from .models import Conversation, Message, MessageRole, UsageCounter, User, utcnow
-from .rag.sources import Source
+from .rag.core.citations import Citation
 
 DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./chatbot.db"
 
@@ -121,7 +121,7 @@ def add_message(
     conversation_id: str,
     role: MessageRole,
     content: str,
-    sources: Sequence[Source] | None = None,
+    sources: Sequence[Citation] | None = None,
 ) -> Message:
     """Dopisuje wiadomosc i commituje (razem z niezacommitowanymi zmianami sesji)."""
     conversation = get_conversation(db, conversation_id)

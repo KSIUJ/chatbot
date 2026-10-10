@@ -13,9 +13,9 @@ import os
 import re
 from urllib.parse import urlparse
 
-from src.backend.rag.schema import Document, make_id
+from ...core.documents import Document, make_id
 
-from .chunking import make_splitter
+from ...core.chunking import make_splitter
 
 OUTPUT_FILE = os.path.join("data", "strony", "website_data.txt")
 # Nazwa uzywana przez starsze wersje scrapera (istniejace wolumeny z danymi).

@@ -1,20 +1,17 @@
 """
 Baza wektorowa (ChromaDB, PersistentClient w dataset/vectorstore/).
 
-Jedna kolekcja dla wszystkich zrodel (mordor/strony/usos); zrodlo jest w
-metadanych kazdego wpisu (`source`), a search_split filtruje po nim grupy.
+Jedna kolekcja dla wszystkich zrodel; zrodlo jest w metadanych kazdego wpisu
+(`source`), a query zaweza wyniki do wybranych zrodel.
 """
 
 import os
 
+from .documents import Document
 from .encoder import Encoder
-from .schema import Document
 
 DEFAULT_PERSIST_DIR = os.path.join("dataset", "vectorstore")
 COLLECTION_NAME = "chatbot_wmi"
-
-GROUP_MORDOR = {"source": "mordor"}
-GROUP_OTHER = {"source": {"$in": ["strony", "usos"]}}
 
 
 def _hit(id_: str, value: str, metadata: dict, distance: float | None) -> dict:
@@ -89,9 +86,11 @@ class VectorStore:
             by_id[id_] = _hit(id_, value, metadata, None)
         return [by_id[i] for i in ids if i in by_id]
 
-    def _query(self, embedding: list[float], top_k: int, where: dict | None = None) -> list[dict]:
-        if top_k <= 0:
+    def query(self, embedding: list[float], top_k: int, sources: tuple[str, ...]) -> list[dict]:
+        """Top-k wpisow ze wskazanych zrodel dla gotowego wektora zapytania."""
+        if top_k <= 0 or not sources:
             return []
+        where = {"source": sources[0]} if len(sources) == 1 else {"source": {"$in": list(sources)}}
 
         results = self._collection.query(
             query_embeddings=[embedding],
@@ -108,16 +107,6 @@ class VectorStore:
         for id_, value, metadata, distance in zip(ids, documents, metadatas, distances):
             hits.append(_hit(id_, value, metadata, distance))
         return hits
-
-    def search_split(
-        self, query: str, k_mordor: int = 5, k_other: int = 5
-    ) -> dict[str, list[dict]]:
-        """Top-k wpisow osobno dla mordoru i dla zrodel oficjalnych (strony, usos)."""
-        embedding = self.encoder.embed_query(query)
-        return {
-            "mordor": self._query(embedding, k_mordor, GROUP_MORDOR),
-            "other": self._query(embedding, k_other, GROUP_OTHER),
-        }
 
     def delete_source(self, source: str) -> int:
         """Usuwa wszystkie wpisy zrodla; zwraca liczbe usunietych."""
