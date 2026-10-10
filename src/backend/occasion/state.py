@@ -1,8 +1,11 @@
 """Aktualny motyw okazjonalny: odswiezanie z ksi.sh w tle i stan w pamieci.
 
 Petla w tle (start w lifespan aplikacji, jeden worker) co
-OCCASION_REFRESH_SECONDS pobiera strone glowna, a przy aktywnej okazji modul
-wejsciowy i fasade. Pliki z /assets/ maja hash w nazwie, wiec raz pobrane
+OCCASION_REFRESH_SECONDS pyta API ksi.sh, ktora okazja trwa (z tokenem
+OCCASION_API_TOKEN), a przy aktywnej okazji pobiera strone glowna (kolory),
+modul wejsciowy i fasade. Bez tokenu albo gdy API nie odpowiada o tym, czy
+okazja trwa, decyduje sama strona glowna. Okazja z API znika w chwili jej
+konca, nawet miedzy odswiezeniami. Pliki z /assets/ maja hash w nazwie, wiec raz pobrane
 (albo raz odrzucone) nie sa pobierane ponownie. Gdy strona nie odpowiada,
 zostaje ostatni znany stan, ale najwyzej STALE_AFTER_SECONDS - potem czat
 wraca do zwyklego wygladu.
@@ -20,12 +23,21 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from functools import lru_cache
 from urllib.parse import urljoin
 
 import httpx
 
-from .landing import FacadePaths, LandingPage, parse_facade_paths, parse_landing_page
+from .landing import (
+    ApiOccasion,
+    ApiResponseError,
+    FacadePaths,
+    LandingPage,
+    parse_api_occasion,
+    parse_facade_paths,
+    parse_landing_page,
+)
 from .svg import MAX_SVG_BYTES, UnsafeSvg, for_scheme, validate_svg
 
 logger = logging.getLogger(__name__)
@@ -36,6 +48,8 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 REFRESH_DEADLINE_SECONDS = 30.0
 MAX_PAGE_BYTES = 2_000_000
 MAX_MODULE_BYTES = 512_000
+MAX_API_BYTES = 16_000
+API_PATH = "/api/occasion"
 STALE_AFTER_SECONDS = 30 * 60
 VERSION_LENGTH = 16
 
@@ -68,6 +82,20 @@ class OccasionSnapshot:
     palette: Mapping[str, str] = field(default_factory=dict)
     # "pl"/"en" -> fasada (obie moga byc ta sama); pusto = bez fasady
     facades: Mapping[str, Facade] = field(default_factory=dict)
+    # sekundy od pobrania do konca okazji wg API (None = nieznany koniec);
+    # tylko w backendzie - repr=False, zeby nie trafil do logu
+    ends_in: float | None = field(default=None, repr=False)
+
+
+class _ApiUnavailable:
+    """API ksi.sh nie powiedzialo nic pewnego - decyduje strona glowna."""
+
+
+API_UNAVAILABLE = _ApiUnavailable()
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def facade_version(svg: str) -> str:
@@ -77,19 +105,33 @@ def facade_version(svg: str) -> str:
 class LandingClient:
     """Pobiera stan okazji ze strony glownej; pamieta zasoby z /assets/."""
 
-    def __init__(self, http: httpx.AsyncClient, source_url: str) -> None:
+    def __init__(
+        self,
+        http: httpx.AsyncClient,
+        source_url: str,
+        api_token: str | None = None,
+        now: Callable[[], datetime] = _utcnow,
+    ) -> None:
         self.http = http
         self.source_url = source_url
+        self.api_token = api_token
+        self._now = now
+        # niedzialajace API logujemy raz na proces: wpis przy kazdej zmianie
+        # zdradzalby w logach, kiedy okazje sie zaczynaja i koncza
+        self._api_failure_logged = False
         # (modul, okazja) -> sciezki fasady; None = modul bez rozpoznawalnej fasady
         self._modules: dict[tuple[str, str], FacadePaths | None] = {}
         # sciezka -> fasada; None = plik odrzucony przez validate_svg
         self._facades: dict[str, Facade | None] = {}
 
-    async def _get(self, url: str, limit: int) -> str:
-        """Tresc odpowiedzi 200 najwyzej `limit` bajtow; bez przekierowan."""
+    async def _get(self, url: str, limit: int, token: str | None = None) -> str:
+        """Tresc odpowiedzi 200 najwyzej `limit` bajtow; bez przekierowan (token
+        nie poleci pod inny adres)."""
         # identity: limit liczy bajty odpowiedzi, a skompresowana bomba
         # rozpakowalaby sie przed sprawdzeniem
         headers = {"User-Agent": USER_AGENT, "Accept-Encoding": "identity"}
+        if token is not None:
+            headers["Authorization"] = f"Bearer {token}"
         async with self.http.stream(
             "GET", url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS, follow_redirects=False
         ) as response:
@@ -104,6 +146,20 @@ class LandingClient:
                 chunks.append(chunk)
         # zawsze UTF-8 (strona jest w UTF-8): kodowanie z naglowka nie decyduje
         return b"".join(chunks).decode("utf-8", errors="replace")
+
+    async def _api_occasion(self) -> ApiOccasion | None | _ApiUnavailable:
+        """Okazja wg API ksi.sh: trwajaca, None (zadna) albo API_UNAVAILABLE
+        (brak tokenu, blad, 404 przy zlym tokenie, nieznany ksztalt)."""
+        if self.api_token is None:
+            return API_UNAVAILABLE
+        try:
+            body = await self._get(urljoin(self.source_url, API_PATH), MAX_API_BYTES, token=self.api_token)
+            return await asyncio.to_thread(parse_api_occasion, body, self._now())
+        except (httpx.HTTPError, LandingError, ApiResponseError) as error:
+            if not self._api_failure_logged:
+                self._api_failure_logged = True
+                logger.warning("occasion: ksi.sh API not used (%s), reading the landing page instead", error)
+            return API_UNAVAILABLE
 
     def _asset_url(self, path: str) -> str:
         # sciezki sa sprawdzone wzorcem /assets/..., wiec zostaja na hoscie strony
@@ -164,10 +220,19 @@ class LandingClient:
         Raises:
             LandingError, httpx.HTTPError: strona glowna niedostepna.
         """
-        # parsowanie cudzej tresci poza petla zdarzen: nawet przypadek
-        # patologiczny nie zatrzyma czatu (backend ma jednego workera)
-        html = await self._get(self.source_url, MAX_PAGE_BYTES)
-        page = await asyncio.to_thread(parse_landing_page, html)
+        api = await self._api_occasion()
+        if api is None:
+            # API: zadna okazja nie trwa - strony nie trzeba pobierac
+            page = LandingPage(occasion=None)
+        else:
+            # parsowanie cudzej tresci poza petla zdarzen: nawet przypadek
+            # patologiczny nie zatrzyma czatu (backend ma jednego workera)
+            html = await self._get(self.source_url, MAX_PAGE_BYTES)
+            page = await asyncio.to_thread(parse_landing_page, html)
+            if isinstance(api, ApiOccasion) and page.occasion != api.occasion:
+                # strona jeszcze (albo juz) pokazuje co innego niz API, np. z
+                # pamieci CDN - bez motywu, az obie sie zgodza
+                page = LandingPage(occasion=None)
         if page.occasion is None:
             self._modules.clear()
             self._forget_except(None)
@@ -181,6 +246,7 @@ class LandingClient:
             theme_color=page.color,
             palette=dict(page.palette),
             facades=facades,
+            ends_in=api.ends_in if isinstance(api, ApiOccasion) else None,
         )
 
 
@@ -223,9 +289,13 @@ class OccasionStore:
 
     def current(self) -> OccasionSnapshot | None:
         with self._lock:
-            if self._snapshot is None or self._clock() - self._updated_at > self._stale_after:
+            snapshot = self._snapshot
+            if snapshot is None:
                 return None
-            return self._snapshot
+            age = self._clock() - self._updated_at
+            if age > self._stale_after or (snapshot.ends_in is not None and age >= snapshot.ends_in):
+                return None
+            return snapshot
 
     def facade(self, version: str) -> Facade | None:
         """Fasada biezacej okazji o tej wersji (stare wersje juz nie sa podawane)."""
@@ -258,10 +328,12 @@ async def refresh_once(store: OccasionStore, client: LandingClient) -> None:
     store.set(snapshot)
 
 
-async def refresh_loop(store: OccasionStore, source_url: str, interval_seconds: int) -> None:
+async def refresh_loop(
+    store: OccasionStore, source_url: str, interval_seconds: int, api_token: str | None = None
+) -> None:
     """Odswieza stan przy starcie i potem co interval_seconds (do anulowania)."""
     async with httpx.AsyncClient(follow_redirects=False) as http:
-        client = LandingClient(http, source_url)
+        client = LandingClient(http, source_url, api_token)
         while True:
             try:
                 await refresh_once(store, client)

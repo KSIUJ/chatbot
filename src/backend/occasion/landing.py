@@ -12,14 +12,21 @@ tajny - konkurs odznak). Czytamy z niej:
   w ktorym jest adres fasady: `facade:a` (stala) albo `facade:{pl:a,en:b}`.
 
 To odczyt cudzej, zminifikowanej strony, wiec wszystko jest sprawdzane
-wzorcami, a cos nieoczekiwanego daje "brak" zamiast bledu. Gdy landing dostanie
-/api/occasion, wystarczy podmienic ten modul.
+wzorcami, a cos nieoczekiwanego daje "brak" zamiast bledu.
+
+API ksi.sh (`GET /api/occasion` z tokenem Bearer) mowi tylko, ktora okazja
+trwa i od kiedy do kiedy: `{"occasion": "...", "start": ISO, "end": ISO}`.
+Kolorow i fasady nie podaje, wiec wyglad dalej pochodzi ze strony. Terminy
+zostaja w backendzie (parse_api_occasion zamienia je na "sekundy do konca") -
+nigdy w odpowiedziach czatu ani w logach.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from html.parser import HTMLParser
 
 OCCASION_ID = re.compile(r"[a-z0-9-]{1,40}")
@@ -188,3 +195,56 @@ def parse_facade_paths(module: str, occasion: str) -> FacadePaths | None:
         return None
     # grafika tylko w jednym jezyku sluzy obu
     return FacadePaths(pl=paths.get("pl") or paths["en"], en=paths.get("en") or paths["pl"])
+
+
+class ApiResponseError(ValueError):
+    """Odpowiedz API ksi.sh w nieznanym ksztalcie."""
+
+
+@dataclass(frozen=True)
+class ApiOccasion:
+    """Okazja trwajaca wedlug API ksi.sh."""
+
+    occasion: str
+    # sekundy do konca okazji (None = API nie podalo konca); repr=False, zeby
+    # termin nie trafil do logu przy wypisaniu obiektu
+    ends_in: float | None = field(default=None, repr=False)
+
+
+def _instant(value: object) -> datetime | None:
+    """Chwila ISO 8601 ze strefa (np. "2026-01-01T10:00:00.000Z"); brak = None."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ApiResponseError("termin nie jest tekstem")
+    try:
+        instant = datetime.fromisoformat(value)
+    except ValueError:
+        raise ApiResponseError("termin nie jest data ISO 8601") from None
+    if instant.tzinfo is None:
+        raise ApiResponseError("termin bez strefy czasowej")
+    return instant
+
+
+def parse_api_occasion(text: str, now: datetime) -> ApiOccasion | None:
+    """Trwajaca okazja z odpowiedzi API; None, gdy zadna nie trwa w chwili `now`
+    (brak okazji, okazja jeszcze sie nie zaczela albo juz skonczyla).
+
+    Raises:
+        ApiResponseError: odpowiedz w nieznanym ksztalcie.
+    """
+    try:
+        data = json.loads(text)
+    except ValueError:
+        raise ApiResponseError("odpowiedz nie jest JSON-em") from None
+    if not isinstance(data, dict):
+        raise ApiResponseError("odpowiedz nie jest obiektem")
+    occasion = data.get("occasion")
+    if occasion is None or occasion == "":
+        return None
+    if not isinstance(occasion, str) or OCCASION_ID.fullmatch(occasion) is None:
+        raise ApiResponseError("nieprawidlowy identyfikator okazji")
+    start, end = _instant(data.get("start")), _instant(data.get("end"))
+    if (start is not None and start > now) or (end is not None and end <= now):
+        return None
+    return ApiOccasion(occasion=occasion, ends_in=None if end is None else (end - now).total_seconds())

@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.backend.occasion.landing import FacadePaths, parse_facade_paths, parse_landing_page
+from src.backend.occasion.landing import (
+    ApiResponseError,
+    FacadePaths,
+    parse_api_occasion,
+    parse_facade_paths,
+    parse_landing_page,
+)
 
 from occasion_samples import (
     COLOR,
@@ -200,3 +208,55 @@ def test_module_without_facade_gives_none():
     module = entry_module().replace("facade:a", "notFound:a")
 
     assert parse_facade_paths(module, OCCASION) is None
+
+
+# --- API ksi.sh (/api/occasion) ------------------------------------------------
+
+NOW = datetime(2030, 1, 15, 12, 0, tzinfo=timezone.utc)
+
+
+def _api_body(occasion: object = OCCASION, start: object = "2030-01-10T10:00:00.000Z",
+              end: object = "2030-01-15T13:00:00.000Z") -> str:
+    return json.dumps({"occasion": occasion, "start": start, "end": end})
+
+
+def test_api_running_occasion_with_seconds_to_its_end():
+    api = parse_api_occasion(_api_body(), NOW)
+
+    assert api is not None and api.occasion == OCCASION
+    assert api.ends_in == timedelta(hours=1).total_seconds()
+    # termin konca nie trafia do logu przy wypisaniu obiektu
+    assert "3600" not in repr(api)
+
+
+@pytest.mark.parametrize("body", ['{"occasion": null}', '{"occasion": ""}', "{}"])
+def test_api_without_occasion_gives_none(body):
+    assert parse_api_occasion(body, NOW) is None
+
+
+def test_api_occasion_outside_its_dates_gives_none():
+    assert parse_api_occasion(_api_body(start="2030-01-16T00:00:00Z"), NOW) is None
+    assert parse_api_occasion(_api_body(end="2030-01-15T12:00:00Z"), NOW) is None
+
+
+def test_api_occasion_without_dates_has_no_known_end():
+    api = parse_api_occasion(json.dumps({"occasion": OCCASION}), NOW)
+
+    assert api is not None and api.ends_in is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "not json",
+        "[]",
+        _api_body(occasion="Bad Id!"),
+        _api_body(occasion=7),
+        _api_body(end="tomorrow"),
+        _api_body(end="2030-01-15T13:00:00"),  # bez strefy
+        _api_body(start=12345),
+    ],
+)
+def test_api_in_unknown_shape_raises(body):
+    with pytest.raises(ApiResponseError):
+        parse_api_occasion(body, NOW)

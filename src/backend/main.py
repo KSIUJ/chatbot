@@ -159,7 +159,9 @@ def start_occasion_task() -> asyncio.Task[None] | None:
     if settings.source_url is None:
         store.set(None)
         return None
-    return asyncio.create_task(refresh_loop(store, settings.source_url, settings.refresh_seconds))
+    return asyncio.create_task(
+        refresh_loop(store, settings.source_url, settings.refresh_seconds, api_token=settings.api_token)
+    )
 
 
 @contextlib.asynccontextmanager

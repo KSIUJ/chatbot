@@ -36,8 +36,8 @@ def test_enabled_feature_starts_the_refresh_loop(monkeypatch, fresh_state):
     monkeypatch.setenv("OCCASION_SOURCE_URL", "https://landing.test/")
     started: list[tuple[str, int]] = []
 
-    async def fake_loop(_store, source_url: str, interval: int) -> None:
-        started.append((source_url, interval))
+    async def fake_loop(_store, source_url: str, interval: int, api_token: str | None = None) -> None:
+        started.append((source_url, interval, api_token))
 
     monkeypatch.setattr(main_module, "refresh_loop", fake_loop)
 
@@ -48,4 +48,4 @@ def test_enabled_feature_starts_the_refresh_loop(monkeypatch, fresh_state):
 
     asyncio.run(run())
 
-    assert started == [("https://landing.test/", 60)]
+    assert started == [("https://landing.test/", 60, None)]
