@@ -24,8 +24,20 @@ tests/           testy backendu (pytest)
 
 ## Uruchomienie (Docker)
 
+Całość jednym poleceniem (Linux, macOS, Git Bash na Windows):
+
 ```bash
 cp .env.example .env    # uzupełnij OIDC_CLIENT_SECRET, AUTH_SECRET_KEY i klucz wybranego LLM
+./deploy.sh             # start albo aktualizacja po zmianach w kodzie
+./deploy.sh --pull      # wdrożenie na serwerze: najpierw git pull
+./deploy.sh --help      # pozostałe opcje (--seed, --gpu, --no-backup, --timeout)
+```
+
+`deploy.sh` sprawdza Dockera i wymagane zmienne w `.env` (nie wypisuje ich wartości), robi spójną kopię bazy kont i rozmów do `backups/` (ostatnie 10), buduje obrazy, startuje kontenery i czeka, aż strona odpowie pod `http://127.0.0.1:FRONTEND_PORT`. Przy `LLM_PROVIDER=ollama` sam włącza profil z Ollamą; `--seed` kopiuje lokalne `data/` i `dataset/` do kontenera. Gdy coś nie wstanie, pokazuje stan kontenerów i logi backendu. Zatrzymanie: `docker compose down`.
+
+To samo ręcznie:
+
+```bash
 docker compose up -d --build                     # LLM przez API (claude/openrouter/cursor)
 docker compose --profile ollama up -d --build    # z lokalną Ollamą (LLM_PROVIDER=ollama)
 ```
@@ -95,7 +107,7 @@ Klient `chatbot` w realmie `ksi`:
 - Valid post logout redirect URIs: `https://chat.ksi.sh/`.
 - Mapper *Group Membership*: claim `groups`, Full group path i Add to userinfo włączone.
 
-Wdrożenie na `chat.ksi.sh`: zrób kopię bazy, ustaw w `.env` na serwerze `OIDC_REDIRECT_URI=https://chat.ksi.sh/api/auth/callback`, `OIDC_CLIENT_SECRET`, nowy `AUTH_SECRET_KEY` i klucz LLM, potem `git pull && docker compose up -d --build`. Reverse proxy z TLS musi przekazywać `/api/*` bez zmian i nie buforować ani nie kompresować odpowiedzi `text/event-stream` (inaczej odpowiedzi nie będą się pojawiać na bieżąco).
+Wdrożenie na `chat.ksi.sh`: ustaw w `.env` na serwerze `OIDC_REDIRECT_URI=https://chat.ksi.sh/api/auth/callback`, `OIDC_CLIENT_SECRET`, nowy `AUTH_SECRET_KEY` i klucz LLM, potem `./deploy.sh --pull` (kopia bazy, `git pull`, przebudowa i start). Reverse proxy z TLS musi przekazywać `/api/*` bez zmian i nie buforować ani nie kompresować odpowiedzi `text/event-stream` (inaczej odpowiedzi nie będą się pojawiać na bieżąco).
 
 Pozostałe zmienne (historia rozmów, RAG, modele) są opisane w `.env.example`.
 
