@@ -34,3 +34,6 @@ coverage/
 .idea/
 .DS_Store
 Thumbs.db
+
+# wyniki przebiegow ewaluacji RAG (punkt odniesienia: rag_eval/baseline-current.json)
+rag_eval/results/
