@@ -62,6 +62,8 @@ export const es: Translation = {
   loadError: 'No se pudo cargar esta conversación.',
   sources: (count) => `Fuentes (${count})`,
   sourceKinds: {
+    uj_pages: 'Sitio web de la UJ',
+    ksi: 'KSI (asociación estudiantil)',
     strony: 'Sitio web de la facultad',
     usos: 'USOS',
     mordor: 'Mordor (materiales de estudiantes)',

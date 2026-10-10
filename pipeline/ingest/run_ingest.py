@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.backend.rag.core.documents import Document
 from src.backend.rag.registry import create_sources
+from src.backend.rag.sources.base import RagSource
 
 if TYPE_CHECKING:
     from src.backend.rag.core.lexical import LexicalIndex
@@ -25,8 +27,16 @@ if TYPE_CHECKING:
 
 Loader = Callable[[], list[Document]]
 
-# zrodlo z rejestru -> wczytanie jego danych z data/
-SOURCE_LOADERS: dict[str, Loader] = {name: source.load_documents for name, source in create_sources().items()}
+DATA_DIR = Path("data")
+
+
+def _loader(source: RagSource) -> Loader:
+    return lambda: source.load_documents(DATA_DIR)
+
+
+# zrodlo z rejestru -> wczytanie jego zbioru z data/<zrodlo>/ (format: rag/DATASETS.md;
+# stare wyjscie scraperow najpierw: python -m src.backend.rag.datasets_cli convert)
+SOURCE_LOADERS: dict[str, Loader] = {name: _loader(source) for name, source in create_sources().items()}
 
 BATCH_SIZE = 256
 

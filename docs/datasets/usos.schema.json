@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "Position": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Position",
+      "type": "object"
+    },
+    "Room": {
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "default": "",
+          "title": "Number",
+          "type": "string"
+        },
+        "building": {
+          "default": "",
+          "title": "Building",
+          "type": "string"
+        }
+      },
+      "title": "Room",
+      "type": "object"
+    },
+    "StaffAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "usos_id": {
+          "minLength": 1,
+          "title": "Usos Id",
+          "type": "string"
+        },
+        "first_name": {
+          "default": "",
+          "title": "First Name",
+          "type": "string"
+        },
+        "last_name": {
+          "minLength": 1,
+          "title": "Last Name",
+          "type": "string"
+        },
+        "titles_before": {
+          "default": "",
+          "title": "Titles Before",
+          "type": "string"
+        },
+        "titles_after": {
+          "default": "",
+          "title": "Titles After",
+          "type": "string"
+        },
+        "positions": {
+          "items": {
+            "$ref": "#/$defs/Position"
+          },
+          "title": "Positions",
+          "type": "array"
+        },
+        "room": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Room"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "office_hours": {
+          "default": "",
+          "title": "Office Hours",
+          "type": "string"
+        },
+        "interests": {
+          "default": "",
+          "title": "Interests",
+          "type": "string"
+        },
+        "email": {
+          "default": "",
+          "title": "Email",
+          "type": "string"
+        },
+        "phones": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Phones",
+          "type": "array"
+        },
+        "homepage_url": {
+          "default": "",
+          "title": "Homepage Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "usos_id",
+        "last_name"
+      ],
+      "title": "StaffAttributes",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Pracownik; id = id osoby w USOS, title = imie i nazwisko, url = profil\nw USOSweb. Rekord bez tresci - wszystko jest w attributes.",
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "staff",
+      "title": "Kind",
+      "type": "string"
+    },
+    "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    },
+    "lang": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lang"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "content": {
+      "default": "",
+      "title": "Content",
+      "type": "string"
+    },
+    "attributes": {
+      "$ref": "#/$defs/StaffAttributes"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "attributes"
+  ],
+  "title": "StaffRecord",
+  "type": "object"
+}

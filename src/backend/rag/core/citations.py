@@ -11,8 +11,9 @@ from typing import Literal, TypedDict
 from urllib.parse import unquote, urlsplit
 
 # Nazwy zrodel, ktore moga sie pojawic w zapisanych odpowiedziach (Message.sources
-# i odpowiedzi API) - test rejestru pilnuje zgodnosci z rag/registry.py.
-CitationKind = Literal["strony", "usos", "mordor"]
+# i odpowiedzi API) - test rejestru pilnuje zgodnosci z rag/registry.py. "strony"
+# to dawna nazwa uj_pages - zostaje dla odpowiedzi zapisanych przed zmiana.
+CitationKind = Literal["uj_pages", "usos", "mordor", "ksi", "strony"]
 
 _HTTP_SCHEMES = ("http", "https")
 

@@ -48,6 +48,16 @@ describe('parseSources', () => {
     expect(result).toEqual([{ kind: 'usos', title: 'dr Jan Kowalski', url: null }]);
   });
 
+  it('accepts the current kinds and the old name of UJ pages', () => {
+    const sources = [
+      { kind: 'uj_pages', title: 'matinf.uj.edu.pl/studenci', url: 'https://matinf.uj.edu.pl/studenci' },
+      { kind: 'ksi', title: 'Jak dołączyć do KSI', url: null },
+      { kind: 'strony', title: 'Stara odpowiedź', url: 'https://matinf.uj.edu.pl/' },
+    ];
+
+    expect(parseSources(sources)).toEqual(sources);
+  });
+
   it('treats a missing list as no sources', () => {
     expect(parseSources(undefined)).toEqual([]);
     expect(parseSources({ kind: 'strony' })).toEqual([]);
@@ -58,6 +68,8 @@ describe('sourceHref', () => {
   it('links website and USOS sources with a safe URL', () => {
     expect(sourceHref({ kind: 'strony', title: 'A', url: 'https://a.pl/' })).toBe('https://a.pl/');
     expect(sourceHref({ kind: 'usos', title: 'B', url: 'https://usos.pl/x' })).toBe('https://usos.pl/x');
+    expect(sourceHref({ kind: 'uj_pages', title: 'F', url: 'https://uj.edu.pl/' })).toBe('https://uj.edu.pl/');
+    expect(sourceHref({ kind: 'ksi', title: 'G', url: 'https://ksi.ii.uj.edu.pl/' })).toBe('https://ksi.ii.uj.edu.pl/');
   });
 
   it('never links Mordor sources or unsafe URLs', () => {

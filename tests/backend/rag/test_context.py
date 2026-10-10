@@ -34,7 +34,7 @@ def _hit(id_, source, value, metadata, content_type="text"):
 
 
 KOWALSKI = _hit("usos_1", "usos", "Jan Kowalski, pokoj 101.", {"employee_name": "Jan Kowalski"})
-DZIEKANAT = _hit("strony_1", "strony", "Dziekanat czynny pon-pt 8-15.", {"url": "https://matinf.uj.edu.pl/dziekanat"})
+DZIEKANAT = _hit("uj_pages_1", "uj_pages", "Dziekanat czynny pon-pt 8-15.", {"url": "https://matinf.uj.edu.pl/dziekanat"})
 NOTATKA = _hit("mordor_1", "mordor", "Notatka ze studenckich materialow.", {"source_file": "notatka.pdf"})
 PLAN = _hit(
     "mordor_img_1", "mordor", "data/mordor/mapy/plan_budynku.png", {"file_name": "plan_budynku.png"}, content_type="image"
@@ -47,7 +47,7 @@ def test_fragments_are_labelled_with_their_source():
     prompt = retrieve_context("zasady zaliczenia", retriever=retriever).prompt
 
     assert "[mordor: notatka.pdf]\nNotatka ze studenckich materialow." in prompt
-    assert "[strony: https://matinf.uj.edu.pl/dziekanat]\nDziekanat czynny pon-pt 8-15." in prompt
+    assert "[uj_pages: https://matinf.uj.edu.pl/dziekanat]\nDziekanat czynny pon-pt 8-15." in prompt
     assert retriever.last_query == "zasady zaliczenia"
 
 
@@ -87,7 +87,7 @@ def test_citations_cover_text_and_image_hits():
 
     assert result.citations == [
         {"kind": "usos", "title": "Jan Kowalski", "url": "https://usosweb.uj.edu.pl/jk"},
-        {"kind": "strony", "title": "matinf.uj.edu.pl/dziekanat", "url": "https://matinf.uj.edu.pl/dziekanat"},
+        {"kind": "uj_pages", "title": "matinf.uj.edu.pl/dziekanat", "url": "https://matinf.uj.edu.pl/dziekanat"},
         {"kind": "mordor", "title": "plan_budynku.png", "url": None},
     ]
 

@@ -1,12 +1,14 @@
 import { useId, useState } from 'react';
-import { ChevronDown, FileText, Globe, User, type LucideIcon } from 'lucide-react';
+import { ChevronDown, FileText, Globe, User, Users, type LucideIcon } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
 import { sourceHref, type Source, type SourceKind } from './sources';
 
 const KIND_ICONS: Record<SourceKind, LucideIcon> = {
-  strony: Globe,
+  uj_pages: Globe,
   usos: User,
+  ksi: Users,
   mordor: FileText,
+  strony: Globe,
 };
 
 interface MessageSourcesProps {

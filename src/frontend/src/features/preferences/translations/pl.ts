@@ -59,6 +59,8 @@ export const pl: Translation = {
   loadError: 'Nie udało się wczytać rozmowy.',
   sources: (count) => `Źródła (${count})`,
   sourceKinds: {
+    uj_pages: 'Strona UJ',
+    ksi: 'Koło KSI',
     strony: 'Strona wydziału',
     usos: 'USOS',
     mordor: 'Mordor (materiały studenckie)',

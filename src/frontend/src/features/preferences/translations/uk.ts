@@ -62,6 +62,8 @@ export const uk: Translation = {
   loadError: 'Не вдалося завантажити розмову.',
   sources: (count) => `Джерела (${count})`,
   sourceKinds: {
+    uj_pages: 'Сайт UJ',
+    ksi: 'KSI (студентський гурток)',
     strony: 'Сайт факультету',
     usos: 'USOS',
     mordor: 'Mordor (студентські матеріали)',
