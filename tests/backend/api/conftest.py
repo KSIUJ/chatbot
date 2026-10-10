@@ -60,7 +60,7 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
     for name in ("CHAT_HISTORY_MAX_PER_USER", "CHAT_HISTORY_RETENTION_DAYS", "CHAT_HISTORY_PURGE_INTERVAL_HOURS"):
         monkeypatch.delenv(name, raising=False)
-    for name in (*ATTACHMENT_ENV_VARS, "OCCASION_SOURCE_URL", "OCCASION_REFRESH_SECONDS"):
+    for name in (*ATTACHMENT_ENV_VARS, "OCCASION_SOURCE_URL", "OCCASION_REFRESH_SECONDS", "OCCASION_API_TOKEN"):
         monkeypatch.delenv(name, raising=False)
     get_auth_settings.cache_clear()
     get_history_settings.cache_clear()
