@@ -12,7 +12,7 @@ import pytest
 
 from src.backend.llm import generate, stats as llm_stats
 from src.backend.llm.stats import LlmStats
-from src.backend.rag.context_builder import RagContext
+from src.backend.rag.core.context import RagContext
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def test_recording_is_thread_safe():
 
 def _fake_rag(monkeypatch) -> None:
     monkeypatch.setattr(generate, "condense", lambda query, history: query)
-    monkeypatch.setattr(generate, "retrieve_context", lambda query, k_mordor, k_other: RagContext("", [], []))
+    monkeypatch.setattr(generate, "retrieve_context", lambda query: RagContext("", [], []))
 
 
 def test_answer_records_success_and_error(monkeypatch, fresh_stats):

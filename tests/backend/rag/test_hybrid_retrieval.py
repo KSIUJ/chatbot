@@ -1,12 +1,30 @@
 """
-Testy hybrydowego retrievalu w retriever.py - przeplatanie trafien BM25
+Testy hybrydowego retrievalu w core/retrieval.py - przeplatanie trafien BM25
 i wektorowych oraz filtr tokenow po czestosci w indeksie leksykalnym.
 """
 
-from src.backend.rag.schema import Document
-from src.backend.rag.lexical import LexicalIndex
-from src.backend.rag.retriever import Retriever
-from src.backend.rag.vectorstore import VectorStore
+from src.backend.rag.core.documents import Document
+from src.backend.rag.core.lexical import LexicalIndex
+from src.backend.rag.core.retrieval import Retriever
+from src.backend.rag.core.vectorstore import VectorStore
+from src.backend.rag.registry import MORDOR_HEADER, OFFICIAL_HEADER, Pool
+
+
+def _pools(k_other=5, k_mordor=5):
+    return (
+        Pool("official", ("strony", "usos"), k_other, OFFICIAL_HEADER),
+        Pool("student", ("mordor",), k_mordor, MORDOR_HEADER),
+    )
+
+
+def _groups(retriever, query):
+    """Trafienia pul: {"mordor": [...], "other": [...]}."""
+    sections = {s.header: s.hits for s in retriever.retrieve(query)}
+    return {"mordor": sections[MORDOR_HEADER], "other": sections[OFFICIAL_HEADER]}
+
+
+def _staff(retriever, query):
+    return retriever.lookup_hits(retriever.sources["usos"], query)
 
 
 def _doc(id_, source, text):
@@ -20,7 +38,7 @@ def _make_retriever(tmp_path, encoder, documents):
     lexical = LexicalIndex(db_path=str(tmp_path / "lexical.db"))
     store.add_documents(documents)
     lexical.add_documents(documents)
-    return Retriever(encoder=encoder, vectorstore=store, lexical=lexical, staff=None)
+    return Retriever(encoder=encoder, vectorstore=store, lexical=lexical, pools=_pools(k_other=0, k_mordor=3))
 
 
 def test_interleave_reserves_half_the_slots_for_lexical():
@@ -45,7 +63,7 @@ def test_interleave_returns_empty_for_zero_k():
     assert Retriever._interleave([{"id": "a"}], [{"id": "b"}], 0) == []
 
 
-def test_retrieve_split_surfaces_exact_token_match(tmp_path, fake_encoder):
+def test_pool_surfaces_exact_token_match(tmp_path, fake_encoder):
     documents = [
         _doc("mordor_1", "mordor", "Sortowanie szybkie quicksort dzielenie tablicy pivot"),
     ] + [
@@ -54,7 +72,7 @@ def test_retrieve_split_surfaces_exact_token_match(tmp_path, fake_encoder):
     ]
     retriever = _make_retriever(tmp_path, fake_encoder, documents)
 
-    hits = retriever.retrieve_split("quicksort", k_mordor=3, k_other=0)["mordor"]
+    hits = _groups(retriever, "quicksort")["mordor"]
 
     assert "mordor_1" in [h["id"] for h in hits]
 

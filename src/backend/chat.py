@@ -27,7 +27,7 @@ from .llm.attachments import PromptAttachment
 from .llm.language import Language
 from .llm.provider import provider_supports_images
 from .models import Attachment, Conversation, Message, MessageRole
-from .rag.sources import Source
+from .rag.core.citations import Citation
 from .response import AttachmentInfo, FeedbackState, MessageResponse, parse_sources
 from .security.incidents import record_incident
 
@@ -139,7 +139,7 @@ def load_history(db: Session, turn: ChatTurn) -> list[dict[str, str]]:
     return build_history(get_messages(db, conversation.id), turn.regenerate)
 
 
-def save_exchange(db: Session, turn: ChatTurn, answer_text: str, sources: Sequence[Source]) -> Message:
+def save_exchange(db: Session, turn: ChatTurn, answer_text: str, sources: Sequence[Citation]) -> Message:
     """Zapisuje pytanie i odpowiedz; zwraca wiadomosc asystenta.
 
     Nowa rozmowa: zrobienie miejsca (limit na konto), zalozenie rozmowy,
@@ -168,7 +168,7 @@ def save_exchange(db: Session, turn: ChatTurn, answer_text: str, sources: Sequen
 
 
 def save_answer(
-    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Source]
+    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Citation]
 ) -> MessageResponse:
     """save_exchange we wlasnej sesji (strumien nie ma sesji zapytania)."""
     db = session_factory()
@@ -227,7 +227,7 @@ def record_turn_incident(
 
 
 def save_partial_answer(
-    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Source]
+    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Citation]
 ) -> MessageResponse | None:
     """Zapis przerwanej odpowiedzi (Stop, zamkniecie karty) tak samo jak
     pelnej. Bez zadnego tekstu nic nie zapisuje i zwraca None."""

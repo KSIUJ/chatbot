@@ -2,8 +2,8 @@
 Testy lexical.py - indeks BM25 (SQLite FTS5) uzywany rownolegle z vectorstore.
 """
 
-from src.backend.rag.schema import Document
-from src.backend.rag.lexical import LexicalIndex, fold, tokenize
+from src.backend.rag.core.documents import Document
+from src.backend.rag.core.lexical import LexicalIndex, fold, tokenize
 
 
 def _doc(id_, source, text):

@@ -1,7 +1,7 @@
 """
-CLI: ingest zrodel danych do wspolnego vectorstore i indeksu leksykalnego
-(src/backend/rag/). Uruchamiane z katalogu glownego repo (sciezki data/ i
-dataset/ sa wzgledne).
+CLI: ingest zrodel danych z rejestru RAG-a (src/backend/rag/registry.py) do
+wspolnego vectorstore i indeksu leksykalnego. Uruchamiane z katalogu glownego
+repo (sciezki data/ i dataset/ sa wzgledne).
 
 Uzycie:
     python -m pipeline.ingest.run_ingest
@@ -16,21 +16,17 @@ import argparse
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from src.backend.rag.schema import Document
-
-from . import from_mordor, from_strony, from_usos
+from src.backend.rag.core.documents import Document
+from src.backend.rag.registry import create_sources
 
 if TYPE_CHECKING:
-    from src.backend.rag.lexical import LexicalIndex
-    from src.backend.rag.vectorstore import VectorStore
+    from src.backend.rag.core.lexical import LexicalIndex
+    from src.backend.rag.core.vectorstore import VectorStore
 
 Loader = Callable[[], list[Document]]
 
-SOURCE_LOADERS: dict[str, Loader] = {
-    "mordor": from_mordor.load_documents,
-    "strony": from_strony.load_documents,
-    "usos": from_usos.load_documents,
-}
+# zrodlo z rejestru -> wczytanie jego danych z data/
+SOURCE_LOADERS: dict[str, Loader] = {name: source.load_documents for name, source in create_sources().items()}
 
 BATCH_SIZE = 256
 
@@ -44,6 +40,9 @@ def _ingest_source(
     purge: bool,
 ) -> int:
     """Zapisuje dokumenty jednego zrodla; zwraca liczbe faktycznie dodanych."""
+    foreign = sorted({d.source for d in documents} - {source})
+    if foreign:
+        raise ValueError(f"{source}: dokumenty innego zrodla ({', '.join(foreign)})")
     if purge:
         removed = store.delete_source(source)
         removed_lex = lexical.delete_source(source)
@@ -81,11 +80,11 @@ def run_ingest(
     """
     loaders = loaders or SOURCE_LOADERS
     if store is None:
-        from src.backend.rag.vectorstore import VectorStore
+        from src.backend.rag.core.vectorstore import VectorStore
 
         store = VectorStore()
     if lexical is None:
-        from src.backend.rag.lexical import LexicalIndex
+        from src.backend.rag.core.lexical import LexicalIndex
 
         lexical = LexicalIndex()
 
@@ -103,8 +102,8 @@ def run_ingest(
 
 def rebuild_lexical(batch_size: int = 5000) -> int:
     """Odbudowuje indeks leksykalny z tresci zapisanych w vectorstore."""
-    from src.backend.rag.lexical import LexicalIndex
-    from src.backend.rag.vectorstore import VectorStore
+    from src.backend.rag.core.lexical import LexicalIndex
+    from src.backend.rag.core.vectorstore import VectorStore
 
     collection = VectorStore().collection
     lexical = LexicalIndex()

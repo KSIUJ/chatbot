@@ -15,9 +15,9 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 - Do pytania można dołączyć pliki (PDF, DOCX, TXT, obrazy) — szczegóły w sekcji *Załączniki*.
 
 ```
-src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie), limits/, admin/, attachments/, history.py
+src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie: sources/ — źródła danych, core/ — indeksy i retrieval, registry.py), limits/, admin/, attachments/, history.py
 src/frontend/    aplikacja React (+ nginx w obrazie Dockera)
-pipeline/        scrapers/ (mordor, strony, usos) i ingest/ (ładowanie danych do bazy RAG)
+pipeline/        scrapers/ (mordor, strony, usos) i ingest/ (ładowanie danych źródeł z rejestru RAG do bazy)
 alembic/         migracje bazy aplikacji
 tests/           testy backendu (pytest)
 ```

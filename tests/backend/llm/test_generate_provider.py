@@ -6,7 +6,7 @@ import pytest
 
 from src.backend.llm import claude_client, cursor_client, generate, ollama_client, openrouter_client
 from src.backend.llm.provider import current_provider, env_setting
-from src.backend.rag.context_builder import RagContext
+from src.backend.rag.core.context import RagContext
 
 
 def test_defaults_to_ollama_when_env_var_missing(monkeypatch):
@@ -77,7 +77,7 @@ def _fake_rag(monkeypatch):
     monkeypatch.setattr(
         generate,
         "retrieve_context",
-        lambda query, k_mordor, k_other: RagContext("kontekst", ["a/b/plan.png"], list(SOURCES)),
+        lambda query: RagContext("kontekst", ["a/b/plan.png"], list(SOURCES)),
     )
 
 

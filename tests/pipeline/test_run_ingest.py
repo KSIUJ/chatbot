@@ -4,7 +4,7 @@ Testy pipeline/ingest/run_ingest.py na atrapach vectorstore i indeksu FTS
 """
 
 from pipeline.ingest.run_ingest import run_ingest
-from src.backend.rag.schema import Document
+from src.backend.rag.core.documents import Document
 
 
 def _doc(id_: str, source: str = "usos") -> Document:
@@ -78,3 +78,17 @@ def test_ingests_only_selected_sources_in_batches():
     assert called == ["mordor"]
     assert summary == {"mordor": 5}
     assert len(store.docs) == 5
+
+
+def test_loader_returning_another_sources_documents_is_rejected():
+    import pytest
+
+    with pytest.raises(ValueError, match="innego zrodla"):
+        _run({"usos": lambda: [_doc("x_1", source="strony")]})
+
+
+def test_default_loaders_come_from_the_registry():
+    from pipeline.ingest.run_ingest import SOURCE_LOADERS
+    from src.backend.rag.registry import create_sources
+
+    assert set(SOURCE_LOADERS) == set(create_sources())

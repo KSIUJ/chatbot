@@ -1,9 +1,24 @@
 """
-Testy sources.py - lista zrodel odpowiedzi (strony, USOS, mordor) budowana z
-trafien RAG-a, ktore trafily do kontekstu.
+Zrodla odpowiedzi (Citation): RagSource.cite kazdego zrodla (strony, USOS,
+mordor) i lista bez powtorzen z trafien, ktore trafily do kontekstu
+(core/citations.py).
 """
 
-from src.backend.rag.sources import collect_sources, source_from_hit
+import typing
+
+from src.backend.rag.core.citations import CitationKind, collect_citations
+from src.backend.rag.registry import create_sources
+
+SOURCES = create_sources()
+
+
+def source_from_hit(hit):
+    source = SOURCES.get(hit["source"])
+    return source.cite(hit) if source is not None else None
+
+
+def collect_sources(hits):
+    return collect_citations(hits, source_from_hit)
 
 
 def _hit(source: str, metadata: dict, content_type: str = "text", value: str = "tresc") -> dict:
@@ -80,3 +95,15 @@ def test_collect_sources_deduplicates_and_keeps_order():
         ("strony", "matinf.uj.edu.pl/dziekanat"),
         ("mordor", "regulamin.pdf"),
     ]
+
+
+def test_citation_kinds_match_the_registered_sources():
+    # zapisane odpowiedzi (Message.sources) i API waliduja kind tym typem
+    assert set(typing.get_args(CitationKind)) == set(SOURCES)
+
+
+def test_fragment_labels_per_source():
+    assert SOURCES["strony"].label(_hit("strony", {"url": "https://a.pl/x"})) == "https://a.pl/x"
+    assert SOURCES["usos"].label(_hit("usos", {"employee_name": "Jan Kowalski"})) == "Jan Kowalski"
+    assert SOURCES["mordor"].label(_hit("mordor", {"source_file": "notatki.pdf"})) == "notatki.pdf"
+    assert SOURCES["mordor"].label(_hit("mordor", {})) == "mordor"

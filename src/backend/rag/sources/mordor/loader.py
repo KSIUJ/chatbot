@@ -16,9 +16,9 @@ import os
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from src.backend.rag.schema import Document, make_id
+from ...core.documents import Document, make_id
 
-from .chunking import make_splitter
+from ...core.chunking import make_splitter
 
 if TYPE_CHECKING:
     from langchain_text_splitters import RecursiveCharacterTextSplitter

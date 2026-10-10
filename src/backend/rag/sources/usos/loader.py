@@ -16,7 +16,7 @@ import json
 import os
 import re
 
-from src.backend.rag.schema import Document, make_id
+from ...core.documents import Document, make_id
 
 STAFF_DIR = os.path.join("data", "usos", "staff")
 STAFF_FILE_GLOB = "staff_*.json"

@@ -9,7 +9,8 @@ import pytest
 
 from src.backend.llm import dates, generate
 from src.backend.llm.language import LANGUAGE_NAMES, LANGUAGES
-from src.backend.rag.context_builder import RagContext, STAFF_HEADER
+from src.backend.rag.core.context import RagContext
+from src.backend.rag.sources.usos import STAFF_HEADER
 
 NOW = datetime(2026, 10, 2, 10, 0, tzinfo=timezone.utc)
 
@@ -148,7 +149,7 @@ def test_prompt_uses_current_time_by_default(monkeypatch):
 
 def _capture_chat(monkeypatch, rag: RagContext) -> dict:
     monkeypatch.setattr(generate, "condense", lambda query, history: query)
-    monkeypatch.setattr(generate, "retrieve_context", lambda query, k_mordor, k_other: rag)
+    monkeypatch.setattr(generate, "retrieve_context", lambda query: rag)
     monkeypatch.setattr(generate, "utc_now", lambda: NOW)
     seen: dict = {}
 

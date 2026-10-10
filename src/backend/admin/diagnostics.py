@@ -33,10 +33,10 @@ from ..llm.generate import current_model
 from ..llm.provider import current_provider
 from ..llm.stats import describe_error
 from ..models import Conversation, DailyUsage, Message, MessageFeedback, SecurityIncident, User
-from ..rag import context_builder
-from ..rag.lexical import DEFAULT_DB_PATH as DEFAULT_LEXICAL_DB
-from ..rag.lexical import TABLE as LEXICAL_TABLE
-from ..rag.vectorstore import COLLECTION_NAME, DEFAULT_PERSIST_DIR
+from ..rag.core.context import loaded_retriever
+from ..rag.core.lexical import DEFAULT_DB_PATH as DEFAULT_LEXICAL_DB
+from ..rag.core.lexical import TABLE as LEXICAL_TABLE
+from ..rag.core.vectorstore import COLLECTION_NAME, DEFAULT_PERSIST_DIR
 from .schemas import (
     DiagnosticsResponse,
     LlmDiagnostics,
@@ -169,7 +169,7 @@ def totals_section(db: Session) -> TotalsDiagnostics:
 def _vector_count(directory: Path) -> int:
     """Liczba wpisow w kolekcji Chromy. Uzywa juz zaladowanego retrievera,
     a bez niego otwiera klienta tylko na istniejacej bazie."""
-    retriever = context_builder._default_retriever
+    retriever = loaded_retriever()
     if retriever is not None and Path(retriever.vectorstore.persist_dir).resolve() == directory.resolve():
         return retriever.vectorstore.count()
     if not (directory / CHROMA_DB_FILE).is_file():

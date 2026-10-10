@@ -1,4 +1,4 @@
-"""Wspolny podzial tekstu na chunki dla zrodel mordor i strony."""
+"""Wspolny podzial tekstu na chunki (zrodla z dlugimi tekstami: strony, mordor)."""
 
 from __future__ import annotations
 

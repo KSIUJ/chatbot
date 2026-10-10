@@ -15,7 +15,7 @@ from src.backend.llm.attachments import (
     fair_shares,
 )
 from src.backend.llm.images import ImageInput
-from src.backend.rag.context_builder import RagContext
+from src.backend.rag.core.context import RagContext
 
 
 @pytest.mark.parametrize(
@@ -93,7 +93,7 @@ def test_file_text_cannot_close_the_block_early():
 def _fake_rag(monkeypatch):
     monkeypatch.setattr(generate, "condense", lambda query, history: query)
     monkeypatch.setattr(
-        generate, "retrieve_context", lambda query, k_mordor, k_other: RagContext("kontekst", [], [])
+        generate, "retrieve_context", lambda query: RagContext("kontekst", [], [])
     )
 
 
