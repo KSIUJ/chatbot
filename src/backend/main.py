@@ -35,7 +35,7 @@ from .chat import (
     with_attachments,
 )
 from .chat_stream import SSE_HEADERS, chat_events
-from .config import APP_NAME, FRONTEND_ORIGINS
+from .config import API_DOCS, APP_NAME, FRONTEND_ORIGINS
 from .feedback import admin_router as feedback_admin_router, conversation_feedback, router as feedback_router
 from .database import (
     ANONYMOUS_CONVERSATIONS_COUNTER,
@@ -47,6 +47,7 @@ from .database import (
     get_db,
     get_messages,
     get_session_factory,
+    vacuum_free_pages,
 )
 from .auth.service import purge_expired_sessions
 from .limits import (
@@ -81,7 +82,7 @@ from .occasion.settings import get_occasion_settings
 from .occasion.state import get_occasion_store, refresh_loop
 from .llm.generate import answer as rag_answer, stream_answer as rag_stream
 from .llm.language import REFUSAL
-from .feedback.service import EMPTY_STATE
+from .feedback.service import EMPTY_STATE, purge_old_feedback
 from .security import admin_router as security_admin_router
 from .security.incidents import purge_old_incidents
 from .security.injection import detect_injection
@@ -109,6 +110,16 @@ def configure_logging() -> None:
     handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s: %(message)s"))
     package_logger.addHandler(handler)
     package_logger.setLevel(logging.INFO)
+    logging.getLogger("uvicorn.access").addFilter(skip_facade_requests)
+
+
+def skip_facade_requests(record: logging.LogRecord) -> bool:
+    """Bez wpisow o pobraniu fasady okazji w logu dostepu uvicorna: zdradzalyby,
+    kiedy trwala ktora okazja (harmonogram jest tajny, patrz occasion/).
+    Argumenty wpisu uvicorna: (klient, metoda, sciezka, wersja HTTP, status)."""
+    args = record.args
+    path = args[2] if isinstance(args, tuple) and len(args) > 2 else None
+    return not (isinstance(path, str) and path.startswith("/occasion/facade/"))
 
 
 configure_logging()
@@ -117,14 +128,18 @@ configure_logging()
 def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:
     """Zadania sprzatania w tle: nieuzywane rozmowy (razem z zalacznikami),
     wygasle sesje logowania, incydenty bezpieczenstwa starsze niz
-    INCIDENT_RETENTION_DAYS, dzienne liczniki starsze niz USAGE_RETENTION_DAYS
-    i niewyslane zalaczniki starsze niz doba."""
+    INCIDENT_RETENTION_DAYS, oceny bez zmian od FEEDBACK_RETENTION_DAYS,
+    dzienne liczniki starsze niz USAGE_RETENTION_DAYS, niewyslane zalaczniki
+    starsze niz doba, a na koniec VACUUM bazy SQLite."""
     return {
         "conversations": lambda db: purge_expired_conversations(db, settings.retention_days),
         "sessions": purge_expired_sessions,
         "incidents": purge_old_incidents,
+        "feedback": purge_old_feedback,
         "daily_usage": purge_old_usage,
         "attachments": purge_stale_attachments,
+        # na koncu: wolne strony po powyzszych DELETE
+        "vacuum": vacuum_free_pages,
     }
 
 
@@ -166,7 +181,14 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 # verify_origin sprawdza naglowek Origin przy kazdym POST/PUT/PATCH/DELETE
-app = FastAPI(title=APP_NAME, dependencies=[Depends(verify_origin)], lifespan=lifespan)
+app = FastAPI(
+    title=APP_NAME,
+    dependencies=[Depends(verify_origin)],
+    lifespan=lifespan,
+    docs_url="/docs" if API_DOCS else None,
+    redoc_url="/redoc" if API_DOCS else None,
+    openapi_url="/openapi.json" if API_DOCS else None,
+)
 # wyczerpany dzienny limit pytan -> 429 z kodem rate_limited (przed strumieniem)
 app.add_exception_handler(LimitExceeded, limit_exceeded_handler)
 # czat wylaczony przez zarzad -> 503 chat_disabled (przed limitem i modelem)
@@ -372,9 +394,9 @@ async def chat_stream(
     )
 
 
-@app.get("/stats", response_model=StatsResponse)
+@app.get("/stats", response_model=StatsResponse, dependencies=[Depends(require_member)])
 def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
-    """Zbiorcze statystyki uzycia."""
+    """Zbiorcze statystyki uzycia (tylko dla zalogowanych czlonkow KSI)."""
     return StatsResponse(
         accounts_created=count_users(db),
         anonymous_conversations=get_counter(db, ANONYMOUS_CONVERSATIONS_COUNTER),

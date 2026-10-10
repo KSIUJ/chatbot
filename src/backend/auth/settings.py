@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from ..config import DEFAULT_FRONTEND_ORIGINS, parse_origins
+from ..config import default_frontend_origins, parse_origins
 
 # Tylko algorytmy asymetryczne - HS* (klucz wspoldzielony) i "none" nigdy nie
 # moga podpisac tokenu, ktoremu ufamy. Keycloak KSI podpisuje obecnie ES256.
@@ -211,7 +211,7 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
     session_max_age_hours = as_int("AUTH_SESSION_MAX_AGE_HOURS", 24 * 7)
     http_timeout = as_float("OIDC_HTTP_TIMEOUT", 10.0)
 
-    frontend_origins = parse_origins(get("FRONTEND_ORIGINS", DEFAULT_FRONTEND_ORIGINS))
+    frontend_origins = parse_origins(get("FRONTEND_ORIGINS", default_frontend_origins(redirect_uri)))
     allowed_origins = tuple(dict.fromkeys([o for o in [public_origin, *frontend_origins] if o]))
 
     if errors:

@@ -156,6 +156,17 @@ def test_chat_raises_runtime_error_on_generic_status_error(transport):
         openrouter_client.chat(system="s", user="u")
 
 
+def test_status_error_does_not_carry_the_response_body(transport):
+    # bledy walidacji/moderacji potrafia powtorzyc pytanie - nie do logu
+    transport.response = FakeResponse(status_code=400, text="flagged input: moje dane osobowe")
+
+    with pytest.raises(RuntimeError) as error:
+        openrouter_client.chat(system="s", user="u")
+
+    assert "400" in str(error.value)
+    assert "dane osobowe" not in str(error.value)
+
+
 def test_chat_raises_runtime_error_on_connection_error(transport):
     transport.error = requests.RequestException("network down")
 

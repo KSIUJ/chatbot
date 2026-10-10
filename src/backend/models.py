@@ -106,10 +106,10 @@ class MessageFeedback(Base):
     wiec nie da sie "nabic" ocen. Pytanie, odpowiedz i zrodla sa kopiowane przy
     pierwszej ocenie: rozmowy znikaja po CHAT_HISTORY_RETENTION_DAYS (i przy
     regeneracji odpowiedzi), a oceny zostaja jako material do zbioru
-    ewaluacyjnego - message_id staje sie wtedy NULL.
-
-    user_id tez przechodzi na NULL po usunieciu konta (anonimizacja zamiast
-    kasowania): ocena dalej sluzy ewaluacji, ale nie wskazuje osoby.
+    ewaluacyjnego - message_id i user_id staja sie wtedy NULL (anonimizacja,
+    history.detach_feedback). Gdy uzytkownik sam usuwa rozmowe, wiersze z sama
+    ocena znikaja; wszystko starsze niz FEEDBACK_RETENTION_DAYS sprzata zadanie
+    w tle. user_id przechodzi na NULL takze po usunieciu konta.
     """
     __tablename__ = "message_feedback"
     __table_args__ = (

@@ -1,17 +1,22 @@
-requests
-python-dotenv
+# Wersje przypiete (takze zaleznosci posrednie w constraints.txt, ktorego
+# uzywa obraz Dockera) - przebudowa obrazu nie pobierze nowych wydan sama.
+# Aktualizacja: zmien wersje tutaj, zbuduj obraz i odswiez constraints.txt:
+#   docker compose run --rm --no-deps -T backend pip freeze > constraints.txt
+
+requests==2.34.2
+python-dotenv==1.2.4
 
 # Backend API (src/backend/main.py)
-fastapi
-uvicorn[standard]
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
 
 # Data w prompcie systemowym (src/backend/llm/dates.py): strefa Europe/Warsaw
 # takze na Windows i w obrazie slim (bez systemowej bazy stref czasowych)
-tzdata
+tzdata==2026.5
 
 # Claude API (src/backend/llm/claude_client.py) - opcjonalny dostawca LLM,
 # wlaczany przez LLM_PROVIDER=claude (patrz .env.example)
-anthropic
+anthropic==1.13.0
 
 # Cursor Cloud Agents API (src/backend/llm/cursor_client.py) - opcjonalny
 # dostawca LLM, wlaczany przez LLM_PROVIDER=cursor. Uzywa biblioteki requests
@@ -19,15 +24,15 @@ anthropic
 
 # RAG retrieval (src/backend/rag/) i ingest (pipeline/ingest/, uruchamiany
 # takze w kontenerze backendu)
-sentence-transformers
-chromadb
-langchain-text-splitters
-sqlalchemy
-alembic
-pymupdf4llm
+sentence-transformers==6.1.0
+chromadb==1.5.9
+langchain-text-splitters==1.1.3
+sqlalchemy==2.1.4
+alembic==1.20.0
+pymupdf4llm==1.28.2
 
 # Logowanie OIDC przez Keycloak KSI (src/backend/auth/) - klient HTTP,
 # walidacja podpisanych ID tokenow (JWKS) i szyfrowanie tokenow w bazie
-httpx
-joserfc
-cryptography
+httpx==0.28.1
+joserfc==1.7.5
+cryptography==50.0.2

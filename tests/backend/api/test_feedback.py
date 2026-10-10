@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
+from src.backend.feedback.service import FEEDBACK_RETENTION_DAYS, purge_old_feedback
 from src.backend.history import purge_expired_conversations
 from src.backend.models import Conversation, Message, MessageFeedback, MessageRole, User
 
@@ -246,18 +247,27 @@ def test_answer_without_feedback_has_empty_state(alice):
     assert answer["feedback"] == {"rating": None, "reported": False}
 
 
-# --- kopia przezywa usuniecie rozmowy -----------------------------------------
+# --- kopia przezywa usuniecie rozmowy, bez powiazania z osoba -------------------
 
-def test_feedback_survives_deleting_the_conversation(alice):
+def test_report_survives_deleting_the_conversation_anonymised(alice):
     conversation_id, answer_id = _answer(alice)
     _put(alice, answer_id, {"rating": -1, "report": {"reason": "wrong"}})
 
     assert alice.delete(f"/conversations/{conversation_id}").status_code == 204
 
     (row,) = _rows(alice)
-    assert row.message_id is None
+    assert row.message_id is None and row.user_id is None
     assert row.answer == "odpowiedz na: Kiedy sesja?"
     assert row.report_status == "open"
+
+
+def test_deleting_the_conversation_drops_plain_ratings(alice):
+    conversation_id, answer_id = _answer(alice)
+    _put(alice, answer_id, {"rating": 1})
+
+    assert alice.delete(f"/conversations/{conversation_id}").status_code == 204
+
+    assert _rows(alice) == []
 
 
 def test_feedback_survives_purging_expired_conversations(alice):
@@ -272,7 +282,7 @@ def test_feedback_survives_purging_expired_conversations(alice):
     db.close()
 
     (row,) = _rows(alice)
-    assert row.message_id is None and row.rating == 1
+    assert row.message_id is None and row.user_id is None and row.rating == 1
 
 
 def test_feedback_survives_regenerating_the_answer(alice):
@@ -282,7 +292,26 @@ def test_feedback_survives_regenerating_the_answer(alice):
     new_answer = _ask(alice, "Kiedy sesja?", conversation_id, regenerate=True)["message"]
 
     (row,) = _rows(alice)
-    assert row.message_id is None and row.rating == -1
+    assert row.message_id is None and row.user_id is None and row.rating == -1
     messages = alice.get(f"/conversations/{conversation_id}").json()["messages"]
     assert messages[-1]["id"] == new_answer["id"]
     assert messages[-1]["feedback"] == {"rating": None, "reported": False}
+
+
+# --- sprzatanie --------------------------------------------------------------------
+
+def test_purge_removes_feedback_unchanged_for_the_retention_period(alice):
+    _, old_id = _answer(alice, "Stare pytanie?")
+    _, new_id = _answer(alice, "Nowe pytanie?")
+    _put(alice, old_id, {"rating": 1})
+    _put(alice, new_id, {"rating": -1, "report": {"reason": "wrong"}})
+    db = alice.session_factory()
+    old = db.execute(select(MessageFeedback).where(MessageFeedback.message_id == old_id)).scalar_one()
+    old.updated_at = datetime.now(timezone.utc) - timedelta(days=FEEDBACK_RETENTION_DAYS + 1)
+    db.commit()
+
+    assert purge_old_feedback(db) == 1
+    db.close()
+
+    (row,) = _rows(alice)
+    assert row.message_id == new_id

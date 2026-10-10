@@ -15,7 +15,7 @@ from ..models import SecurityIncident, User, utcnow
 from .schemas import AdminIncidentItem, IncidentSource, IncidentUser
 
 # Incydenty wskazuja osobe - nie trzymamy ich dluzej niz pol roku.
-INCIDENT_RETENTION_DAYS = 180
+INCIDENT_RETENTION_DAYS = 90
 # Pytanie i tak ma limit w ChatRequest; tu na wypadek innych wywolan.
 MAX_QUESTION_LENGTH = 4000
 

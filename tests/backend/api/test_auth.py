@@ -413,3 +413,12 @@ def test_stats_count_ksi_accounts(client):
     login(client, client.keycloak, "bob")
 
     assert client.get("/stats").json()["accounts_created"] == 2
+
+
+def test_stats_require_login(client):
+    assert client.get("/stats").status_code == 401
+
+
+def test_api_docs_are_off_by_default(client):
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404

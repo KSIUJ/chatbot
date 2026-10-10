@@ -2,3 +2,6 @@ node_modules
 dist
 dist-ssr
 .eslintcache
+
+# sekrety: zmienne VITE_* trafilyby do publicznego bundla
+.env*

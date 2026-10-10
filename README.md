@@ -9,8 +9,8 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 - Odpowiedź pojawia się na bieżąco (strumieniowo, `POST /chat/stream`), w języku interfejsu (te same języki co logowanie KSI: polski, angielski, niemiecki, hiszpański, francuski, włoski, ukraiński; domyślnie język przeglądarki), z listą źródeł: strony wydziału, profile pracowników w USOS, pliki z Mordoru.
 - **Dane** pochodzą ze stron wydziału, USOS API (pracownicy) i Mordoru (materiały studenckie). Scrapery i ingest do bazy RAG są w `pipeline/`.
 - Wchodzą tylko osoby z grupy `/Członek` w Keycloaku KSI; członkostwo jest sprawdzane przy każdym zapytaniu.
-- Odpowiedzi można oceniać (kciuk w górę / w dół) i zgłaszać (błąd, nieaktualne, nieodpowiednie, inne); oceny z kopią pytania i odpowiedzi przegląda zarząd — grupa `OIDC_ADMIN_GROUP` (domyślnie `/Zarząd`) — przez `/api/admin/feedback` (lista, obsługa zgłoszeń, eksport CSV).
-- Prompt systemowy zawiera dzisiejszą datę i rok akademicki; próby obejścia jego zasad (heurystyka backendu i znacznik od modelu) są zapisywane jako incydenty dla zarządu (`/Zarząd`) — `/api/admin/incidents`, z danymi osoby, kasowane po 180 dniach.
+- Odpowiedzi można oceniać (kciuk w górę / w dół) i zgłaszać (błąd, nieaktualne, nieodpowiednie, inne); oceny z kopią pytania i odpowiedzi przegląda zarząd — grupa `OIDC_ADMIN_GROUP` (domyślnie `/Zarząd`) — przez `/api/admin/feedback` (lista, obsługa zgłoszeń, eksport CSV). Kopie są anonimizowane, gdy rozmowa znika; usunięcie rozmowy przez użytkownika kasuje też jego same oceny (zostają tylko zgłoszenia), a wszystko bez zmian od roku znika w tle.
+- Prompt systemowy zawiera dzisiejszą datę i rok akademicki; próby obejścia jego zasad (heurystyka backendu i znacznik od modelu) są zapisywane jako incydenty dla zarządu (`/Zarząd`) — `/api/admin/incidents`, z danymi osoby, kasowane po 90 dniach.
 - Każda osoba ma dzienny limit pytań (domyślnie 10); limity, zgłoszenia, incydenty i diagnostykę obsługuje zarząd w panelu administratora (niżej).
 - Do pytania można dołączyć pliki (PDF, DOCX, TXT, obrazy) — szczegóły w sekcji *Załączniki*.
 
@@ -33,7 +33,7 @@ cp .env.example .env    # uzupełnij OIDC_CLIENT_SECRET, AUTH_SECRET_KEY i klucz
 ./deploy.sh --help      # pozostałe opcje (--seed, --gpu, --no-backup, --timeout)
 ```
 
-`deploy.sh` sprawdza Dockera i wymagane zmienne w `.env` (nie wypisuje ich wartości), robi spójną kopię bazy kont i rozmów do `backups/` (ostatnie 10), buduje obrazy, startuje kontenery i czeka, aż strona odpowie pod `http://127.0.0.1:FRONTEND_PORT`. Przy `LLM_PROVIDER=ollama` sam włącza profil z Ollamą; `--seed` kopiuje lokalne `data/` i `dataset/` do kontenera. Gdy coś nie wstanie, pokazuje stan kontenerów i logi backendu. Zatrzymanie: `docker compose down`.
+`deploy.sh` sprawdza Dockera i wymagane zmienne w `.env` (nie wypisuje ich wartości), robi spójną kopię bazy kont i rozmów do `backups/` (ostatnie 10, nie starsze niż 30 dni, tylko dla właściciela pliku), buduje obrazy, startuje kontenery i czeka, aż strona odpowie pod `http://127.0.0.1:FRONTEND_PORT`. Przy `LLM_PROVIDER=ollama` sam włącza profil z Ollamą; `--seed` kopiuje lokalne `data/` i `dataset/` do kontenera. Gdy coś nie wstanie, pokazuje stan kontenerów i logi backendu. Zatrzymanie: `docker compose down`.
 
 To samo ręcznie:
 
@@ -53,16 +53,18 @@ Dane RAG (wolumeny `chatbot-data`, `chatbot-dataset`) są na starcie puste. Skop
 ```bash
 docker compose cp data/. backend:/app/data
 docker compose cp dataset/. backend:/app/dataset      # gotowy indeks albo:
-docker compose exec backend python -m pipeline.ingest.run_ingest
+docker compose exec -u app backend python -m pipeline.ingest.run_ingest
 docker compose restart backend
 ```
 
 Załączniki z czatu leżą w wolumenie `chatbot-uploads` (`/app/uploads`, `ATTACHMENTS_DIR`); znikają razem z rozmowami, więc nie trzeba ich kopiować razem z bazą.
 
+Backend działa jako użytkownik `app` (uid 10001), bez uprawnień roota. Polecenia w kontenerze uruchamiaj z `-u app`; pliki zapisane jako root (np. przez `docker compose cp`) dostają właściciela `app` przy następnym starcie kontenera.
+
 Kopia bazy kont i rozmów (wolumen `chatbot-db`):
 
 ```bash
-docker compose exec backend cp /app/db/chatbot.db /app/db/chatbot.db.bak
+docker compose exec -u app backend cp /app/db/chatbot.db /app/db/chatbot.db.bak
 ```
 
 ## Praca lokalna
