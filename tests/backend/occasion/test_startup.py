@@ -14,6 +14,8 @@ from src.backend.occasion.state import get_occasion_store
 @pytest.fixture
 def fresh_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("OCCASION_REFRESH_SECONDS", raising=False)
+    # src/backend/__init__.py wczytuje .env - prawdziwy token nie moze wplywac na test
+    monkeypatch.delenv("OCCASION_API_TOKEN", raising=False)
     get_occasion_settings.cache_clear()
     get_occasion_store.cache_clear()
     yield
