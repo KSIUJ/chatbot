@@ -18,6 +18,7 @@ from src.backend.database import get_db, get_session_factory
 from src.backend.history import get_history_settings
 from src.backend.limits.settings import ATTACHMENT_ENV_VARS, get_default_limits
 from src.backend.llm.generate import AnswerStream
+from src.backend.occasion.settings import get_occasion_settings
 from src.backend.models import Base, User
 
 from fake_keycloak import (
@@ -59,17 +60,19 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
     for name in ("CHAT_HISTORY_MAX_PER_USER", "CHAT_HISTORY_RETENTION_DAYS", "CHAT_HISTORY_PURGE_INTERVAL_HOURS"):
         monkeypatch.delenv(name, raising=False)
-    for name in ATTACHMENT_ENV_VARS:
+    for name in (*ATTACHMENT_ENV_VARS, "OCCASION_SOURCE_URL", "OCCASION_REFRESH_SECONDS"):
         monkeypatch.delenv(name, raising=False)
     get_auth_settings.cache_clear()
     get_history_settings.cache_clear()
     get_default_limits.cache_clear()
+    get_occasion_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
     yield
     get_auth_settings.cache_clear()
     get_history_settings.cache_clear()
     get_default_limits.cache_clear()
+    get_occasion_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
 
@@ -131,6 +134,8 @@ def client(auth_env, keycloak: FakeKeycloak, session_factory, monkeypatch: pytes
     monkeypatch.setattr(main_module, "rag_stream", fake_stream)
     # petla kasujaca stare rozmowy dzialalaby na prawdziwej bazie (DATABASE_URL)
     monkeypatch.setattr(main_module, "start_retention_task", lambda: None)
+    # testy nie lacza sie z ksi.sh (stan okazji podmieniaja przez get_occasion_store)
+    monkeypatch.setattr(main_module, "start_occasion_task", lambda: None)
     app = main_module.app
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_factory] = lambda: session_factory
