@@ -1,9 +1,18 @@
+# Logi kontenerow z rotacja (domyslnie rosna bez konca): najwyzej 3 x 10 MB
+# na kontener - stare logi nie mowia, kto i kiedy korzystal z czatu.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # Lokalny model dla LLM_PROVIDER=ollama. Startuje tylko z profilem:
   #   docker compose --profile ollama up -d --build
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
+    logging: *logging
     profiles: ["ollama"]
     volumes:
       - ollama-data:/root/.ollama
@@ -16,6 +25,7 @@ services:
   # Jednorazowe pobranie modelu OLLAMA_MODEL do wolumenu ollama-data.
   ollama-pull:
     image: ollama/ollama:latest
+    logging: *logging
     profiles: ["ollama"]
     depends_on:
       ollama:
@@ -30,6 +40,13 @@ services:
   backend:
     build: .
     restart: unless-stopped
+    logging: *logging
+    # Entrypoint jako root tylko poprawia wlasciciela wolumenow i przechodzi na
+    # uzytkownika "app" (docker-entrypoint.sh) - wiecej uprawnien nie trzeba.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
     # Konfiguracja (logowanie OIDC, dostawca LLM) z .env - patrz .env.example.
     env_file:
       - .env
@@ -42,7 +59,7 @@ services:
       - chatbot-data:/app/data
       # zalaczniki z czatu (ATTACHMENTS_DIR=uploads -> /app/uploads)
       - chatbot-uploads:/app/uploads
-      - hf-cache:/root/.cache/huggingface
+      - hf-cache:/app/.cache/huggingface
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -54,6 +71,7 @@ services:
   frontend:
     build: ./src/frontend
     restart: unless-stopped
+    logging: *logging
     depends_on:
       backend:
         condition: service_healthy

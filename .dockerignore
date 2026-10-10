@@ -7,10 +7,12 @@ __pycache__
 # dane i bazy - montowane jako wolumeny, nie pakowane do obrazu
 data
 dataset
-*.db
-*.db.bak*
+**/*.db
+**/*.db.bak*
 uploads
-.env
+# kopie bazy z deploy.sh i wszystkie warianty .env (sekrety)
+backups
+**/.env*
 
 tests
 src/frontend

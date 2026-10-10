@@ -7,6 +7,8 @@
 #   ./deploy.sh --pull     najpierw git pull (wdrozenie na serwerze)
 #   ./deploy.sh --help     wszystkie opcje
 set -euo pipefail
+# kopie bazy (konta, rozmowy) i nowy .env tylko dla wlasciciela
+umask 077
 
 cd "$(dirname "$0")"
 # Git Bash na Windows przerabia argumenty zaczynajace sie od "/" na sciezki Windows
@@ -15,6 +17,9 @@ export MSYS_NO_PATHCONV=1
 MIN_SECRET_KEY_LENGTH=32   # jak w src/backend/auth/settings.py
 BACKUPS_DIR=backups
 BACKUPS_KEPT=10
+# starszych kopii nie trzymamy (jak CHAT_HISTORY_RETENTION_DAYS) - zawieraja
+# rozmowy, ktore z bazy juz znikly
+BACKUPS_MAX_AGE_DAYS=30
 
 usage() {
   cat <<'EOF'
@@ -160,6 +165,9 @@ backup_database() {
     return
   fi
   mkdir -p "$BACKUPS_DIR"
+  # kopie sprzed umask 077 tez tylko dla wlasciciela
+  chmod 700 "$BACKUPS_DIR"
+  chmod 600 "$BACKUPS_DIR"/chatbot-*.db 2>/dev/null || true
   file="$BACKUPS_DIR/chatbot-$(date +%Y%m%d-%H%M%S).db"
   "${runner[@]}" python -c "$BACKUP_PY" > "$file" || status=$?
   if [ "$status" = 3 ]; then
@@ -172,6 +180,8 @@ backup_database() {
   # tylko ostatnie kopie, zeby nie zapelnic dysku (nazwy sa nasze, bez spacji)
   # shellcheck disable=SC2012
   ls -1t "$BACKUPS_DIR"/chatbot-*.db 2>/dev/null | tail -n +$((BACKUPS_KEPT + 1)) | xargs -r rm -f --
+  # i nie starsze niz BACKUPS_MAX_AGE_DAYS (swieza kopia przed chwila powstala)
+  find "$BACKUPS_DIR" -maxdepth 1 -name 'chatbot-*.db' -mtime +"$BACKUPS_MAX_AGE_DAYS" -delete
 }
 
 [ "$BACKUP" = 1 ] && backup_database
@@ -221,7 +231,7 @@ fi
 # shellcheck disable=SC2016  # $(...) ma sie wykonac w kontenerze, nie tutaj
 if ! "${COMPOSE[@]}" exec -T backend sh -c '[ -n "$(ls -A /app/dataset 2>/dev/null)" ]'; then
   warn "baza RAG jest pusta - bot nie zna danych wydzialu. Skopiuj je: ./deploy.sh --seed"
-  warn "albo zbuduj indeks: docker compose exec backend python -m pipeline.ingest.run_ingest"
+  warn "albo zbuduj indeks: docker compose exec -u app backend python -m pipeline.ingest.run_ingest"
 fi
 [ "$OLLAMA" = 1 ] && log "model Ollamy pobiera sie w tle przy pierwszym starcie: docker compose logs -f ollama-pull"
 

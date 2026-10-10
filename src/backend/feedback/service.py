@@ -7,8 +7,9 @@ import csv
 import io
 import json
 from collections.abc import Iterable
+from datetime import timedelta
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,6 +18,10 @@ from ..response import FeedbackState, parse_sources
 from .schemas import AdminFeedbackItem, FeedbackKind, FeedbackRequest, ReportStatus
 
 EMPTY_STATE = FeedbackState(rating=None, reported=False)
+
+# Oceny i zgloszenia (z kopia pytania i odpowiedzi) bez zmian dluzej niz tyle
+# dni kasuje zadanie w tle - zbior ewaluacyjny nie rosnie bez konca.
+FEEDBACK_RETENTION_DAYS = 365
 
 
 class FeedbackNotFound(LookupError):
@@ -267,3 +272,13 @@ def to_csv(rows: Iterable[MessageFeedback]) -> str:
     for row in rows:
         writer.writerow(_csv_row(row))
     return buffer.getvalue()
+
+
+# --- sprzatanie -------------------------------------------------------------------------
+
+def purge_old_feedback(db: Session, retention_days: int = FEEDBACK_RETENTION_DAYS) -> int:
+    """Kasuje oceny i zgloszenia bez zmian od retention_days (niezaleznie od statusu)."""
+    cutoff = utcnow() - timedelta(days=retention_days)
+    result = db.execute(delete(MessageFeedback).where(MessageFeedback.updated_at < cutoff))
+    db.commit()
+    return int(result.rowcount or 0)

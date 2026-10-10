@@ -88,6 +88,18 @@ def test_frontend_origins_are_trimmed_and_deduplicated():
     assert s.allowed_origins == ("https://chat.ksi.sh", "http://localhost:5173")
 
 
+def test_dev_origin_is_not_allowed_by_default_in_production():
+    s = load_auth_settings(BASE_ENV)
+
+    assert s.allowed_origins == ("https://chat.ksi.sh",)
+
+
+def test_dev_origin_is_allowed_by_default_over_http():
+    s = load_auth_settings({**BASE_ENV, "OIDC_REDIRECT_URI": "http://localhost:8080/api/auth/callback"})
+
+    assert s.allowed_origins == ("http://localhost:8080", "http://localhost:5173")
+
+
 def test_parse_origins_skips_blanks_and_trailing_slash():
     assert parse_origins("a.example, https://b.example/ ,, /") == ["a.example", "https://b.example"]
 

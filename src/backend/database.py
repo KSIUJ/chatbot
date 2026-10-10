@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import os
 from collections.abc import Generator, Sequence
+from typing import Any
 
-from sqlalchemy import create_engine, func, select, update
+from sqlalchemy import create_engine, event, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -19,6 +20,15 @@ DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./chatbot.db"
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
 engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+
+
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _secure_delete(dbapi_connection: Any, _connection_record: Any) -> None:
+        """Skasowane wiersze (rozmowy, zalaczniki, oceny) sa nadpisywane zerami,
+        zamiast zostac w wolnych stronach pliku bazy - i w kopiach z deploy.sh."""
+        dbapi_connection.execute("PRAGMA secure_delete=ON")
+
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
@@ -154,7 +164,20 @@ def delete_last_assistant_message(db: Session, conversation_id: str) -> bool:
     if not messages or messages[-1].role != MessageRole.ASSISTANT:
         return False
 
-    # ocena starej odpowiedzi zostaje (z kopia tekstu), bez powiazania
+    # ocena starej odpowiedzi zostaje (z kopia tekstu), bez powiazania z osoba
     detach_feedback(db, [messages[-1].id])
     db.delete(messages[-1])
     return True
+
+
+def vacuum_free_pages(db: Session) -> int:
+    """VACUUM bazy SQLite, gdy ma wolne strony (moga w nich zostac resztki
+    wierszy skasowanych przed wlaczeniem secure_delete). Zadanie sprzatajace
+    w tle; zwraca 0, bo nie kasuje wierszy. Inne bazy - bez zmian."""
+    bind = db.get_bind()
+    if bind.dialect.name != "sqlite":
+        return 0
+    with bind.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        if connection.exec_driver_sql("PRAGMA freelist_count").scalar_one():
+            connection.exec_driver_sql("VACUUM")
+    return 0

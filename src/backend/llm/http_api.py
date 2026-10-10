@@ -45,9 +45,10 @@ class BearerApi:
         message = self.status_messages.get(response.status_code)
         if message is not None:
             raise RuntimeError(message)
-        raise RuntimeError(
-            f"Blad {self.label} (status {response.status_code}): {response.text[:500]}"
-        )
+        # bez tresci odpowiedzi (jak w claude_client.py): bledy walidacji i
+        # moderacji potrafia powtorzyc pytanie uzytkownika, a komunikat trafia
+        # do logu i do diagnostyki w panelu zarzadu
+        raise RuntimeError(f"Blad {self.label} (status {response.status_code}).")
 
     def request(self, method: str, path: str, *, timeout: float, **kwargs) -> dict:
         try:

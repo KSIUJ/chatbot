@@ -101,15 +101,25 @@ def conversation_lock(conversation_id: str) -> threading.Lock:
     return _CONVERSATION_LOCKS[zlib.crc32(conversation_id.encode()) % len(_CONVERSATION_LOCKS)]
 
 
-def detach_feedback(db: Session, message_ids: Select[tuple[str]] | Sequence[str]) -> None:
-    """Odpina oceny od kasowanych wiadomosci (message_id = NULL) - kopia
-    pytania i odpowiedzi w ocenie zostaje. SQLite bez PRAGMA foreign_keys nie
-    wykona ON DELETE SET NULL sam, wiec robimy to jawnie przed kazdym DELETE
-    wiadomosci. Bez commita."""
+def detach_feedback(
+    db: Session, message_ids: Select[tuple[str]] | Sequence[str], *, drop_ratings: bool = False
+) -> None:
+    """Odpina oceny od kasowanych wiadomosci i anonimizuje je (message_id i
+    user_id = NULL): kopia pytania i odpowiedzi zostaje do ewaluacji, ale nie
+    wskazuje juz osoby. drop_ratings (uzytkownik sam usuwa rozmowe) kasuje
+    wiersze z sama ocena - zostaja tylko zgloszenia, ktore zarzad przeglada.
+    SQLite bez PRAGMA foreign_keys nie wykona ON DELETE SET NULL sam, wiec
+    robimy to jawnie przed kazdym DELETE wiadomosci. Bez commita."""
+    if drop_ratings:
+        db.execute(
+            delete(MessageFeedback)
+            .where(MessageFeedback.message_id.in_(message_ids), MessageFeedback.report_reason.is_(None))
+            .execution_options(synchronize_session=False)
+        )
     db.execute(
         update(MessageFeedback)
         .where(MessageFeedback.message_id.in_(message_ids))
-        .values(message_id=None)
+        .values(message_id=None, user_id=None)
         .execution_options(synchronize_session=False)
     )
 
@@ -136,18 +146,19 @@ def delete_conversation_attachments(
 DELETE_BATCH_SIZE = 500
 
 
-def delete_conversations(db: Session, conversation_ids: Sequence[str]) -> int:
+def delete_conversations(db: Session, conversation_ids: Sequence[str], *, by_user: bool = False) -> int:
     """Kasuje rozmowy razem z zalacznikami i wiadomosciami (SQLite nie
     wymusza kaskad FK, wiec zalaczniki i wiadomosci ida pierwsze, a oceny sa
-    od wiadomosci odpinane). Pliki zalacznikow znikaja z dysku po commicie.
-    Zwraca liczbe usunietych rozmow."""
+    od wiadomosci odpinane; by_user = usuwa sam uzytkownik, wiec jego oceny
+    znikaja, patrz detach_feedback). Pliki zalacznikow znikaja z dysku po
+    commicie. Zwraca liczbe usunietych rozmow."""
     ids = list(conversation_ids)
     deleted = 0
     files: list[str] = []
     for start in range(0, len(ids), DELETE_BATCH_SIZE):
         batch = ids[start:start + DELETE_BATCH_SIZE]
         files.extend(delete_conversation_attachments(db, batch))
-        detach_feedback(db, select(Message.id).where(Message.conversation_id.in_(batch)))
+        detach_feedback(db, select(Message.id).where(Message.conversation_id.in_(batch)), drop_ratings=by_user)
         db.execute(delete(Message).where(Message.conversation_id.in_(batch)))
         result = db.execute(delete(Conversation).where(Conversation.id.in_(batch)))
         deleted += int(result.rowcount or 0)
@@ -164,7 +175,7 @@ def delete_user_conversation(db: Session, user_id: str, conversation_id: str) ->
         conversation = db.get(Conversation, conversation_id, populate_existing=True)
         if conversation is None or conversation.user_id != user_id:
             return False
-        return delete_conversations(db, [conversation_id]) == 1
+        return delete_conversations(db, [conversation_id], by_user=True) == 1
 
 
 def make_room_for_new_conversation(db: Session, user_id: str, max_per_user: int) -> int:
