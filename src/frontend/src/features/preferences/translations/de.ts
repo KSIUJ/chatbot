@@ -40,6 +40,8 @@ export const de: Translation = {
     jasny: 'hell',
     ciemny: 'dunkel',
   },
+  occasionThemes: 'Designs zu Anlässen',
+  occasionForcedDark: 'Während eines Anlass-Designs bleibt der Chat dunkel.',
   settings: 'Einstellungen',
   back: 'Zurück',
   logout: 'Abmelden',

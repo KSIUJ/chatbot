@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import { Menu } from 'lucide-react';
 import AdminPanel from '../admin/AdminPanel';
 import type { AuthUser } from '../auth/useAuth';
+import { facadeUrl } from '../occasion/occasion';
 import type { Preferences } from '../preferences/usePreferences';
 import { earlierFileCount } from './conversations';
 import { useAttachments } from './useAttachments';
@@ -181,6 +182,7 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
             onReport={chat.report}
             onRetry={() => void chat.retry()}
             onReload={reloadConversation}
+            facadeSrc={facadeUrl(preferences.occasion, lang.htmlLang, preferences.theme)}
           />
           <ChatInput
             lang={lang}

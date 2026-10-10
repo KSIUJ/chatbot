@@ -275,6 +275,51 @@
     .ksi-facade { display: none; }
   }
 
+  /* Facade of the current ksi.sh occasion (OccasionFacade.tsx), in full
+     colour like on ksi.sh. Never narrower than 48rem: on a phone the sides
+     are cropped and the entrance stays in the middle, as on the homepage. */
+  .ksi-occasion-facade {
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .ksi-occasion-facade img {
+    flex: none;
+    display: block;
+    width: max(100%, 48rem);
+    height: auto;
+  }
+
+  /* login: along the bottom edge, under the card */
+  .ksi-occasion-facade--login {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 0;
+  }
+
+  /* empty chat: a band at the bottom of the message area, edge to edge
+     (the list has 1rem padding), never taller than a third of the screen */
+  .ksi-occasion-facade--chat {
+    flex: none;
+    margin: auto -1rem -1rem;
+    max-height: 33dvh;
+    align-items: flex-end;
+  }
+
+  .ksi-occasion-facade--chat img {
+    width: min(max(100%, 48rem), 72rem);
+    max-height: 33dvh;
+    object-fit: contain;
+    object-position: bottom center;
+  }
+
+  @media (forced-colors: active) {
+    .ksi-occasion-facade { display: none; }
+  }
+
   /* KSI logo in the variant for the current background (brand / white). */
   .ksi-logo {
     background: var(--ksi-logo-img) center / contain no-repeat;
