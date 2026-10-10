@@ -19,8 +19,10 @@ class FakeTextBlock:
 
 
 class FakeResponse:
-    def __init__(self, content):
+    def __init__(self, content, stop_reason="end_turn", stop_details=None):
         self.content = content
+        self.stop_reason = stop_reason
+        self.stop_details = stop_details
 
 
 class FakeMessagesResource:
@@ -35,7 +37,9 @@ class FakeMessagesResource:
 
     def stream(self, **kwargs):
         self._client.last_stream_kwargs = kwargs
-        stream = FakeMessageStream(FakeAnthropicClient.next_stream_texts, self._client.error_to_raise)
+        stream = FakeMessageStream(
+            FakeAnthropicClient.next_stream_texts, self._client.error_to_raise, FakeAnthropicClient.next_stream_stop
+        )
         self._client.last_stream = stream
         return stream
 
@@ -43,9 +47,10 @@ class FakeMessagesResource:
 class FakeMessageStream:
     """Atrapa MessageStream z anthropic: context manager z text_stream."""
 
-    def __init__(self, texts, error):
+    def __init__(self, texts, error, stop_reason="end_turn"):
         self._texts = list(texts)
         self._error = error
+        self._stop_reason = stop_reason
         self.closed = False
 
     def __enter__(self):
@@ -60,6 +65,9 @@ class FakeMessageStream:
     def text_stream(self):
         yield from self._texts
 
+    def get_final_message(self):
+        return FakeResponse([], stop_reason=self._stop_reason, stop_details=types.SimpleNamespace(category="cyber"))
+
 
 class FakeAnthropicClient:
     """Podmiana anthropic.Anthropic - zapamietuje kwargs wywolania create() i
@@ -70,6 +78,7 @@ class FakeAnthropicClient:
     next_response = None
     next_error = None
     next_stream_texts = ("domyslna ", "odpowiedz")
+    next_stream_stop = "end_turn"
 
     def __init__(self, **kwargs):
         self.init_kwargs = kwargs
@@ -114,6 +123,8 @@ def fake_anthropic_client(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(FakeAnthropicClient, "next_response", None, raising=False)
     monkeypatch.setattr(FakeAnthropicClient, "next_error", None, raising=False)
+    monkeypatch.setattr(FakeAnthropicClient, "next_stream_stop", "end_turn", raising=False)
+    monkeypatch.delenv("CLAUDE_EFFORT", raising=False)
     return FakeAnthropicClient
 
 
@@ -130,7 +141,7 @@ def test_chat_sends_system_and_user_message_with_default_model(fake_anthropic_cl
     result = chat(system="Jestes asystentem.", user="Jakie sa zasady zaliczenia?")
 
     kwargs = fake_anthropic_client.last_instance.last_create_kwargs
-    assert kwargs["model"] == "claude-sonnet-5"
+    assert kwargs["model"] == "claude-haiku-5-5"
     assert kwargs["system"] == "Jestes asystentem."
     assert kwargs["messages"] == [{"role": "user", "content": "Jakie sa zasady zaliczenia?"}]
     assert result == "domyslna odpowiedz"
@@ -239,7 +250,7 @@ def test_stream_chat_yields_text_pieces(fake_anthropic_client, monkeypatch):
 
     client = fake_anthropic_client.last_instance
     assert chunks == ["Dzie", "kanat"]
-    assert client.last_stream_kwargs["model"] == "claude-sonnet-5"
+    assert client.last_stream_kwargs["model"] == "claude-haiku-5-5"
     assert client.last_stream_kwargs["system"] == "Jestes asystentem."
     assert client.last_stream_kwargs["messages"] == [*history, {"role": "user", "content": "pytanie"}]
     assert client.last_stream.closed
@@ -307,3 +318,64 @@ def test_chat_without_images_keeps_plain_text_content(fake_anthropic_client):
     chat(system="s", user="u", images=[])
 
     assert fake_anthropic_client.last_instance.last_create_kwargs["messages"] == [{"role": "user", "content": "u"}]
+
+
+# --- Claude Haiku 5.5: effort zamiast temperatury, odmowy ---------------------------
+
+def test_request_has_default_effort_and_no_sampling_params(fake_anthropic_client):
+    chat = _import_chat()
+
+    chat(system="s", user="u")
+
+    kwargs = fake_anthropic_client.last_instance.last_create_kwargs
+    # Haiku 5.5 odrzuca temperature/top_p/top_k inne niz domyslne (400)
+    assert not {"temperature", "top_p", "top_k"} & kwargs.keys()
+    assert kwargs["output_config"] == {"effort": "medium"}
+    assert kwargs["max_tokens"] == 16000
+
+
+def test_effort_from_env_and_switched_off(fake_anthropic_client, monkeypatch):
+    chat = _import_chat()
+
+    monkeypatch.setenv("CLAUDE_EFFORT", " LOW ")
+    chat(system="s", user="u")
+    assert fake_anthropic_client.last_instance.last_create_kwargs["output_config"] == {"effort": "low"}
+
+    # modele bez effort (np. Haiku 4.5): bez output_config
+    monkeypatch.setenv("CLAUDE_EFFORT", "off")
+    chat(system="s", user="u")
+    assert "output_config" not in fake_anthropic_client.last_instance.last_create_kwargs
+
+
+def test_invalid_effort_is_a_clear_error(fake_anthropic_client, monkeypatch):
+    monkeypatch.setenv("CLAUDE_EFFORT", "turbo")
+    chat = _import_chat()
+
+    with pytest.raises(RuntimeError, match="CLAUDE_EFFORT"):
+        chat(system="s", user="u")
+
+
+def test_thinking_blocks_are_left_out_of_the_answer(fake_anthropic_client, monkeypatch):
+    thinking = types.SimpleNamespace(type="thinking", thinking="", signature="sig")
+    monkeypatch.setattr(fake_anthropic_client, "next_response", FakeResponse([thinking, FakeTextBlock("odpowiedz")]))
+    chat = _import_chat()
+
+    assert chat(system="s", user="u") == "odpowiedz"
+
+
+def test_refusal_without_text_is_an_error_with_its_category(fake_anthropic_client, monkeypatch):
+    refusal = FakeResponse([], stop_reason="refusal", stop_details=types.SimpleNamespace(category="bio"))
+    monkeypatch.setattr(fake_anthropic_client, "next_response", refusal)
+    chat = _import_chat()
+
+    with pytest.raises(RuntimeError, match="odmowil.*bio"):
+        chat(system="s", user="u")
+
+
+def test_stream_refusal_without_text_is_an_error(fake_anthropic_client, monkeypatch):
+    monkeypatch.setattr(fake_anthropic_client, "next_stream_texts", ())
+    monkeypatch.setattr(fake_anthropic_client, "next_stream_stop", "refusal")
+    stream_chat = _import_stream_chat()
+
+    with pytest.raises(RuntimeError, match="odmowil.*cyber"):
+        list(stream_chat(system="s", user="u"))
