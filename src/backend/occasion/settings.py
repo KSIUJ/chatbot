@@ -3,13 +3,17 @@
 OCCASION_SOURCE_URL     strona glowna KSI, z ktorej czytamy aktywny motyw
                         (domyslnie https://ksi.sh/); off/false/0/no/nie wylacza
 OCCASION_REFRESH_SECONDS co ile sekund sprawdzac strone (15-3600, domyslnie 60)
+OCCASION_API_TOKEN      token API ksi.sh (/api/occasion na hoscie strony): ktora
+                        okazja trwa i kiedy sie konczy. Bez niego (albo gdy API
+                        nie odpowiada) - sama strona glowna. Sekret: tylko w .env.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from urllib.parse import urlsplit
 
@@ -18,6 +22,8 @@ DEFAULT_REFRESH_SECONDS = 60
 MIN_REFRESH_SECONDS = 15
 MAX_REFRESH_SECONDS = 3600
 _OFF_VALUES = frozenset({"off", "false", "0", "no", "nie"})
+# znaki tokenu Bearer (RFC 6750) - nic, co rozbiloby naglowek
+_TOKEN = re.compile(r"[A-Za-z0-9._~+/=-]{16,512}")
 
 
 class OccasionConfigError(RuntimeError):
@@ -29,6 +35,8 @@ class OccasionSettings:
     # None = funkcja wylaczona (czat zawsze w zwyklym wygladzie)
     source_url: str | None
     refresh_seconds: int
+    # None = bez API; repr=False: token nie trafia do logow ani komunikatow
+    api_token: str | None = field(default=None, repr=False)
 
 
 def _source_url(raw: str) -> str | None:
@@ -60,15 +68,28 @@ def _refresh_seconds(raw: str) -> int:
     return seconds
 
 
+def _api_token(raw: str, source_url: str | None) -> str | None:
+    value = raw.strip()
+    if not value or source_url is None:
+        return None
+    if _TOKEN.fullmatch(value) is None:
+        raise OccasionConfigError("OCCASION_API_TOKEN ma niedozwolone znaki albo dlugosc")
+    if not source_url.startswith("https://"):
+        raise OccasionConfigError("OCCASION_API_TOKEN wymaga OCCASION_SOURCE_URL po https")
+    return value
+
+
 def load_occasion_settings(env: Mapping[str, str]) -> OccasionSettings:
     """Czyta ustawienia motywow okazjonalnych.
 
     Raises:
-        OccasionConfigError: zly adres strony albo odstep odswiezania.
+        OccasionConfigError: zly adres strony, odstep odswiezania albo token.
     """
+    source_url = _source_url(env.get("OCCASION_SOURCE_URL") or "")
     return OccasionSettings(
-        source_url=_source_url(env.get("OCCASION_SOURCE_URL") or ""),
+        source_url=source_url,
         refresh_seconds=_refresh_seconds(env.get("OCCASION_REFRESH_SECONDS") or ""),
+        api_token=_api_token(env.get("OCCASION_API_TOKEN") or "", source_url),
     )
 
 

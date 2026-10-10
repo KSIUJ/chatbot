@@ -4,7 +4,10 @@ stary stan przy awarii (src/backend/occasion/state.py)."""
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 from collections import Counter
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -28,6 +31,7 @@ from occasion_samples import (
     FACADE_PL_PATH,
     FACADE_SVG,
     MODULE_PATH,
+    OCCASION,
     entry_module,
     landing_html,
 )
@@ -42,10 +46,14 @@ class FakeLanding:
         self.pages = pages
         self.requests: Counter[str] = Counter()
         self.user_agents: set[str] = set()
+        # sciezki, pod ktore poszedl naglowek Authorization
+        self.authorized: set[str] = set()
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests[request.url.path] += 1
         self.user_agents.add(request.headers.get("user-agent", ""))
+        if "authorization" in request.headers:
+            self.authorized.add(request.url.path)
         if request.url.host != "landing.test":
             return httpx.Response(599)
         status, body = self.pages.get(request.url.path, (404, "Not found"))
@@ -339,3 +347,83 @@ def test_refresh_once_survives_network_errors():
     asyncio.run(run())
 
     assert store.current() is None
+
+
+# --- API ksi.sh -------------------------------------------------------------------
+
+TOKEN = "test-token-0123456789abcdef"
+API_NOW = datetime(2030, 1, 15, 12, 0, tzinfo=timezone.utc)
+
+
+def api_page(occasion: str | None = OCCASION, end: str = "2030-01-15T13:00:00Z") -> tuple[int, str]:
+    return 200, json.dumps({"occasion": occasion, "start": "2030-01-10T10:00:00Z", "end": end})
+
+
+def api_client() -> LandingClient:
+    """Klient z tokenem i stala chwila (http podstawia fetch)."""
+    return LandingClient(None, SOURCE, api_token=TOKEN, now=lambda: API_NOW)  # type: ignore[arg-type]
+
+
+def test_api_decides_and_the_landing_page_gives_the_look():
+    landing = FakeLanding(default_pages(**{"/api/occasion": api_page()}))
+
+    snapshot = fetch(landing, api_client())
+
+    assert snapshot is not None
+    assert snapshot.palette["night-950"] == "#0b1a2a"
+    assert snapshot.facades["pl"].svg == validate_svg(FACADE_SVG)
+    assert snapshot.ends_in == 3600
+    # token tylko do API, nigdy do strony ani plikow /assets/
+    assert landing.authorized == {"/api/occasion"}
+
+
+def test_api_without_occasion_skips_the_landing_page():
+    landing = FakeLanding(default_pages(**{"/api/occasion": api_page(occasion=None)}))
+
+    assert fetch(landing, api_client()) is None
+    assert landing.requests["/"] == 0
+    assert landing.requests[MODULE_PATH] == 0
+
+
+def test_page_showing_another_occasion_than_the_api_gives_no_theme():
+    landing = FakeLanding(default_pages(**{"/api/occasion": api_page(occasion="other-one")}))
+
+    assert fetch(landing, api_client()) is None
+    assert landing.requests[MODULE_PATH] == 0
+
+
+@pytest.mark.parametrize("api", [(404, "Not found"), (500, "boom"), (200, "not json")])
+def test_unusable_api_falls_back_to_the_landing_page_and_warns_once(api, caplog):
+    landing = FakeLanding(default_pages(**{"/api/occasion": api}))
+    client = api_client()
+
+    with caplog.at_level(logging.WARNING, logger=state_module.__name__):
+        first = fetch(landing, client)
+        second = fetch(landing, client)
+
+    assert first is not None and second is not None
+    assert first.ends_in is None
+    assert first.palette["night-950"] == "#0b1a2a"
+    assert sum("API not used" in record.getMessage() for record in caplog.records) == 1
+    assert TOKEN not in caplog.text
+
+
+def test_without_a_token_the_api_is_not_asked():
+    landing = FakeLanding(default_pages(**{"/api/occasion": api_page()}))
+
+    assert fetch(landing) is not None
+    assert landing.requests["/api/occasion"] == 0
+    assert landing.authorized == set()
+
+
+def test_store_drops_the_occasion_at_its_end_between_refreshes():
+    clock = Clock()
+    store = OccasionStore(clock=clock)
+    store.set(OccasionSnapshot(dark=True, theme_color=COLOR, ends_in=120))
+
+    clock.now += 119
+    assert store.current() is not None
+
+    clock.now += 1
+    assert store.current() is None
+    assert "120" not in repr(OccasionSnapshot(dark=True, theme_color=COLOR, ends_in=120))

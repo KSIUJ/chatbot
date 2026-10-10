@@ -53,3 +53,31 @@ def test_bad_source_url_stops_the_start(url):
 def test_bad_interval_stops_the_start(value):
     with pytest.raises(OccasionConfigError):
         load_occasion_settings({"OCCASION_REFRESH_SECONDS": value})
+
+
+# Zmyslony token (prawdziwy jest tylko w .env na serwerze).
+TOKEN = "test-token-0123456789abcdef"
+
+
+def test_api_token_is_optional_and_kept_out_of_repr():
+    assert load_occasion_settings({}).api_token is None
+
+    settings = load_occasion_settings({"OCCASION_API_TOKEN": f"  {TOKEN} "})
+
+    assert settings.api_token == TOKEN
+    assert TOKEN not in repr(settings)
+
+
+def test_api_token_is_ignored_when_the_feature_is_off():
+    assert load_occasion_settings({"OCCASION_SOURCE_URL": "off", "OCCASION_API_TOKEN": TOKEN}).api_token is None
+
+
+@pytest.mark.parametrize("token", ["short", "has space inside 0123456789", "line\nbreak0123456789abc"])
+def test_malformed_api_token_stops_the_start(token):
+    with pytest.raises(OccasionConfigError):
+        load_occasion_settings({"OCCASION_API_TOKEN": token})
+
+
+def test_api_token_is_never_sent_over_plain_http():
+    with pytest.raises(OccasionConfigError):
+        load_occasion_settings({"OCCASION_SOURCE_URL": "http://127.0.0.1:9000/", "OCCASION_API_TOKEN": TOKEN})
