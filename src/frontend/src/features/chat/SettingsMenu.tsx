@@ -15,7 +15,16 @@ interface SettingsMenuProps {
 // "Settings" button in the sidebar with a popover for language and theme
 // (and the admin panel entry for admins).
 export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuProps) {
-  const { lang, languagePreference, setLanguagePreference, themePreference, setThemePreference } = preferences;
+  const {
+    lang,
+    languagePreference,
+    setLanguagePreference,
+    themePreference,
+    setThemePreference,
+    occasionThemes,
+    setOccasionThemes,
+    themeForced,
+  } = preferences;
   const [view, setView] = useState<SettingsView>('closed');
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -135,6 +144,16 @@ export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuP
                   {themePreference === option && <Check size={16} className="text-accent" aria-hidden="true" />}
                 </button>
               ))}
+              {themeForced && <p className="px-3.5 pt-1 pb-1.5 text-xs text-muted">{lang.occasionForcedDark}</p>}
+              <button
+                type="button"
+                onClick={() => setOccasionThemes(!occasionThemes)}
+                aria-pressed={occasionThemes}
+                className={`${menuItem} border-t border-line mt-1 pt-2.5`}
+              >
+                <span>{lang.occasionThemes}</span>
+                {occasionThemes && <Check size={16} className="text-accent" aria-hidden="true" />}
+              </button>
             </div>
           )}
         </div>

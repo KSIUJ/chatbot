@@ -39,6 +39,8 @@ export const es: Translation = {
     jasny: 'claro',
     ciemny: 'oscuro',
   },
+  occasionThemes: 'Temas de ocasión',
+  occasionForcedDark: 'El chat se mantiene oscuro mientras dure un tema de ocasión.',
   settings: 'Ajustes',
   back: 'Atrás',
   logout: 'Cerrar sesión',

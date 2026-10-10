@@ -190,6 +190,10 @@ export interface Translation {
   language: string;
   theme: string;
   themeNames: Record<ThemePreference, string>;
+  // switch for the ksi.sh occasion themes (theme submenu)
+  occasionThemes: string;
+  // shown while a dark occasion theme overrides the light/dark choice
+  occasionForcedDark: string;
   settings: string;
   back: string;
   logout: string;

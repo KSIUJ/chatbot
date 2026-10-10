@@ -39,6 +39,8 @@ export const fr: Translation = {
     jasny: 'clair',
     ciemny: 'sombre',
   },
+  occasionThemes: 'Thèmes événementiels',
+  occasionForcedDark: 'Le chat reste sombre pendant un thème événementiel.',
   settings: 'Paramètres',
   back: 'Retour',
   logout: 'Se déconnecter',
