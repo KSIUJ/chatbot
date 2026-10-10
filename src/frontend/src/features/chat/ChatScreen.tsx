@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import { Menu } from 'lucide-react';
 import AdminPanel from '../admin/AdminPanel';
 import type { AuthUser } from '../auth/useAuth';
+import OccasionFacade from '../occasion/OccasionFacade';
 import { facadeUrl } from '../occasion/occasion';
 import type { Preferences } from '../preferences/usePreferences';
 import { earlierFileCount } from './conversations';
@@ -52,6 +53,8 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
   // banner over the input while the admins have the chat switched off
   const offNotice = chat.chatDisabled ? chat.usage?.chatDisabledMessage ?? lang.chatOffDefault : null;
   const canDrop = attachments.limits !== null && offNotice === null;
+  // a new conversation shows the occasion facade in full colour, a running one dims it
+  const isNewChat = chat.messages.length === 0 && !chat.isWaiting && !chat.isLoadingConversation;
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!canDrop || !hasFiles(event)) return;
@@ -169,21 +172,29 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
             <span className="font-head text-base font-semibold text-fg truncate">{lang.appTitle}</span>
           </header>
 
-          <ChatMessageList
-            lang={lang}
-            messages={chat.messages}
-            isWaiting={chat.isWaiting}
-            isLoading={chat.isLoadingConversation}
-            loadError={chat.loadError}
-            copiedId={chat.copiedId}
-            feedbackErrorId={chat.feedbackErrorId}
-            onCopy={chat.copy}
-            onRate={chat.rate}
-            onReport={chat.report}
-            onRetry={() => void chat.retry()}
-            onReload={reloadConversation}
-            facadeSrc={facadeUrl(preferences.occasion, lang.htmlLang, preferences.theme)}
-          />
+          {/* the WMiI facade behind the messages: the ksi.sh occasion one, or the
+              plain silhouette; the messages scroll over it */}
+          <div className={`ksi-chat-stage ${isNewChat ? 'ksi-chat-stage--new' : ''}`}>
+            <OccasionFacade
+              src={facadeUrl(preferences.occasion, lang.htmlLang, preferences.theme)}
+              variant="chat"
+              fallback={<div className="ksi-chat-facade" aria-hidden="true" />}
+            />
+            <ChatMessageList
+              lang={lang}
+              messages={chat.messages}
+              isWaiting={chat.isWaiting}
+              isLoading={chat.isLoadingConversation}
+              loadError={chat.loadError}
+              copiedId={chat.copiedId}
+              feedbackErrorId={chat.feedbackErrorId}
+              onCopy={chat.copy}
+              onRate={chat.rate}
+              onReport={chat.report}
+              onRetry={() => void chat.retry()}
+              onReload={reloadConversation}
+            />
+          </div>
           <ChatInput
             lang={lang}
             isWaiting={chat.isWaiting}

@@ -117,6 +117,10 @@
   --ksi-logo-img: url('./assets/ksi-logo-brand.svg');
   --ksi-facade-img: url('./assets/wmi-facade-brand.svg');
   --ksi-facade-opacity: 0.28;
+  /* chat background (.ksi-chat-stage): the plain facade, and an occasion one
+     while a conversation runs (a new chat shows it in full colour) */
+  --chat-facade-opacity: 0.2;
+  --chat-occasion-opacity: 0.35;
 
   /* --- typography --- */
   --ksi-font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -159,6 +163,8 @@
   --ksi-logo-img: url('./assets/ksi-logo-white.svg');
   --ksi-facade-img: url('./assets/wmi-facade-white.svg');
   --ksi-facade-opacity: 0.07;
+  --chat-facade-opacity: 0.08;
+  --chat-occasion-opacity: 0.5;
 
   --ksi-danger: #f0736a;
   --ksi-success: #4ade80;
@@ -300,24 +306,53 @@
     z-index: 0;
   }
 
-  /* empty chat: a band at the bottom of the message area, edge to edge
-     (the list has 1rem padding), never taller than a third of the screen */
+  /* Chat background: the message area (ChatScreen) with the facade along its
+     bottom edge, under the messages, which scroll over it. The stage is its
+     own stacking context, so z-index -1 stays above the page background. */
+  .ksi-chat-stage {
+    position: relative;
+    isolation: isolate;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ksi-chat-facade,
   .ksi-occasion-facade--chat {
-    flex: none;
-    margin: auto -1rem -1rem;
-    max-height: 33dvh;
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: -1;
+    /* the pavement fades out instead of ending in a hard edge above the input */
+    mask-image: linear-gradient(to bottom, #000 88%, transparent);
+    transition: opacity 600ms ease;
+  }
+
+  /* Edge to edge at any width: the whole building on a phone, no empty sides
+     on a wide screen. The plain silhouette is fainter than on the login screen. */
+  .ksi-chat-facade {
+    aspect-ratio: 1536 / 365.5;
+    background: var(--ksi-facade-img) bottom center / 100% auto no-repeat;
+    opacity: var(--chat-facade-opacity);
+  }
+
+  .ksi-occasion-facade--chat {
     align-items: flex-end;
+    opacity: var(--chat-occasion-opacity);
   }
 
   .ksi-occasion-facade--chat img {
-    width: min(max(100%, 48rem), 72rem);
-    max-height: 33dvh;
-    object-fit: contain;
-    object-position: bottom center;
+    width: 100%;
+  }
+
+  /* a new conversation shows the occasion in full colour, like ksi.sh */
+  .ksi-chat-stage--new .ksi-occasion-facade--chat {
+    opacity: 1;
   }
 
   @media (forced-colors: active) {
-    .ksi-occasion-facade { display: none; }
+    .ksi-occasion-facade,
+    .ksi-chat-facade { display: none; }
   }
 
   /* KSI logo in the variant for the current background (brand / white). */

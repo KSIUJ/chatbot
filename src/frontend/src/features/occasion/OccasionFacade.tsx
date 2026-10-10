@@ -3,8 +3,8 @@ import { useState, type ReactNode } from 'react';
 interface OccasionFacadeProps {
   // from facadeUrl(); null = no facade for this occasion
   src: string | null;
-  // "login": fixed along the bottom of the login screen; "chat": a band at
-  // the bottom of an empty conversation
+  // "login": fixed along the bottom of the login screen; "chat": background
+  // along the bottom of the message area (.ksi-chat-stage)
   variant: 'login' | 'chat';
   // shown instead when there is no facade or it fails to load
   fallback?: ReactNode;
