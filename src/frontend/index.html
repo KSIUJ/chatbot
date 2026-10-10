@@ -2,9 +2,15 @@
 <html lang="pl">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
+    <!-- browser bar = page background (--ksi-bg); the app and theme-init.js
+         update both when the user's theme or a ksi.sh occasion decides -->
+    <meta name="theme-color" content="#eef0f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14151f" media="(prefers-color-scheme: dark)" />
     <title>Chatbot WMiI UJ</title>
     <!-- blocking on purpose: sets the dark class before the first paint -->
     <script src="/theme-init.js"></script>

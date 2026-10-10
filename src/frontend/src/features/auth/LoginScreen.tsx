@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import OccasionFacade from '../occasion/OccasionFacade';
 import type { Translation } from '../preferences/languages';
 import type { LoginError, LoginOptions } from './redirect';
 
@@ -13,6 +14,8 @@ interface LoginScreenProps {
   lang: Translation;
   error: LoginError | null;
   onLogin: (options?: LoginOptions) => void;
+  // facade of the current ksi.sh occasion; null = the usual building silhouette
+  facadeSrc: string | null;
 }
 
 type PendingAction = 'login' | 'another-account' | null;
@@ -37,7 +40,7 @@ function Redirecting({ label }: { label: string }) {
   );
 }
 
-export default function LoginScreen({ lang, error, onLogin }: LoginScreenProps) {
+export default function LoginScreen({ lang, error, onLogin, facadeSrc }: LoginScreenProps) {
   // the page navigates away to Keycloak, so this never has to be reset
   const [pending, setPending] = useState<PendingAction>(null);
   // logged in to KSI, but not in the member group: SSO would bring back the
@@ -51,7 +54,7 @@ export default function LoginScreen({ lang, error, onLogin }: LoginScreenProps) 
 
   return (
     <div className="relative min-h-dvh flex flex-col items-center bg-page text-fg px-4 py-[clamp(1.5rem,5vh,3rem)] max-[24rem]:px-3">
-      <div className="ksi-facade" aria-hidden="true" />
+      <OccasionFacade src={facadeSrc} variant="login" fallback={<div className="ksi-facade" aria-hidden="true" />} />
 
       <main className="relative z-[1] my-auto w-full max-w-[25.5rem] overflow-hidden rounded-card border border-line bg-surface shadow-raised">
         <header className="flex flex-col items-center px-6 pt-7 pb-4 text-center max-[30rem]:px-[1.125rem]">

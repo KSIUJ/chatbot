@@ -39,6 +39,8 @@ export const uk: Translation = {
     jasny: 'світла',
     ciemny: 'темна',
   },
+  occasionThemes: 'Святкові теми',
+  occasionForcedDark: 'Поки діє святкова тема, чат залишається темним.',
   settings: 'Налаштування',
   back: 'Назад',
   logout: 'Вийти',

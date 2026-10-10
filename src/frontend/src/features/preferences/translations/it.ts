@@ -39,6 +39,8 @@ export const it: Translation = {
     jasny: 'chiaro',
     ciemny: 'scuro',
   },
+  occasionThemes: 'Temi delle ricorrenze',
+  occasionForcedDark: 'La chat resta scura durante un tema di ricorrenza.',
   settings: 'Impostazioni',
   back: 'Indietro',
   logout: 'Esci',

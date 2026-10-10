@@ -2,10 +2,15 @@ import { Loader2 } from 'lucide-react';
 import ChatScreen from './features/chat/ChatScreen';
 import LoginScreen from './features/auth/LoginScreen';
 import { useAuth } from './features/auth/useAuth';
+import { facadeUrl } from './features/occasion/occasion';
+import { useOccasion } from './features/occasion/useOccasion';
 import { usePreferences } from './features/preferences/usePreferences';
 
 export default function App() {
-  const preferences = usePreferences();
+  // the ksi.sh occasion theme also changes the login screen, so it is read here
+  const occasion = useOccasion();
+  const preferences = usePreferences(occasion);
+  const loginFacade = facadeUrl(preferences.occasion, preferences.lang.htmlLang, preferences.theme);
   // the session lives in an HttpOnly cookie - the backend is the only source of truth
   const { state, login, logout } = useAuth(preferences.lang.htmlLang);
 
@@ -21,7 +26,7 @@ export default function App() {
 
   // only reached on login errors - no session alone redirects straight to KSI
   if (state.status === 'unauthenticated') {
-    return <LoginScreen lang={preferences.lang} error={state.error} onLogin={login} />;
+    return <LoginScreen lang={preferences.lang} error={state.error} onLogin={login} facadeSrc={loginFacade} />;
   }
 
   return <ChatScreen user={state.user} preferences={preferences} onLogout={() => void logout()} />;

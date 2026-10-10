@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Loader2, RefreshCw } from 'lucide-react';
+import OccasionFacade from '../occasion/OccasionFacade';
 import type { Translation } from '../preferences/languages';
 import AnswerActions from './AnswerActions';
 import { SentChips } from './AttachmentChips';
@@ -27,6 +28,8 @@ interface ChatMessageListProps {
   onReport: (message: ChatMessage, reason: ReportReason, comment: string | null) => Promise<boolean>;
   onRetry: () => void;
   onReload: () => void;
+  // facade of the current ksi.sh occasion, under the greeting of an empty chat
+  facadeSrc: string | null;
 }
 
 // Flat bubbles with a hairline border, like the KSI login card. The bot's text
@@ -44,6 +47,7 @@ function BotAvatar() {
 
 export default function ChatMessageList({
   lang, messages, isWaiting, isLoading, loadError, copiedId, feedbackErrorId, onCopy, onRate, onReport, onRetry, onReload,
+  facadeSrc,
 }: ChatMessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -105,11 +109,16 @@ export default function ChatMessageList({
   const reportingMessage = reportingId === null ? undefined : messages.find((m) => m.id === reportingId);
   // typing dots only until the first words of the answer arrive
   const showTyping = isWaiting && streamingText === null;
+  const isEmpty = messages.length === 0 && !isWaiting;
 
   return (
-    <main ref={mainRef} onScroll={handleScroll} className="flex-1 p-4 pt-8 overflow-y-auto space-y-6">
+    <main
+      ref={mainRef}
+      onScroll={handleScroll}
+      className={`flex-1 p-4 pt-8 overflow-y-auto space-y-6 ${isEmpty ? 'flex flex-col' : ''}`}
+    >
       {/* empty conversation: greeting instead of a fake stored message */}
-      {messages.length === 0 && !isWaiting && (
+      {isEmpty && (
         <div className="flex gap-4 max-w-4xl mx-auto w-full">
           <BotAvatar />
           <div className={`px-4 py-3 rounded-card text-sm leading-relaxed max-w-[70%] text-fg ${BOT_BUBBLE}`}>
@@ -204,6 +213,9 @@ export default function ChatMessageList({
       )}
 
       <div ref={endRef} />
+      {/* the occasion facade sits at the bottom of a new chat and goes away with
+          the first question; last child, so space-y leaves its margins alone */}
+      {isEmpty && <OccasionFacade src={facadeSrc} variant="chat" />}
 
       {reportingMessage !== undefined && (
         <ReportDialog

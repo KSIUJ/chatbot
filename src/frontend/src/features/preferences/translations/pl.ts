@@ -38,6 +38,8 @@ export const pl: Translation = {
     jasny: 'jasny',
     ciemny: 'ciemny',
   },
+  occasionThemes: 'Motywy okazjonalne',
+  occasionForcedDark: 'Na czas motywu okazjonalnego czat jest ciemny.',
   settings: 'Ustawienia',
   back: 'Wstecz',
   logout: 'Wyloguj się',
