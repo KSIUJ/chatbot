@@ -1,5 +1,6 @@
 """Aplikacja FastAPI: czat, historia rozmow, logowanie, oceny odpowiedzi,
-dzienne limity pytan, panel administratora i statystyki.
+dzienne limity pytan, panel administratora, statystyki i motyw okazjonalny
+z ksi.sh.
 
 Za nginxem endpointy sa pod /api/* (nginx obcina prefiks), backend widzi
 sciezki bez /api.
@@ -75,6 +76,9 @@ from .history import (
     purge_expired_conversations,
     retention_loop,
 )
+from .occasion import router as occasion_router
+from .occasion.settings import get_occasion_settings
+from .occasion.state import get_occasion_store, refresh_loop
 from .llm.generate import answer as rag_answer, stream_answer as rag_stream
 from .llm.language import REFUSAL
 from .feedback.service import EMPTY_STATE
@@ -132,18 +136,30 @@ def start_retention_task() -> asyncio.Task[None]:
     )
 
 
+def start_occasion_task() -> asyncio.Task[None] | None:
+    """Odswiezanie motywu okazjonalnego z ksi.sh w tle (testy podmieniaja to
+    na no-op). Wylaczone OCCASION_SOURCE_URL = od razu "brak okazji"."""
+    settings = get_occasion_settings()
+    store = get_occasion_store()
+    if settings.source_url is None:
+        store.set(None)
+        return None
+    return asyncio.create_task(refresh_loop(store, settings.source_url, settings.refresh_seconds))
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Brak/bledna konfiguracja OIDC, CHAT_HISTORY_* albo limitow (CHAT_DAILY_LIMIT,
-    # ATTACHMENT_*) zatrzymuje start z opisem bledu
+    # Brak/bledna konfiguracja OIDC, CHAT_HISTORY_*, limitow (CHAT_DAILY_LIMIT,
+    # ATTACHMENT_*) albo OCCASION_* zatrzymuje start z opisem bledu
     get_auth_settings()
     get_history_settings()
     get_default_limits()
-    task = start_retention_task()
+    get_occasion_settings()
+    tasks = [task for task in (start_retention_task(), start_occasion_task()) if task is not None]
     try:
         yield
     finally:
-        if task is not None:
+        for task in tasks:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
@@ -176,6 +192,7 @@ app.include_router(security_admin_router)
 app.include_router(limits_router)
 app.include_router(admin_router)
 app.include_router(attachments_router)
+app.include_router(occasion_router)
 
 
 def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Conversation:

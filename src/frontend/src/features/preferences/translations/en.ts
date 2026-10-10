@@ -37,6 +37,8 @@ export const en: Translation = {
     jasny: 'light',
     ciemny: 'dark',
   },
+  occasionThemes: 'Occasion themes',
+  occasionForcedDark: 'The chat stays dark while an occasion theme is on.',
   settings: 'Settings',
   back: 'Back',
   logout: 'Log out',
