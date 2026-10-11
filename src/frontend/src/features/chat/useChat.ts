@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiRequestError, isSessionLost } from '../../lib/api';
-import { ACTIVE_CONVERSATION_KEY, rememberActiveConversation } from '../../lib/chatStorage';
 import type { HtmlLang } from '../preferences/languages';
 import { attachmentProblemOf, type AttachmentMeta, type AttachmentProblem } from './attachments';
 import {
@@ -96,13 +95,6 @@ export function appendDelta(messages: readonly ChatMessage[], id: string, text: 
 // stop, retry and rating / reporting answers. Only the id of the open conversation is kept in localStorage.
 // `language` is the interface language the answers should be written in.
 export function useChat(language: HtmlLang) {
-  // the conversation that was open before the reload
-  const [rememberedId] = useState(() => localStorage.getItem(ACTIVE_CONVERSATION_KEY));
-  // Storage mirrors activeId only once the initial load succeeded (or the user
-  // started a new chat): a failed /conversations at startup must not forget
-  // the remembered conversation while activeId is still the initial null.
-  const [isRestored, setIsRestored] = useState(false);
-
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [limits, setLimits] = useState<HistoryLimits | null>(null);
   const [historyError, setHistoryError] = useState(false);
@@ -129,10 +121,6 @@ export function useChat(language: HtmlLang) {
   // number of its request (the rollback target)
   const feedbackSeqRef = useRef(new Map<string, number>());
   const confirmedFeedbackRef = useRef(new Map<string, { seq: number; feedback: MessageFeedback }>());
-
-  useEffect(() => {
-    rememberActiveConversation(activeId, isRestored);
-  }, [activeId, isRestored]);
 
   const applyHistory = useCallback((list: ConversationList) => {
     setConversations(list.conversations);
@@ -246,17 +234,13 @@ export function useChat(language: HtmlLang) {
     }
   }, [cancelPending, cancelStopSync, resetFeedback]);
 
-  // first load: history, then reopen the conversation that was open before
+  // first load: only the history - the page always opens on a new chat
   useEffect(() => {
     let cancelled = false;
     fetchConversations().then(
       (list) => {
         if (cancelled) return;
         applyHistory(list);
-        setIsRestored(true);
-        if (rememberedId !== null && list.conversations.some((c) => c.id === rememberedId)) {
-          void openConversation(rememberedId);
-        }
       },
       (error: unknown) => {
         if (!cancelled) applyHistoryError(error);
@@ -265,14 +249,13 @@ export function useChat(language: HtmlLang) {
     return () => {
       cancelled = true;
     };
-  }, [applyHistory, applyHistoryError, openConversation, rememberedId]);
+  }, [applyHistory, applyHistoryError]);
 
   const startNewChat = useCallback(() => {
     cancelPending();
     cancelStopSync();
     resetFeedback();
     loadTokenRef.current += 1;
-    setIsRestored(true);
     setActiveId(null);
     setMessages([]);
     setLoadError(false);

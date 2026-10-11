@@ -9,6 +9,7 @@ sciezki bez /api.
 import asyncio
 import contextlib
 import logging
+import os
 from collections.abc import AsyncIterator
 from functools import partial
 from uuid import uuid4
@@ -77,6 +78,7 @@ from .history import (
     purge_expired_conversations,
     retention_loop,
 )
+from .rag.core.context import warm_up as rag_warm_up
 from .occasion import router as occasion_router
 from .occasion.settings import get_occasion_settings
 from .occasion.state import get_occasion_store, refresh_loop
@@ -124,6 +126,8 @@ def skip_facade_requests(record: logging.LogRecord) -> bool:
 
 configure_logging()
 
+logger = logging.getLogger(__name__)
+
 
 def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:
     """Zadania sprzatania w tle: nieuzywane rozmowy (razem z zalacznikami),
@@ -151,6 +155,25 @@ def start_retention_task() -> asyncio.Task[None]:
     )
 
 
+def _warm_up_rag() -> None:
+    try:
+        seconds = rag_warm_up()
+    except Exception:
+        # brak indeksu albo modelu nie blokuje startu - pierwsze pytanie sprobuje ponownie
+        logger.exception("rag warm-up failed")
+        return
+    logger.info("rag warm-up done in %.1f s", seconds)
+
+
+def start_warmup_task() -> asyncio.Task[None] | None:
+    """Ladowanie modelu embeddingow i indeksow RAG w tle zaraz po starcie (testy
+    podmieniaja to na no-op). Nie blokuje startu - healthcheck odpowiada od razu.
+    RAG_WARMUP=off wylacza (np. lokalnie bez danych)."""
+    if os.getenv("RAG_WARMUP", "on").strip().lower() in {"0", "off", "false", "no", "nie"}:
+        return None
+    return asyncio.create_task(asyncio.to_thread(_warm_up_rag))
+
+
 def start_occasion_task() -> asyncio.Task[None] | None:
     """Odswiezanie motywu okazjonalnego z ksi.sh w tle (testy podmieniaja to
     na no-op). Wylaczone OCCASION_SOURCE_URL = od razu "brak okazji"."""
@@ -172,7 +195,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     get_history_settings()
     get_default_limits()
     get_occasion_settings()
-    tasks = [task for task in (start_retention_task(), start_occasion_task()) if task is not None]
+    tasks = [task for task in (start_retention_task(), start_occasion_task(), start_warmup_task()) if task is not None]
     try:
         yield
     finally:

@@ -6,6 +6,7 @@ llm/generate.py.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Mapping
 from typing import NamedTuple
 
@@ -92,3 +93,12 @@ def retrieve_context(query: str, retriever: Retriever | None = None) -> RagConte
         return source.cite(hit) if source is not None else None
 
     return RagContext(prompt, image_paths, collect_citations(hits, cite))
+
+
+def warm_up() -> float:
+    """Laduje model embeddingow i indeksy wspolnego retrievera jednym probnym
+    wyszukiwaniem - pierwsze pytanie uzytkownika nie czeka na wczytanie modelu
+    (~20 s na CPU bez AVX). Zwraca czas w sekundach."""
+    started = time.monotonic()
+    default_retriever().retrieve("rozgrzewka")
+    return time.monotonic() - started
