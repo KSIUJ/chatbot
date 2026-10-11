@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "format_version": {
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "collected_at": {
+      "format": "date-time",
+      "title": "Collected At",
+      "type": "string"
+    },
+    "collector": {
+      "default": "",
+      "title": "Collector",
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Files",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source",
+    "format_version",
+    "collected_at",
+    "files"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

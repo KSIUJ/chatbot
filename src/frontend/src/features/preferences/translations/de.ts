@@ -63,6 +63,8 @@ export const de: Translation = {
   loadError: 'Die Unterhaltung konnte nicht geladen werden.',
   sources: (count) => `Quellen (${count})`,
   sourceKinds: {
+    uj_pages: 'Website der UJ',
+    ksi: 'KSI (Studierendenverein)',
     strony: 'Website der Fakultät',
     usos: 'USOS',
     mordor: 'Mordor (studentische Materialien)',

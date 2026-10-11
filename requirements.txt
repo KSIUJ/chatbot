@@ -36,3 +36,6 @@ pymupdf4llm==1.28.2
 httpx==0.28.1
 joserfc==1.7.5
 cryptography==50.0.2
+
+# Naglowki notatek o KSI (src/backend/rag/sources/ksi/notes.py)
+pyyaml==6.0.3

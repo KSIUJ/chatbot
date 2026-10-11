@@ -22,8 +22,14 @@ from . import Retrieval
 def hit_targets(hit: dict) -> frozenset[str]:
     metadata = hit.get("metadata") or {}
     source = hit.get("source")
-    if source == "strony" and metadata.get("url"):
+    if source in ("uj_pages", "strony") and metadata.get("url"):
         return frozenset({targets.page(metadata["url"])})
+    if source == "ksi":
+        key = metadata.get("note") or metadata.get("url") or ""
+        found = {targets.ksi(key)} if key else set()
+        if metadata.get("url"):
+            found.add(targets.page(metadata["url"]))
+        return frozenset(found)
     if source == "usos" and metadata.get("employee_name"):
         return frozenset({targets.staff(metadata["employee_name"])})
     if source == "mordor":

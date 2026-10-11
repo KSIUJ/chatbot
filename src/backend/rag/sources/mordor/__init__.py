@@ -1,20 +1,30 @@
-"""Materialy studenckie z Mordoru (pipeline/scrapers/mordor): tekst i skany."""
+"""Materialy studenckie z Mordoru (data/mordor/): tekst, skany i obrazy."""
 
 from __future__ import annotations
 
 import posixpath
+from pathlib import Path
 
 from ...core.citations import Citation, text
+from ...core.datasets import read_dataset
 from ...core.documents import Document
 from ..base import RagSource
-from . import loader
+from . import legacy
+from .dataset import MaterialRecord
+from .documents import material_documents
 
 
 class MordorSource(RagSource):
     name = "mordor"
+    record_model = MaterialRecord
 
-    def load_documents(self) -> list[Document]:
-        return loader.load_documents()
+    def load_documents(self, data_dir: Path) -> list[Document]:
+        directory = self.dataset_dir(data_dir)
+        dataset = read_dataset(directory, self.name, MaterialRecord)
+        return material_documents(self.name, directory, dataset.records) if dataset else []
+
+    def convert_legacy(self, data_dir: Path) -> list[MaterialRecord] | None:
+        return legacy.convert(data_dir)
 
     def label(self, hit: dict) -> str:
         return (hit.get("metadata") or {}).get("source_file", self.name)
