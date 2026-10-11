@@ -18,11 +18,12 @@ from .sources.mordor import MordorSource
 from .sources.uj_pages import UjPagesSource
 from .sources.usos import UsosSource
 
-# Naglowki sekcji wewnatrz bloku KONTEKST - nazwy zrodel oficjalnych i
-# materialow studenckich z Mordoru wystepuja w prompcie systemowym (llm/generate.py).
-# Tresc naglowkow zmienia sie razem z promptem (krok 7 przebudowy RAG-a).
-OFFICIAL_HEADER = "ZRODLA OFICJALNE (strony wydzialu, USOS - wiarygodne):"
-MORDOR_HEADER = "MATERIALY STUDENCKIE (Mordor - notatki i skany, moga zawierac bledy lub byc nieaktualne):"
+# Naglowki sekcji wewnatrz bloku KONTEKST - ich nazwy (ZRODLA OFICJALNE, INFORMACJE
+# KSI, MATERIALY STUDENCKIE) opisuje prompt systemowy (llm/generate.py, zasada 5);
+# zmieniaja sie tylko razem z nim.
+OFFICIAL_HEADER = "ŹRÓDŁA OFICJALNE (strony UJ i wydziału, USOSownia - wiarygodne):"
+KSI_HEADER = "INFORMACJE KSI (strony i notatki koła - wiarygodne):"
+MORDOR_HEADER = "MATERIAŁY STUDENCKIE (Mordor - notatki i skany, mogą zawierać błędy lub być nieaktualne):"
 
 
 @dataclass(frozen=True)
@@ -44,7 +45,8 @@ class Pool:
 
 
 POOLS: tuple[Pool, ...] = (
-    Pool("official", ("uj_pages", "usos", "ksi"), k=6, header=OFFICIAL_HEADER, budget=4000),
+    Pool("official", ("uj_pages", "usos"), k=6, header=OFFICIAL_HEADER, budget=4000),
+    Pool("ksi", ("ksi",), k=3, header=KSI_HEADER, budget=1500),
     Pool("student", ("mordor",), k=4, header=MORDOR_HEADER, budget=2000),
 )
 

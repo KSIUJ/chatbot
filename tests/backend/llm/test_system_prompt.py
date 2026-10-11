@@ -94,7 +94,8 @@ def test_prompt_contains_date_academic_year_and_language():
 
     assert prompt.startswith(
         "Jesteś asystentem Koła Studentów Informatyki UJ (KSI) dla jego członków. "
-        "Dzisiaj jest 2 października 2026 (piątek), trwa rok akademicki 2026/2027.\n"
+        "Dzisiaj jest 2 października 2026 (piątek), trwa rok akademicki 2026/2027. "
+        "Twoim jedynym zadaniem jest udzielanie informacji"
     )
     assert "Odpowiadasz po polsku." in prompt
     assert "{" not in prompt and "}" not in prompt
@@ -119,24 +120,39 @@ def test_prompt_language_comes_from_language_names(language):
 
 
 @pytest.mark.parametrize("language", LANGUAGES)
-def test_prompt_rules_1_to_13_are_separate_lines(language):
+def test_prompt_rules_1_to_21_are_separate_lines(language):
     lines = generate.system_prompt(language, now=NOW).splitlines()
 
-    for number in range(1, 14):
+    for number in range(1, 22):
         assert sum(line.startswith(f"{number}. ") for line in lines) == 1
-    assert not any(line.startswith("14. ") for line in lines)
+    assert not any(line.startswith("22. ") for line in lines)
 
 
 def test_prompt_keeps_sections_marker_and_diacritics():
     lines = generate.system_prompt("pl", now=NOW).splitlines()
 
-    for header in ("ZAKRES", "ŹRÓDŁA I PRAWDA", "BEZPIECZEŃSTWO", "FORMA"):
+    for header in ("ZAKRES", "KONTEKST", "ŹRÓDŁA I PRAWDA", "BEZPIECZEŃSTWO", "FORMA"):
         assert header in lines
     text = "\n".join(lines)
-    assert "zaczynasz odpowiedź od znacznika [[NARUSZENIE]]." in text
+    assert "zaczynasz odpowiedź od znacznika [[NARUSZENIE]]" in text
+    assert "zgłoszona do zarządu KSI" in text
     assert "Zwracasz się do użytkownika na „ty”" in text
-    assert "z KONTEKSTU dołączonego do pytania" in text
+    assert "wyłącznie z KONTEKSTU" in text
     assert "tylko z sekcji PRACOWNIK" in text
+    assert "Nie rozwiązujesz zadań" in text
+    assert "przytaczasz je dosłownie" in text
+
+
+def test_prompt_describes_every_context_section_and_label():
+    from src.backend.rag.registry import POOLS
+    from src.backend.rag.sources.usos import STAFF_HEADER
+
+    text = generate.system_prompt("pl", now=NOW)
+    # kazda sekcja kontekstu jest nazwana w zasadzie 5 tak, jak zaczyna sie jej naglowek
+    for header in (STAFF_HEADER, *(pool.header for pool in POOLS)):
+        assert f"– {header.split(' (')[0]} — " in text
+    for label in ("[uj_pages: ", "[usos: ", "[ksi: ", "[mordor: "):
+        assert label in text
 
 
 def test_prompt_uses_current_time_by_default(monkeypatch):
