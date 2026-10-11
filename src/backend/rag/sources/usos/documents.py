@@ -1,9 +1,14 @@
-"""Rekordy pracownikow -> dokumenty indeksu: jedna karta na osobe."""
+"""Rekordy pracownikow -> dokumenty indeksu: jedna karta na osobe.
+
+Tekst do wyszukiwania to karta z dopisanym dopelniaczem imienia i nazwiska
+("Odmiana: Jacka Cyranki") - pytania czesto uzywaja tej formy ("dyzury
+Jacka Cyranki"); model dostaje sama karte."""
 
 from __future__ import annotations
 
 from ...core.documents import Document, make_id
 from .dataset import StaffRecord
+from .names import genitive
 
 MISSING = "brak danych w USOS"
 
@@ -44,11 +49,13 @@ def staff_document(source: str, record: StaffRecord) -> Document:
     if a.interests:
         lines.append(f"Zainteresowania: {a.interests}")
     text = "\n".join(lines)
+    declined = genitive(a.first_name, a.last_name)
+    embed_text = f"{text}\nOdmiana: {declined}" if declined and declined != name else text
 
     return Document(
         id=make_id(source, a.usos_id),
         source=source,
-        embed_text=text,
+        embed_text=embed_text,
         content_type="text",
         value=text,
         metadata={
