@@ -96,10 +96,36 @@ function DiagnosticsCards({ lang, data }: { lang: Translation; data: Diagnostics
       </Card>
 
       <Card title={text.ragIndex}>
+        <Row label={text.indexName}>
+          {rag.indexName ?? <span className="text-muted font-normal">{text.legacyIndex}</span>}
+        </Row>
+        <Row label={text.embeddingModel}>{rag.embeddingModel ?? EMPTY}</Row>
         <Row label={text.vectorCount}>{metric(rag.vectorCount, count)}</Row>
         <Row label={text.lexicalCount}>{metric(rag.lexicalCount, count)}</Row>
         <Row label={text.lexicalSize}>{metric(rag.lexicalSizeBytes, bytes)}</Row>
         <Row label={text.lastIngest}>{metric(rag.lastIngestAt, date)}</Row>
+        <Row label={text.indexCheck}>
+          <span className="flex flex-col items-end">
+            <span className={rag.indexMismatch ? 'text-danger-text' : ''}>
+              {rag.indexMismatch ? text.indexMismatch : text.indexOk}
+            </span>
+            {rag.indexWarnings.map((warning) => (
+              <span key={warning} className="text-xs font-normal text-muted break-words">{warning}</span>
+            ))}
+          </span>
+        </Row>
+        {rag.sources.length > 0 && (
+          <>
+            <p className={`${HINT} pt-2 pb-1`}>{text.sourceCounts}</p>
+            {rag.sources.map((source) => (
+              <Row key={source.name} label={source.name}>
+                {`${source.documents === null ? EMPTY : count(source.documents)} / ${
+                  source.lexical === null ? EMPTY : count(source.lexical)
+                }`}
+              </Row>
+            ))}
+          </>
+        )}
       </Card>
 
       <Card title={text.storage}>
