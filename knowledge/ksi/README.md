@@ -24,4 +24,4 @@ Treść w Markdownie: akapity, listy, nagłówki `##`.
 - `title` jest wymagany; `updated` to data ostatniego sprawdzenia treści.
 - Pliki zaczynające się od `_` (np. `_szablon.md`) i ten README są pomijane.
 - Sprawdzenie formatu: `python -m src.backend.rag.datasets_cli check --source ksi`.
-- Po zmianie notatek trzeba przebudować indeks (`python -m pipeline.ingest.run_ingest --source ksi --purge`).
+- Po zmianie notatek trzeba przebudować indeks (`python -m src.backend.rag.index sync --source ksi`).

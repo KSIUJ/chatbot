@@ -119,6 +119,13 @@ export interface AdminTranslation {
   lexicalCount: string;
   lexicalSize: string;
   lastIngest: string;
+  indexName: string;
+  legacyIndex: string;
+  embeddingModel: string;
+  indexCheck: string;
+  indexOk: string;
+  indexMismatch: string;
+  sourceCounts: string;
   storage: string;
   databaseSize: string;
   diskFree: string;

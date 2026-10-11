@@ -227,6 +227,36 @@ describe('parseDiagnostics', () => {
     expect(diagnostics.rag.lexicalCount).toEqual({ value: 7, error: null });
     expect(diagnostics.usage.questionsToday).toEqual({ value: 2, error: null });
     expect(diagnostics.storage.diskFreeBytes).toEqual({ value: 10, error: null });
+    // a backend without the index fields
+    expect(diagnostics.rag).toMatchObject({ indexName: null, sources: [], indexMismatch: false, indexWarnings: [] });
+  });
+
+  it('reads the current index, its model and per-source counts', () => {
+    const diagnostics = parseDiagnostics({
+      generated_at: '2026-10-02T10:00:00Z',
+      llm: {
+        provider: 'openrouter', model: 'm', started_at: '2026-10-02T08:00:00Z', uptime_seconds: 1, total_calls: 0,
+        total_errors: 0, recent_calls: 0, recent_errors: 0, avg_latency_ms: null, p95_latency_ms: null,
+        last_error: null, last_error_at: null,
+      },
+      usage: { questions_today: 0, questions_7d: 0, active_users_today: 0, active_users_7d: 0, error: null },
+      totals: { users: 0, conversations: 0, messages: 0, open_reports: 0, open_incidents: 0, error: null },
+      rag: {
+        vector_count: 3, vector_error: null, lexical_count: 3, lexical_size_bytes: 10, lexical_error: null,
+        last_ingest_at: '2026-10-01T09:30:00Z', last_ingest_error: null, index_name: '20261001T093000Z',
+        embedding_model: 'sdadas/mmlw-roberta-large', index_mismatch: true, index_warnings: ['embedding model: x'],
+        sources: [{ name: 'usos', documents: 2, lexical: 1, collected_at: '2026-09-30T06:00:00Z' }],
+      },
+      storage: { database_size_bytes: 1, database_error: null, disk_free_bytes: 1, disk_total_bytes: 2, disk_error: null },
+    });
+
+    expect(diagnostics.rag).toMatchObject({
+      indexName: '20261001T093000Z',
+      embeddingModel: 'sdadas/mmlw-roberta-large',
+      indexMismatch: true,
+      indexWarnings: ['embedding model: x'],
+      sources: [{ name: 'usos', documents: 2, lexical: 1, collectedAt: '2026-09-30T06:00:00Z' }],
+    });
   });
 });
 

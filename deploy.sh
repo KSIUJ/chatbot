@@ -231,7 +231,8 @@ fi
 # shellcheck disable=SC2016  # $(...) ma sie wykonac w kontenerze, nie tutaj
 if ! "${COMPOSE[@]}" exec -T backend sh -c '[ -n "$(ls -A /app/dataset 2>/dev/null)" ]'; then
   warn "baza RAG jest pusta - bot nie zna danych wydzialu. Skopiuj je: ./deploy.sh --seed"
-  warn "albo zbuduj indeks: docker compose exec -u app backend python -m pipeline.ingest.run_ingest"
+  warn "albo zbuduj indeks: docker compose exec -u app backend python -m src.backend.rag.index build"
+  warn "(pozniej aktualizacja: ... index sync, stan: ... index status, powrot: ... index rollback)"
 fi
 [ "$OLLAMA" = 1 ] && log "model Ollamy pobiera sie w tle przy pierwszym starcie: docker compose logs -f ollama-pull"
 

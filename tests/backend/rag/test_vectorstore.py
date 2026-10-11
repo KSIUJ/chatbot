@@ -5,7 +5,9 @@ oraz tymczasowego katalogu na dane.
 """
 
 from src.backend.rag.core.documents import Document
-from src.backend.rag.core.vectorstore import VectorStore
+import pytest
+
+from src.backend.rag.core.vectorstore import VectorStore, document_hash
 
 
 def _make_store(tmp_path, encoder):
@@ -156,4 +158,68 @@ def test_filter_new_and_delete_source(tmp_path, fake_encoder):
 
     assert store.filter_new([old, new]) == [new]
     assert store.delete_source("usos") == 1
+    assert store.count() == 0
+
+
+def test_query_is_exact_and_independent_of_previous_queries(tmp_path):
+    """Wyszukiwanie liczy odleglosc do wszystkich wektorow wybranych zrodel:
+    wynik = ranking brute-force, niezaleznie od wczesniejszych zapytan i k
+    (HNSW Chromy z filtrem po zrodle gubil czasem blizszego sasiada)."""
+    import numpy as np
+
+    rng = np.random.default_rng(7)
+    vectors = rng.normal(size=(600, 16)).astype(np.float32)
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    sources = ["mordor" if i % 3 else "usos" for i in range(len(vectors))]
+
+    class TableEncoder:
+        def embed_batch(self, texts):
+            return [vectors[int(t)].tolist() for t in texts]
+
+    store = VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=TableEncoder())
+    store.add_documents(
+        [
+            Document(id=f"d{i:04d}", source=s, embed_text=str(i), content_type="text", value=str(i))
+            for i, s in enumerate(sources)
+        ]
+    )
+
+    def brute(query, k, wanted):
+        rows = [i for i, s in enumerate(sources) if s in wanted]
+        distances = ((vectors[rows] - query) ** 2).sum(axis=1)
+        return [f"d{rows[i]:04d}" for i in np.argsort(distances, kind="stable")[:k]]
+
+    queries = rng.normal(size=(20, 16)).astype(np.float32)
+    first = [[h["id"] for h in store.query(q.tolist(), 10, ("usos",))] for q in queries]
+    # inne zapytania (duze k, inne zrodla) nie zmieniaja kolejnych wynikow
+    for q in queries:
+        store.query(q.tolist(), 300, ("usos", "mordor"))
+    again = [[h["id"] for h in store.query(q.tolist(), 10, ("usos",))] for q in queries]
+    # nowy obiekt na tym samym katalogu (np. restart backendu) - te same wyniki
+    reopened = VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=TableEncoder())
+    after_restart = [[h["id"] for h in reopened.query(q.tolist(), 10, ("usos",))] for q in queries]
+
+    assert first == again == after_restart == [brute(q, 10, {"usos"}) for q in queries]
+    hit = store.query(queries[0].tolist(), 1, ("usos",))[0]
+    expected = float(((vectors[int(hit["value"])] - queries[0]) ** 2).sum())
+    assert hit["distance"] == pytest.approx(expected, abs=1e-4)
+
+
+def test_document_hash_tracks_text_value_and_metadata():
+    base = Document(id="u", source="usos", embed_text="a", content_type="text", value="b", metadata={"x": 1})
+
+    def changed(**fields):
+        return document_hash(Document(**{**base.__dict__, **fields})) != document_hash(base)
+
+    assert not changed()
+    assert changed(embed_text="a2") and changed(value="b2") and changed(metadata={"x": 2})
+
+
+def test_written_entries_carry_content_hash(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
+    doc = Document(id="usos_1", source="usos", embed_text="a", content_type="text", value="a")
+    store.add_documents([doc])
+
+    assert store.source_hashes("usos") == {"usos_1": document_hash(doc)}
+    store.delete_ids(["usos_1"])
     assert store.count() == 0

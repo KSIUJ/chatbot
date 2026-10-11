@@ -34,13 +34,15 @@ from ..llm.provider import current_provider
 from ..llm.stats import describe_error
 from ..models import Conversation, DailyUsage, Message, MessageFeedback, SecurityIncident, User
 from ..rag.core.context import loaded_retriever
-from ..rag.core.lexical import DEFAULT_DB_PATH as DEFAULT_LEXICAL_DB
+from ..rag.core import index_store
+from ..rag.core.encoder import configured_settings
 from ..rag.core.lexical import TABLE as LEXICAL_TABLE
-from ..rag.core.vectorstore import COLLECTION_NAME, DEFAULT_PERSIST_DIR
+from ..rag.core.vectorstore import COLLECTION_NAME
 from .schemas import (
     DiagnosticsResponse,
     LlmDiagnostics,
     RagDiagnostics,
+    RagSourceDiagnostics,
     StorageDiagnostics,
     TotalsDiagnostics,
     UsageDiagnostics,
@@ -69,20 +71,14 @@ V = TypeVar("V")
 
 @dataclass(frozen=True)
 class DiagnosticsConfig:
+    # dataset/ z indeksami RAG (biezacy wg dataset/CURRENT, patrz index_store)
     dataset_dir: Path
-    vectorstore_dir: Path
-    lexical_db: Path
     database_url: str
 
 
 def get_diagnostics_config() -> DiagnosticsConfig:
     """Dependency FastAPI: sciezki indeksow i bazy (testy podmieniaja na tmp)."""
-    return DiagnosticsConfig(
-        dataset_dir=Path(DEFAULT_PERSIST_DIR).parent,
-        vectorstore_dir=Path(DEFAULT_PERSIST_DIR),
-        lexical_db=Path(DEFAULT_LEXICAL_DB),
-        database_url=database.DATABASE_URL,
-    )
+    return DiagnosticsConfig(dataset_dir=index_store.DATASET_DIR, database_url=database.DATABASE_URL)
 
 
 def _public_error(error: BaseException) -> str:
@@ -180,13 +176,14 @@ def _vector_count(directory: Path) -> int:
     return int(client.get_collection(COLLECTION_NAME).count())
 
 
-def _lexical_count(path: Path) -> int:
-    """Liczba fragmentow w indeksie BM25; tylko odczyt (bez zakladania pliku)."""
+def _lexical_counts(path: Path) -> dict[str, int]:
+    """Liczba fragmentow w indeksie BM25 wg zrodla; tylko odczyt (bez zakladania pliku)."""
     if not path.is_file():
         raise FileNotFoundError("brak indeksu leksykalnego")
     con = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
     try:
-        return int(con.execute(f"SELECT count(*) FROM {LEXICAL_TABLE}").fetchone()[0])
+        rows = con.execute(f"SELECT source, count(*) FROM {LEXICAL_TABLE} GROUP BY source").fetchall()
+        return {str(source): int(count) for source, count in rows}
     finally:
         con.close()
 
@@ -219,19 +216,84 @@ def _last_modified(directory: Path) -> datetime:
     return datetime.fromtimestamp(newest, timezone.utc)
 
 
+def _timestamp(value: object) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value)) if value else None
+    except ValueError:
+        return None
+
+
+def _built_at(meta: dict) -> datetime:
+    built = _timestamp(meta.get("created_at"))
+    if built is None:
+        raise ValueError("meta.json indeksu bez daty zbudowania")
+    return built
+
+
+def _index_warnings(
+    meta: dict | None,
+    pointer_broken: bool,
+    vector_count: int | None,
+    lexical: dict[str, int] | None,
+) -> list[str]:
+    """Niezgodnosci indeksu: z konfiguracja modelu, miedzy meta.json a stanem
+    indeksow i miedzy wektorami a BM25 (bez sciezek plikow)."""
+    problems = []
+    if pointer_broken:
+        problems.append("CURRENT wskazuje niepoprawny albo niedokonczony indeks - uzywany stary uklad")
+    if meta is None:
+        return problems
+    problems += [f"embedding {p}" for p in index_store.embedding_mismatches(meta, configured_settings())]
+    if vector_count is not None and meta.get("documents") != vector_count:
+        problems.append(f"wektory: meta.json {meta.get('documents')}, w indeksie {vector_count}")
+    if lexical is not None:
+        for name, entry in sorted((meta.get("sources") or {}).items()):
+            if entry.get("documents") != lexical.get(name, 0):
+                problems.append(f"{name}: wektory {entry.get('documents')}, BM25 {lexical.get(name, 0)}")
+    return problems
+
+
 def rag_section(config: DiagnosticsConfig) -> RagDiagnostics:
-    vector_count, vector_error = _attempt(lambda: _vector_count(config.vectorstore_dir))
-    lexical_count, lexical_error = _attempt(lambda: _lexical_count(config.lexical_db))
-    lexical_size = config.lexical_db.stat().st_size if lexical_error is None else None
-    last_ingest, ingest_error = _attempt(lambda: _last_modified(config.dataset_dir))
+    location = index_store.resolve(config.dataset_dir)
+    meta = location.meta()
+    pointer_broken = location.directory is None and (config.dataset_dir / index_store.POINTER_FILE).exists()
+
+    vector_count, vector_error = _attempt(lambda: _vector_count(location.vectorstore))
+    lexical, lexical_error = _attempt(lambda: _lexical_counts(location.lexical))
+    lexical_size = location.lexical.stat().st_size if lexical_error is None else None
+    if meta is not None:
+        last_ingest, ingest_error = _attempt(lambda: _built_at(meta))
+    else:
+        last_ingest, ingest_error = _attempt(lambda: _last_modified(config.dataset_dir))
+
+    meta_sources = (meta or {}).get("sources") or {}
+    sources = [
+        RagSourceDiagnostics(
+            name=name,
+            documents=(meta_sources.get(name) or {}).get("documents") if meta is not None else None,
+            lexical=lexical.get(name, 0) if lexical is not None else None,
+            collected_at=_timestamp(((meta_sources.get(name) or {}).get("dataset") or {}).get("collected_at")),
+        )
+        for name in sorted(set(meta_sources) | set(lexical or {}))
+    ]
+    problems = _index_warnings(meta, pointer_broken, vector_count, lexical)
+    warnings = list(problems)
+    if meta is None and not pointer_broken and (vector_count or lexical):
+        warnings.append("stary uklad indeksu bez meta.json - zbuduj nowy: python -m src.backend.rag.index build")
+
     return RagDiagnostics(
         vector_count=vector_count,
         vector_error=vector_error,
-        lexical_count=lexical_count,
+        lexical_count=sum(lexical.values()) if lexical is not None else None,
         lexical_size_bytes=lexical_size,
         lexical_error=lexical_error,
         last_ingest_at=last_ingest,
         last_ingest_error=ingest_error,
+        index_name=location.name,
+        embedding_model=((meta or {}).get("embedding") or {}).get("model"),
+        sources=sources,
+        index_mismatch=bool(problems),
+        index_warnings=warnings,
     )
 
 
