@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIVE_CONVERSATION_KEY, rememberActiveConversation } from './chatStorage';
+import { claimChatStorage, clearChatStorage } from './chatStorage';
 
 class MemoryStorage {
   readonly items = new Map<string, string>();
+  getItem(key: string): string | null {
+    return this.items.get(key) ?? null;
+  }
   setItem(key: string, value: string): void {
     this.items.set(key, value);
   }
@@ -11,34 +14,40 @@ class MemoryStorage {
   }
 }
 
-const storageWith = (id: string): MemoryStorage => {
-  const storage = new MemoryStorage();
-  storage.setItem(ACTIVE_CONVERSATION_KEY, id);
-  return storage;
-};
+describe('claimChatStorage', () => {
+  it('drops the conversation id older versions reopened and other leftovers', () => {
+    const storage = new MemoryStorage();
+    storage.setItem('chatOwner', 'u1');
+    storage.setItem('chatConversationId', 'abc');
+    storage.setItem('chatMessages', '[]');
+    storage.setItem('chatTheme', 'ciemny');
 
-describe('rememberActiveConversation', () => {
-  it('stores the open conversation', () => {
-    const storage = storageWith('old');
+    claimChatStorage('u1', storage);
 
-    rememberActiveConversation('new', false, storage);
-
-    expect(storage.items.get(ACTIVE_CONVERSATION_KEY)).toBe('new');
+    expect(storage.items.has('chatConversationId')).toBe(false);
+    expect(storage.items.has('chatMessages')).toBe(false);
+    // preferences stay
+    expect(storage.items.get('chatTheme')).toBe('ciemny');
+    expect(storage.items.get('chatOwner')).toBe('u1');
   });
 
-  it('keeps the remembered conversation while the initial load has not succeeded', () => {
-    const storage = storageWith('old');
+  it('records a new owner after an account change', () => {
+    const storage = new MemoryStorage();
+    storage.setItem('chatOwner', 'u1');
 
-    rememberActiveConversation(null, false, storage);
+    claimChatStorage('u2', storage);
 
-    expect(storage.items.get(ACTIVE_CONVERSATION_KEY)).toBe('old');
+    expect(storage.items.get('chatOwner')).toBe('u2');
   });
+});
 
-  it('forgets it once nothing is open on purpose', () => {
-    const storage = storageWith('old');
+describe('clearChatStorage', () => {
+  it('forgets the owner on logout', () => {
+    const storage = new MemoryStorage();
+    storage.setItem('chatOwner', 'u1');
 
-    rememberActiveConversation(null, true, storage);
+    clearChatStorage(storage);
 
-    expect(storage.items.has(ACTIVE_CONVERSATION_KEY)).toBe(false);
+    expect(storage.items.has('chatOwner')).toBe(false);
   });
 });

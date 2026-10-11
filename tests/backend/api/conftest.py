@@ -136,6 +136,7 @@ def client(auth_env, keycloak: FakeKeycloak, session_factory, monkeypatch: pytes
     monkeypatch.setattr(main_module, "start_retention_task", lambda: None)
     # testy nie lacza sie z ksi.sh (stan okazji podmieniaja przez get_occasion_store)
     monkeypatch.setattr(main_module, "start_occasion_task", lambda: None)
+    monkeypatch.setattr(main_module, "start_warmup_task", lambda: None)
     app = main_module.app
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_session_factory] = lambda: session_factory

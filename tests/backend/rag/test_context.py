@@ -134,3 +134,38 @@ def test_default_retriever_is_rebuilt_with_the_same_encoder_after_an_index_switc
 
     assert second is not first and second.encoder is first.encoder
     assert context.default_retriever() is second and len(created) == 2
+
+
+def test_warm_up_runs_one_search_on_the_shared_retriever(monkeypatch):
+    from src.backend.rag.core import context
+
+    queries = []
+
+    class Warm:
+        def retrieve(self, query):
+            queries.append(query)
+            return []
+
+    monkeypatch.setattr(context, "default_retriever", lambda: Warm())
+
+    assert context.warm_up() >= 0
+    assert queries == ["rozgrzewka"]
+
+
+def test_warmup_task_can_be_switched_off(monkeypatch):
+    from src.backend import main
+
+    monkeypatch.setenv("RAG_WARMUP", "off")
+    assert main.start_warmup_task() is None
+
+
+def test_warmup_failure_is_logged_not_raised(monkeypatch, caplog):
+    from src.backend import main
+
+    def broken():
+        raise RuntimeError("brak indeksu")
+
+    monkeypatch.setattr(main, "rag_warm_up", broken)
+    main._warm_up_rag()
+
+    assert "rag warm-up failed" in caplog.text
