@@ -5,34 +5,45 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...core.chunking import make_splitter
+from ...core.chunking import CONTEXT_SEPARATOR, chunk_markdown, context_line, make_splitter, with_context
 from ...core.citations import Citation, http_url, page_title, text
 from ...core.datasets import read_dataset
 from ...core.documents import Document, make_id
+from ...core.lexical import tokenize
 from ..base import RagSource
 from ..uj_pages.dataset import PageRecord
 from ..uj_pages.documents import page_documents
 from .dataset import NoteRecord
 from .notes import KNOWLEDGE_DIR, read_notes
 
+KSI_LABEL = "KSI"
+
+
+def _note_context(note: NoteRecord, section: tuple[str, ...]) -> str:
+    """Linia kontekstu notatki: "KSI" (gdy tytul go nie zawiera), tytul, sekcja."""
+    mentions_ksi = "ksi" in tokenize(note.title)
+    return context_line("" if mentions_ksi else KSI_LABEL, note.title, *section)
+
 
 def note_documents(source: str, notes: list[NoteRecord]) -> list[Document]:
     splitter = make_splitter()
     documents: list[Document] = []
     for note in notes:
-        for index, chunk in enumerate(splitter.split_text(note.content)):
+        for index, chunk in enumerate(chunk_markdown(note.content, splitter)):
+            text = with_context(_note_context(note, chunk.section), chunk.text)
             documents.append(
                 Document(
                     id=make_id(source, "note", note.id, str(index)),
                     source=source,
-                    embed_text=chunk,
+                    embed_text=text,
                     content_type="text",
-                    value=chunk,
+                    value=text,
                     metadata={
                         "note": note.id,
                         "title": note.title,
                         "url": note.url or "",
                         "always_include": note.attributes.always_include,
+                        "section": CONTEXT_SEPARATOR.join(chunk.section),
                         "chunk_index": index,
                     },
                 )

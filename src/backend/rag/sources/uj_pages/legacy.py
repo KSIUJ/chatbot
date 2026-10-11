@@ -6,8 +6,9 @@ Stary crawler zapisuje wszystkie strony, pliki (pdf/docx/txt) i Wikipedie do
 jednego pliku data/strony/website_data.txt w formacie powtorzonym dla kazdej
 strony:
     \\n\\nURL: <adres>\\n\\n<tresc strony>
-Nie ma tytulow, menu ani dat - te pola zostaja puste. Rodzaj witryny
-(category) wynika z domeny, typ pliku z rozszerzenia w adresie.
+Nie ma tytulow, menu ani dat - tytul i okruszki sa wyprowadzane z adresu
+(titles.py), data zostaje pusta. Rodzaj witryny (category) wynika z domeny,
+typ pliku z rozszerzenia w adresie.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .dataset import PageAttributes, PageCategory, PageRecord
+from .titles import Vocabulary, page_title
 
 LEGACY_DIR = "strony"
 OUTPUT_FILE = "website_data.txt"
@@ -77,19 +79,25 @@ def _lang(path: str) -> str:
     return "en" if "en" in segments or "en-gb" in segments else "pl"
 
 
-def to_record(url: str, text: str) -> PageRecord:
+def to_record(url: str, text: str, vocabulary: Vocabulary | None = None) -> PageRecord:
+    """Rekord strony; vocabulary - slownik do odtwarzania polskich znakow
+    w tytule z adresu (domyslnie ze slow tej strony)."""
     parts = urlsplit(url)
     media_type = _media_type(parts.path)
     is_document = media_type is not None or parts.path.startswith("/documents/")
+    category = category_of(parts.netloc)
+    title = page_title(url, text, category, is_document, vocabulary or Vocabulary([text]))
     return PageRecord(
         id=url,
         kind="document" if is_document else "page",
+        title=title.title,
         url=url,
         lang=_lang(parts.path),
         content=text,
         attributes=PageAttributes(
             site=parts.netloc,
-            category=category_of(parts.netloc),
+            category=category,
+            breadcrumbs=title.breadcrumbs,
             media_type=media_type or ("application/octet-stream" if is_document else "text/html"),
         ),
     )
@@ -110,7 +118,6 @@ def convert(data_dir: Path) -> list[PageRecord] | None:
     path = legacy_file(data_dir)
     if path is None:
         return None
-    records: dict[str, PageRecord] = {}
-    for url, text in parse_pages(path.read_text(encoding="utf-8")):
-        records[url] = to_record(url, text)
-    return list(records.values())
+    pages = dict(parse_pages(path.read_text(encoding="utf-8")))
+    vocabulary = Vocabulary(pages.values())
+    return [to_record(url, text, vocabulary) for url, text in pages.items()]
