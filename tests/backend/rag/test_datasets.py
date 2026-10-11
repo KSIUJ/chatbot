@@ -143,10 +143,13 @@ def test_legacy_pages_become_records(tmp_path):
     ]
     page = records["https://matinf.uj.edu.pl/a"]
     assert (page.kind, page.attributes.category, page.lang, page.content) == ("page", "faculty", "pl", "Dziekanat czynny pon-pt.")
-    assert records["https://nkr.si/b"].attributes.category == "student_group"
+    assert (page.title, page.attributes.breadcrumbs) == ("A", ["A"])
+    group = records["https://nkr.si/b"]
+    assert (group.attributes.category, group.attributes.breadcrumbs) == ("student_group", ["nkr.si", "B"])
     pdf = records["https://matinf.uj.edu.pl/documents/41633/1/urlop+dzieka%C5%84ski.pdf/abc"]
-    assert (pdf.kind, pdf.attributes.media_type) == ("document", "application/pdf")
-    assert records["https://kmsuj.matinf.uj.edu.pl/workshop/contact/en"].lang == "en"
+    assert (pdf.kind, pdf.attributes.media_type, pdf.title) == ("document", "application/pdf", "Urlop dziekański")
+    workshop = records["https://kmsuj.matinf.uj.edu.pl/workshop/contact/en"]
+    assert (workshop.lang, workshop.attributes.breadcrumbs) == ("en", ["kmsuj.matinf.uj.edu.pl", "Workshop", "Contact"])
 
 
 def test_legacy_pages_old_file_name_duplicates_and_missing(tmp_path):
@@ -168,8 +171,28 @@ def test_page_documents_keep_ids_and_metadata():
     assert document.id == make_id("uj_pages", "https://matinf.uj.edu.pl/a", "0")
     assert document.value == document.embed_text == "Dziekanat czynny pon-pt."
     assert document.metadata == {
-        "url": "https://matinf.uj.edu.pl/a", "domain": "matinf.uj.edu.pl", "category": "faculty", "title": "", "chunk_index": 0,
+        "url": "https://matinf.uj.edu.pl/a", "domain": "matinf.uj.edu.pl", "category": "faculty", "title": "",
+        "section": "", "chunk_index": 0,
     }
+
+
+def test_page_documents_start_with_breadcrumbs_title_and_section():
+    url = "https://matinf.uj.edu.pl/o-nas/biblioteka"
+    record = PageRecord(
+        id=url, kind="page", url=url, title="Biblioteka",
+        content="Wstep.\n\n## Godziny otwarcia\n\npon-pt 9-17\n\n## Kontakt\n\n" + "tel. 12 664 " * 120,
+        attributes=PageAttributes(site="matinf.uj.edu.pl", category="faculty", breadcrumbs=["O nas", "Biblioteka"]),
+    )
+
+    documents = page_documents("uj_pages", [record])
+
+    first, *rest = documents
+    assert first.value == first.embed_text
+    assert first.value.startswith("O nas › Biblioteka\nWstep.")
+    assert "## Godziny otwarcia\n\npon-pt 9-17" in first.value
+    assert rest and all(d.value.startswith("O nas › Biblioteka › Kontakt\ntel.") for d in rest)
+    assert [d.metadata["section"] for d in documents] == ["", *["Kontakt"] * len(rest)]
+    assert [d.metadata["chunk_index"] for d in documents] == list(range(len(documents)))
 
 
 # --- usos --------------------------------------------------------------------------
@@ -204,8 +227,8 @@ def test_legacy_staff_record_and_card_text(tmp_path):
 
     assert record.id == "12345" and record.title == "Jan Kowalski"
     assert record.attributes.office_hours == "wtorek 10-12"
-    # ten sam tekst karty co przed zmiana formatu
-    assert document.embed_text == (
+    # ten sam tekst karty co przed zmiana formatu; do wyszukiwania z dopelniaczem
+    card = (
         "dr hab. prof. UJ Jan Kowalski\n"
         "Stanowisko: adiunkt (WMiI); kierownik\n"
         "Pokoj: pokój 2144, Łojasiewicza 6\n"
@@ -214,6 +237,8 @@ def test_legacy_staff_record_and_card_text(tmp_path):
         "Telefon: 12 664 00 00\n"
         "Zainteresowania: analiza"
     )
+    assert document.value == card
+    assert document.embed_text == card + "\nOdmiana: Jana Kowalskiego"
     assert document.id == make_id("usos", "12345")
     assert document.metadata["employee_name"] == "Jan Kowalski"
     assert document.metadata["profile_url"] == EMPLOYEE["profile_url"]
@@ -239,7 +264,7 @@ def test_material_documents(tmp_path):
     assert image.embed_text == "mapy plan budynku A"
     assert image.value == (directory / "mapy/plan_budynku-A.png").as_posix()
     assert image.content_type == "image"
-    assert (text.value, text.metadata["source_file"], text.metadata["file_type"]) == ("Calki.", "notatki.pdf", ".pdf")
+    assert (text.value, text.metadata["source_file"], text.metadata["file_type"]) == ("notatki.pdf\nCalki.", "notatki.pdf", ".pdf")
 
 
 @pytest.mark.parametrize("path", ["/etc/passwd", "../poza.pdf", "a\\b.pdf"])
@@ -304,7 +329,7 @@ def test_ksi_source_indexes_pages_and_notes(tmp_path):
 
     documents = KsiSource(notes_dir=notes).load_documents(tmp_path / "data")
 
-    assert [d.value for d in documents] == ["O kole.", "Przyjdź na spotkanie."]
+    assert [d.value for d in documents] == ["O kole.", "Jak dołączyć do KSI\nPrzyjdź na spotkanie."]
     assert all(d.source == "ksi" for d in documents)
     assert documents[1].metadata["title"] == "Jak dołączyć do KSI"
 
