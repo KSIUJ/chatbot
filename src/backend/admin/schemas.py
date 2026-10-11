@@ -228,14 +228,31 @@ class TotalsDiagnostics(BaseModel):
     error: str | None
 
 
+class RagSourceDiagnostics(BaseModel):
+    name: str
+    # wpisy wektorowe wg meta.json indeksu (None = stary uklad bez meta.json)
+    documents: int | None
+    # wpisy w indeksie BM25 (liczone na zywo)
+    lexical: int | None
+    collected_at: datetime | None
+
+
 class RagDiagnostics(BaseModel):
     vector_count: int | None
     vector_error: str | None
     lexical_count: int | None
     lexical_size_bytes: int | None
     lexical_error: str | None
+    # czas zbudowania biezacego indeksu (meta.json); stary uklad - data plikow
     last_ingest_at: datetime | None
     last_ingest_error: str | None
+    # katalog biezacego indeksu (dataset/indexes/<nazwa>); None = stary uklad
+    index_name: str | None
+    embedding_model: str | None
+    sources: list[RagSourceDiagnostics]
+    # indeks niezgodny z konfiguracja albo sam ze soba (opis w index_warnings)
+    index_mismatch: bool
+    index_warnings: list[str]
 
 
 class StorageDiagnostics(BaseModel):
