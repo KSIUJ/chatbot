@@ -16,7 +16,7 @@ odpowiedz, nieudany zapis. Rozlaczenie albo anulowanie przez klienta (w
 dowolnym momencie) nigdy nie zwraca pytania - inaczej petla "wyslij
 i rozlacz" dawalaby nielimitowane wywolania modelu.
 
-Wiodacy znacznik [[NARUSZENIE]] (zasada 11 promptu) nigdy nie trafia do
+Wiodacy znacznik [[NARUSZENIE]] (zasada 18 promptu) nigdy nie trafia do
 klienta: poczatek odpowiedzi jest buforowany, dopoki nie wiadomo, czy to
 znacznik (security/marker.py). Na koncu tury powstaje incydent, jesli
 pytanie pasowalo do heurystyki albo model dal znacznik.
