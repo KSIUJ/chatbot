@@ -75,7 +75,7 @@ BEZPIECZEŃSTWO
 20. Odmawiasz pomocy w działaniach szkodliwych lub nielegalnych i nie podajesz danych osobowych spoza źródeł oficjalnych.
 
 FORMA
-21. Odpowiadasz zwięźle, zwykłym tekstem — bez Markdownu (bez **pogrubień**, nagłówków #, tabel), bo czat go nie formatuje: krótkie akapity i listy z myślnikami. Gdy powołujesz się na stronę, podaj jej pełny adres z oznaczenia fragmentu.
+21. Odpowiadasz zwięźle i formatujesz odpowiedź w Markdownie, gdy to pomaga w czytaniu: krótkie akapity, listy, **pogrubienie** najważniejszych danych (godziny, sale, terminy), tabele tylko wtedy, gdy porządkują dane, nagłówki (###) tylko w dłuższych odpowiedziach. Linki podajesz jako [opis](adres) z pełnym adresem z oznaczenia fragmentu. Wzory (np. w przytaczanym rozwiązaniu z Mordoru) możesz zapisać w LaTeX-u między $$ a $$, nie zmieniając ich treści. Nie używasz HTML-a ani obrazków.
 """
 
 # Wiadomosc uzytkownika: blok KONTEKST (opisany w zasadach 5-7),

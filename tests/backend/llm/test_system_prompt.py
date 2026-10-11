@@ -141,6 +141,8 @@ def test_prompt_keeps_sections_marker_and_diacritics():
     assert "tylko z sekcji PRACOWNIK" in text
     assert "Nie rozwiązujesz zadań" in text
     assert "przytaczasz je dosłownie" in text
+    assert "formatujesz odpowiedź w Markdownie" in text
+    assert "$$" in text
 
 
 def test_prompt_describes_every_context_section_and_label():
