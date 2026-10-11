@@ -1,12 +1,31 @@
 """
-Testy retriever.py - retrieve_split/retrieve_staff na realnej ChromaDB i FTS5,
+Testy core/retrieval.py - pule i wyszukiwanie pracownikow na realnej ChromaDB i FTS5,
 z FakeEncoder (fixture fake_encoder, patrz conftest.py) zamiast modelu.
 """
 
-from src.backend.rag.lexical import LexicalIndex
-from src.backend.rag.retriever import Retriever
-from src.backend.rag.schema import Document
-from src.backend.rag.vectorstore import VectorStore
+from src.backend.rag.core.lexical import LexicalIndex
+from src.backend.rag.core.retrieval import NO_THRESHOLD, Retriever
+from src.backend.rag.core.documents import Document
+from src.backend.rag.core.vectorstore import VectorStore
+from src.backend.rag.registry import MORDOR_HEADER, OFFICIAL_HEADER, Pool
+from src.backend.rag.sources.usos import STAFF_HEADER
+
+
+def _pools(k_other=5, k_mordor=5):
+    return (
+        Pool("official", ("strony", "usos"), k=k_other, header=OFFICIAL_HEADER),
+        Pool("student", ("mordor",), k=k_mordor, header=MORDOR_HEADER),
+    )
+
+
+def _groups(retriever, query):
+    """Trafienia pul: {"mordor": [...], "other": [...]}."""
+    sections = {s.header: s.hits for s in retriever.retrieve(query)}
+    return {"mordor": sections[MORDOR_HEADER], "other": sections[OFFICIAL_HEADER]}
+
+
+def _staff(retriever, query):
+    return retriever.lookup_hits(retriever.sources["usos"], query)
 
 
 def _doc(id_, source, text, value=None, metadata=None):
@@ -24,7 +43,7 @@ def _make_store(tmp_path, encoder):
     return VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=encoder)
 
 
-def test_retrieve_split_returns_matching_official_document(tmp_path, fake_encoder):
+def test_official_pool_returns_matching_document(tmp_path, fake_encoder):
     store = _make_store(tmp_path, fake_encoder)
     store.add_documents(
         [
@@ -37,9 +56,11 @@ def test_retrieve_split_returns_matching_official_document(tmp_path, fake_encode
             )
         ]
     )
-    retriever = Retriever(encoder=fake_encoder, vectorstore=store, lexical=LexicalIndex(str(tmp_path / "lex.db")))
+    retriever = Retriever(
+        relevance=NO_THRESHOLD, encoder=fake_encoder, vectorstore=store, lexical=LexicalIndex(str(tmp_path / "lex.db")), pools=_pools(3, 3)
+    )
 
-    groups = retriever.retrieve_split("godziny otwarcia dziekanatu", k_mordor=3, k_other=3)
+    groups = _groups(retriever, "godziny otwarcia dziekanatu")
 
     assert groups["mordor"] == []
     assert len(groups["other"]) == 1
@@ -47,22 +68,24 @@ def test_retrieve_split_returns_matching_official_document(tmp_path, fake_encode
     assert groups["other"][0]["value"] == "Dziekanat czynny pon-pt 8-15."
 
 
-def test_retrieve_split_respects_k(tmp_path, fake_encoder):
+def test_pool_respects_k(tmp_path, fake_encoder):
     store = _make_store(tmp_path, fake_encoder)
     store.add_documents([_doc(f"usos_{i}", "usos", f"pracownik numer {i} dyzury") for i in range(5)])
-    retriever = Retriever(encoder=fake_encoder, vectorstore=store, lexical=LexicalIndex(str(tmp_path / "lex.db")))
+    retriever = Retriever(
+        relevance=NO_THRESHOLD, encoder=fake_encoder, vectorstore=store, lexical=LexicalIndex(str(tmp_path / "lex.db")), pools=_pools(2, 2)
+    )
 
-    groups = retriever.retrieve_split("pracownik dyzury", k_mordor=2, k_other=2)
+    groups = _groups(retriever, "pracownik dyzury")
 
     assert len(groups["other"]) == 2
 
 
 def test_retrieve_returns_empty_when_store_and_index_empty(tmp_path, fake_encoder, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    retriever = Retriever(encoder=fake_encoder, vectorstore=_make_store(tmp_path, fake_encoder))
+    retriever = Retriever(relevance=NO_THRESHOLD, encoder=fake_encoder, vectorstore=_make_store(tmp_path, fake_encoder))
 
-    assert retriever.retrieve_split("cokolwiek") == {"mordor": [], "other": []}
-    assert retriever.retrieve_staff("Rafal Kawa") == []
+    assert _groups(retriever, "cokolwiek") == {"mordor": [], "other": []}
+    assert _staff(retriever, "Rafal Kawa") == []
 
 
 def _ingest(store, documents):
@@ -81,21 +104,49 @@ KAWA = _doc(
 def test_empty_indexes_are_loaded_once_they_get_data(tmp_path, fake_encoder, monkeypatch):
     monkeypatch.chdir(tmp_path)
     store = _make_store(tmp_path, fake_encoder)
-    retriever = Retriever(encoder=fake_encoder, vectorstore=store, reload_interval=0)
+    retriever = Retriever(relevance=NO_THRESHOLD, encoder=fake_encoder, vectorstore=store, reload_interval=0)
 
-    assert retriever.retrieve_staff("Rafał Kawa") == []
+    assert _staff(retriever, "Rafał Kawa") == []
 
     _ingest(store, [KAWA])
 
-    assert [h["id"] for h in retriever.retrieve_staff("Rafał Kawa")] == ["usos_kawa"]
+    assert [h["id"] for h in _staff(retriever, "Rafał Kawa")] == ["usos_kawa"]
 
 
 def test_empty_index_reload_is_throttled(tmp_path, fake_encoder, monkeypatch):
     monkeypatch.chdir(tmp_path)
     store = _make_store(tmp_path, fake_encoder)
-    retriever = Retriever(encoder=fake_encoder, vectorstore=store, reload_interval=3600)
+    retriever = Retriever(relevance=NO_THRESHOLD, encoder=fake_encoder, vectorstore=store, reload_interval=3600)
 
-    assert retriever.retrieve_staff("Rafał Kawa") == []
+    assert _staff(retriever, "Rafał Kawa") == []
     _ingest(store, [KAWA])
 
-    assert retriever.retrieve_staff("Rafał Kawa") == []
+    assert _staff(retriever, "Rafał Kawa") == []
+
+
+def test_staff_section_comes_first_and_is_not_repeated_in_the_pool(tmp_path, fake_encoder, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    store = _make_store(tmp_path, fake_encoder)
+    page = _doc("strony_1", "strony", "pracownicy wydzialu lista", metadata={"url": "https://a.pl/pracownicy"})
+    _ingest(store, [KAWA, page])
+    retriever = Retriever(relevance=NO_THRESHOLD, encoder=fake_encoder, vectorstore=store, pools=_pools(5, 5))
+
+    sections = retriever.retrieve("Rafał Kawa pracownicy")
+
+    assert [s.header for s in sections] == [STAFF_HEADER, OFFICIAL_HEADER, MORDOR_HEADER]
+    assert [h["id"] for h in sections[0].hits] == ["usos_kawa"]
+    assert "usos_kawa" not in [h["id"] for h in sections[1].hits]
+    assert "strony_1" in [h["id"] for h in sections[1].hits]
+
+
+def test_staff_card_from_the_lookup_does_not_take_a_pool_slot(tmp_path, fake_encoder, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    store = _make_store(tmp_path, fake_encoder)
+    page = _doc("strony_1", "strony", "lista pracownikow", metadata={"url": "https://a.pl/pracownicy"})
+    _ingest(store, [KAWA, page])
+    retriever = Retriever(relevance=NO_THRESHOLD, encoder=fake_encoder, vectorstore=store, pools=_pools(1, 1))
+
+    sections = retriever.retrieve("Rafał Kawa starszy wykladowca")
+
+    assert [h["id"] for h in sections[0].hits] == ["usos_kawa"]
+    assert [h["id"] for h in sections[1].hits] == ["strony_1"]

@@ -4,15 +4,21 @@ conftest.py) - realna ChromaDB, ale bez pobierania modelu embeddingowego -
 oraz tymczasowego katalogu na dane.
 """
 
-from src.backend.rag.schema import Document
-from src.backend.rag.vectorstore import VectorStore
+from src.backend.rag.core.documents import Document
+import pytest
+
+from src.backend.rag.core.vectorstore import VectorStore, document_hash
 
 
 def _make_store(tmp_path, encoder):
     return VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=encoder)
 
 
-def test_add_and_search_split_returns_matching_document(tmp_path, fake_encoder):
+def _search(store, query, k, *sources):
+    return store.query(store.encoder.embed_query(query), k, sources)
+
+
+def test_add_and_query_returns_matching_document(tmp_path, fake_encoder):
     store = _make_store(tmp_path, fake_encoder)
     documents = [
         Document(
@@ -36,7 +42,7 @@ def test_add_and_search_split_returns_matching_document(tmp_path, fake_encoder):
     store.add_documents(documents)
     assert store.count() == 2
 
-    hits = store.search_split("regulamin studiow zaliczenia", k_mordor=1, k_other=0)["mordor"]
+    hits = _search(store, "regulamin studiow zaliczenia", 1, "mordor")
 
     assert len(hits) == 1
     assert hits[0]["id"] == "mordor_1"
@@ -66,7 +72,7 @@ def test_upsert_overwrites_existing_id(tmp_path, fake_encoder):
     store.add_documents([doc_v2])
 
     assert store.count() == 1
-    hits = store.search_split("nowa tresc", k_mordor=0, k_other=1)["other"]
+    hits = _search(store, "nowa tresc", 1, "strony", "usos")
     assert hits[0]["value"] == "nowa tresc"
 
 
@@ -82,13 +88,13 @@ def test_search_includes_image_content_type(tmp_path, fake_encoder):
     )
     store.add_documents([image_doc])
 
-    hits = store.search_split("plan budynku", k_mordor=1, k_other=0)["mordor"]
+    hits = _search(store, "plan budynku", 1, "mordor")
 
     assert hits[0]["content_type"] == "image"
     assert hits[0]["value"] == "data/mordor/mapy/plan_budynku.png"
 
 
-def test_search_split_gives_each_group_its_own_slots(tmp_path, fake_encoder):
+def test_query_is_limited_to_the_given_sources(tmp_path, fake_encoder):
     store = _make_store(tmp_path, fake_encoder)
     documents = [
         Document(
@@ -113,12 +119,15 @@ def test_search_split_gives_each_group_its_own_slots(tmp_path, fake_encoder):
     )
     store.add_documents(documents)
 
-    groups = store.search_split("regulamin zaliczenia", k_mordor=2, k_other=2)
+    mordor = _search(store, "regulamin zaliczenia", 2, "mordor")
+    other = _search(store, "regulamin zaliczenia", 2, "strony", "usos")
 
-    assert len(groups["mordor"]) == 2
-    assert all(h["source"] == "mordor" for h in groups["mordor"])
-    assert len(groups["other"]) == 1
-    assert groups["other"][0]["value"] == "Jan Kowalski, pokoj 101."
+    assert len(mordor) == 2
+    assert all(h["source"] == "mordor" for h in mordor)
+    assert len(other) == 1
+    assert other[0]["value"] == "Jan Kowalski, pokoj 101."
+    assert _search(store, "regulamin", 0, "mordor") == []
+    assert _search(store, "regulamin", 3) == []
 
 
 def test_get_by_ids_keeps_requested_order_and_skips_missing(tmp_path, fake_encoder):
@@ -149,4 +158,68 @@ def test_filter_new_and_delete_source(tmp_path, fake_encoder):
 
     assert store.filter_new([old, new]) == [new]
     assert store.delete_source("usos") == 1
+    assert store.count() == 0
+
+
+def test_query_is_exact_and_independent_of_previous_queries(tmp_path):
+    """Wyszukiwanie liczy odleglosc do wszystkich wektorow wybranych zrodel:
+    wynik = ranking brute-force, niezaleznie od wczesniejszych zapytan i k
+    (HNSW Chromy z filtrem po zrodle gubil czasem blizszego sasiada)."""
+    import numpy as np
+
+    rng = np.random.default_rng(7)
+    vectors = rng.normal(size=(600, 16)).astype(np.float32)
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    sources = ["mordor" if i % 3 else "usos" for i in range(len(vectors))]
+
+    class TableEncoder:
+        def embed_batch(self, texts):
+            return [vectors[int(t)].tolist() for t in texts]
+
+    store = VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=TableEncoder())
+    store.add_documents(
+        [
+            Document(id=f"d{i:04d}", source=s, embed_text=str(i), content_type="text", value=str(i))
+            for i, s in enumerate(sources)
+        ]
+    )
+
+    def brute(query, k, wanted):
+        rows = [i for i, s in enumerate(sources) if s in wanted]
+        distances = ((vectors[rows] - query) ** 2).sum(axis=1)
+        return [f"d{rows[i]:04d}" for i in np.argsort(distances, kind="stable")[:k]]
+
+    queries = rng.normal(size=(20, 16)).astype(np.float32)
+    first = [[h["id"] for h in store.query(q.tolist(), 10, ("usos",))] for q in queries]
+    # inne zapytania (duze k, inne zrodla) nie zmieniaja kolejnych wynikow
+    for q in queries:
+        store.query(q.tolist(), 300, ("usos", "mordor"))
+    again = [[h["id"] for h in store.query(q.tolist(), 10, ("usos",))] for q in queries]
+    # nowy obiekt na tym samym katalogu (np. restart backendu) - te same wyniki
+    reopened = VectorStore(persist_dir=str(tmp_path / "vectorstore"), encoder=TableEncoder())
+    after_restart = [[h["id"] for h in reopened.query(q.tolist(), 10, ("usos",))] for q in queries]
+
+    assert first == again == after_restart == [brute(q, 10, {"usos"}) for q in queries]
+    hit = store.query(queries[0].tolist(), 1, ("usos",))[0]
+    expected = float(((vectors[int(hit["value"])] - queries[0]) ** 2).sum())
+    assert hit["distance"] == pytest.approx(expected, abs=1e-4)
+
+
+def test_document_hash_tracks_text_value_and_metadata():
+    base = Document(id="u", source="usos", embed_text="a", content_type="text", value="b", metadata={"x": 1})
+
+    def changed(**fields):
+        return document_hash(Document(**{**base.__dict__, **fields})) != document_hash(base)
+
+    assert not changed()
+    assert changed(embed_text="a2") and changed(value="b2") and changed(metadata={"x": 2})
+
+
+def test_written_entries_carry_content_hash(tmp_path, fake_encoder):
+    store = _make_store(tmp_path, fake_encoder)
+    doc = Document(id="usos_1", source="usos", embed_text="a", content_type="text", value="a")
+    store.add_documents([doc])
+
+    assert store.source_hashes("usos") == {"usos_1": document_hash(doc)}
+    store.delete_ids(["usos_1"])
     assert store.count() == 0

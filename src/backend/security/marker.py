@@ -1,4 +1,4 @@
-"""Znacznik [[NARUSZENIE]], ktorym model (zasada 11 promptu) zaczyna odmowe
+"""Znacznik [[NARUSZENIE]], ktorym model (zasada 18 promptu) zaczyna odmowe
 przy probie obejscia zasad. Uzytkownik go nie widzi i nie trafia do bazy;
 jego obecnosc zaklada incydent dla zarzadu.
 

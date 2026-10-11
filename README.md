@@ -15,9 +15,9 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 - Do pytania można dołączyć pliki (PDF, DOCX, TXT, obrazy) — szczegóły w sekcji *Załączniki*.
 
 ```
-src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie), limits/, admin/, attachments/, history.py
+src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie: sources/ — źródła danych, core/ — indeksy i retrieval, registry.py), limits/, admin/, attachments/, history.py
 src/frontend/    aplikacja React (+ nginx w obrazie Dockera)
-pipeline/        scrapers/ (mordor, strony, usos) i ingest/ (ładowanie danych do bazy RAG)
+pipeline/        scrapers/ (mordor, strony, usos) i ingest/ (ładowanie danych źródeł z rejestru RAG do bazy)
 alembic/         migracje bazy aplikacji
 tests/           testy backendu (pytest)
 ```
@@ -53,9 +53,10 @@ Dane RAG (wolumeny `chatbot-data`, `chatbot-dataset`) są na starcie puste. Skop
 ```bash
 docker compose cp data/. backend:/app/data
 docker compose cp dataset/. backend:/app/dataset      # gotowy indeks albo:
-docker compose exec -u app backend python -m pipeline.ingest.run_ingest
-docker compose restart backend
+docker compose exec -u app backend python -m src.backend.rag.index build
 ```
+
+Backend sam przechodzi na nowo zbudowany indeks (sprawdza `dataset/CURRENT` co 10 s); po skopiowaniu indeksu starego typu (bez `CURRENT`) zrestartuj backend: `docker compose restart backend`. Opis indeksu i powrotu do poprzedniego: [Dane: scraping i indeks](#dane-scraping-i-indeks).
 
 Załączniki z czatu leżą w wolumenie `chatbot-uploads` (`/app/uploads`, `ATTACHMENTS_DIR`); znikają razem z rozmowami, więc nie trzeba ich kopiować razem z bazą.
 
@@ -86,18 +87,35 @@ Testy: `python -m pytest` oraz w `src/frontend`: `npm run lint && npm test && np
 
 Migracje: po zmianie `src/backend/models.py` wygeneruj plik `python -m alembic revision --autogenerate -m "opis"`, sprawdź go i zastosuj `python -m alembic upgrade head`.
 
-## Dane: scraping i ingest
+## Dane: scraping i indeks
 
-Scrapery zapisują do `data/<źródło>/`, ingest buduje indeks w `dataset/`:
+Scrapery zapisują do `data/<źródło>/`, CLI indeksu buduje z tych zbiorów indeks RAG w `dataset/`:
 
 ```bash
 python pipeline/scrapers/strony/scraper.py         # strony wydziału
 python pipeline/scrapers/usos/scrape_staff.py      # pracownicy (USOS_CONSUMER_KEY/SECRET)
 python pipeline/scrapers/mordor/files_downloader.py  # Mordor (MORDOR_COOKIE)
-python -m pipeline.ingest.run_ingest               # --source usos, --purge, --rebuild-lexical
+python -m src.backend.rag.index sync               # nowe, zmienione i usunięte dokumenty
 ```
 
 E-maile pracowników: najpierw jednorazowo `python pipeline/scrapers/usos/usos_login.py`, potem `scrape_staff.py --with-email`.
+
+Każdy indeks (wektory Chromy, BM25 w SQLite FTS5, `meta.json`) leży we własnym katalogu `dataset/indexes/<czas UTC>/`, a plik `dataset/CURRENT` wskazuje bieżący. Polecenia nigdy nie zmieniają indeksu, z którego korzysta backend — pracują na nowym katalogu i na końcu atomowo przełączają `CURRENT`; backend zauważa zmianę w ciągu 10 s, bez restartu. W kontenerze: `docker compose exec -u app backend python -m src.backend.rag.index …`.
+
+| polecenie | co robi |
+|---|---|
+| `build` | nowy indeks od zera (wszystkie dokumenty embedowane na nowo); po zmianie modelu embeddingów, prefiksów albo podziału na chunki |
+| `build --source usos` | od zera tylko wybrane źródło, pozostałe skopiowane z bieżącego indeksu (dawne `--purge`) |
+| `sync [--source …]` | kopia bieżącego indeksu + tylko nowe i zmienione dokumenty (po `content_hash`), usunięcie tych, których nie ma już w danych; bez zmian nic nie przełącza |
+| `status` | bieżący indeks, data, model i ustawienia z `meta.json`, liczby dokumentów w obu indeksach na źródło, ostrzeżenia o niezgodnościach |
+| `rollback` | powrót do poprzedniego indeksu |
+| `use <nazwa>` | przełączenie na wskazany katalog z `dataset/indexes/` |
+
+- `meta.json` zapisuje wersję formatu, datę, model embeddingów i prefiksy, parametry chunkingu, liczby dokumentów i datę zebrania danych z `manifest.json` każdego źródła. Backend przy otwarciu indeksu porównuje je z konfiguracją (`RAG_EMBEDDING_MODEL`, `RAG_*_PREFIX`) i przy różnicy loguje ostrzeżenie; `sync` w takim indeksie odmawia (trzeba `build`). Stan widać też w panelu administratora (Diagnostyka).
+- Przerwany `build`/`sync` (np. restart maszyny) wystarczy uruchomić ponownie tym samym poleceniem: zapisane partie zostają, embedowane jest tylko to, czego brakuje. Do tego czasu backend korzysta z poprzedniego indeksu.
+- Zostają 2 poprzednie indeksy (do `rollback`), starsze są usuwane. Ręczny powrót: zapisz w `dataset/CURRENT` np. `indexes/20261011T120000Z`. Usunięcie `CURRENT` wraca do starego układu (`dataset/vectorstore` + `dataset/lexical.db`), który można skasować po pierwszym udanym `build`.
+- Wyszukiwanie wektorowe jest dokładne (odległość do każdego wektora wybranych źródeł), więc wynik zależy tylko od zawartości indeksu.
+- Stare polecenie `python -m pipeline.ingest.run_ingest` nadal działa i przekierowuje na `sync` (z `--purge` na `build`).
 
 ## Logowanie (Keycloak KSI)
 

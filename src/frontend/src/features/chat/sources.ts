@@ -1,6 +1,7 @@
-// Where an answer came from: faculty website, USOS (staff) or Mordor (student
-// materials). Only strony/usos may be links; Mordor files are not public.
-export const SOURCE_KINDS = ['strony', 'usos', 'mordor'] as const;
+// Where an answer came from: UJ / faculty websites, USOS (staff), KSI or Mordor
+// (student materials). Mordor files are not public, so they are never links.
+// 'strony' is the old name of uj_pages, kept for answers saved before the rename.
+export const SOURCE_KINDS = ['uj_pages', 'usos', 'ksi', 'mordor', 'strony'] as const;
 
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
@@ -40,7 +41,7 @@ export function safeHttpUrl(url: string | null): string | null {
   }
 }
 
-// Link target for a source: only website / USOS sources with a safe URL.
+// Link target for a source: anything but Mordor, with a safe URL.
 export function sourceHref(source: Source): string | null {
   return source.kind === 'mordor' ? null : safeHttpUrl(source.url);
 }

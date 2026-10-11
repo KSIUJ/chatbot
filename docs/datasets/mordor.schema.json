@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "MaterialAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "file_type": {
+          "minLength": 1,
+          "title": "File Type",
+          "type": "string"
+        },
+        "course": {
+          "default": "",
+          "title": "Course",
+          "type": "string"
+        },
+        "academic_year": {
+          "default": "",
+          "title": "Academic Year",
+          "type": "string"
+        },
+        "material_kind": {
+          "default": "",
+          "title": "Material Kind",
+          "type": "string"
+        },
+        "pages": {
+          "items": {
+            "$ref": "#/$defs/Page"
+          },
+          "title": "Pages",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "file_type"
+      ],
+      "title": "MaterialAttributes",
+      "type": "object"
+    },
+    "Page": {
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "ocr": {
+          "default": false,
+          "title": "Ocr",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "number",
+        "text"
+      ],
+      "title": "Page",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Plik z Mordoru; id = path. kind: text (jest tekst w content), scan\n(pdf bez warstwy tekstu), image (jpg/png). content = tekst w Markdownie.",
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "text",
+        "scan",
+        "image"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    },
+    "lang": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lang"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "content": {
+      "default": "",
+      "title": "Content",
+      "type": "string"
+    },
+    "attributes": {
+      "$ref": "#/$defs/MaterialAttributes"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "attributes"
+  ],
+  "title": "MaterialRecord",
+  "type": "object"
+}

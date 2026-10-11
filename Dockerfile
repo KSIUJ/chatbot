@@ -37,6 +37,8 @@ COPY src/backend ./src/backend
 COPY pipeline/ingest ./pipeline/ingest
 COPY alembic.ini ./
 COPY alembic ./alembic
+# notatki o KSI pisane recznie (zrodlo ksi RAG-a)
+COPY knowledge ./knowledge
 
 EXPOSE 8000
 

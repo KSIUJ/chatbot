@@ -16,7 +16,7 @@ odpowiedz, nieudany zapis. Rozlaczenie albo anulowanie przez klienta (w
 dowolnym momencie) nigdy nie zwraca pytania - inaczej petla "wyslij
 i rozlacz" dawalaby nielimitowane wywolania modelu.
 
-Wiodacy znacznik [[NARUSZENIE]] (zasada 11 promptu) nigdy nie trafia do
+Wiodacy znacznik [[NARUSZENIE]] (zasada 18 promptu) nigdy nie trafia do
 klienta: poczatek odpowiedzi jest buforowany, dopoki nie wiadomo, czy to
 znacznik (security/marker.py). Na koncu tury powstaje incydent, jesli
 pytanie pasowalo do heurystyki albo model dal znacznik.
@@ -48,7 +48,7 @@ from .chat import (
 from .history import conversation_lock
 from .llm.generate import AnswerStream
 from .llm.language import REFUSAL
-from .rag.sources import Source
+from .rag.core.citations import Citation
 from .security.marker import MarkerFilter
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class _EmptyAnswer(RuntimeError):
 @dataclass
 class _Progress:
     chunks: Iterator[str] | None = None
-    sources: list[Source] = field(default_factory=list)
+    sources: list[Citation] = field(default_factory=list)
     # tekst wyslany klientowi (bez znacznika [[NARUSZENIE]])
     parts: list[str] = field(default_factory=list)
     # zdejmuje wiodacy znacznik, nawet rozciety miedzy kawalki

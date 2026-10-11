@@ -1,0 +1,133 @@
+{"id": "staff-01", "category": "staff", "lang": "pl", "question": "Gdzie ma pokój dr Sławomir Bakalarski?", "expected": ["staff:Sławomir Bakalarski"]}
+{"id": "staff-02", "category": "staff", "lang": "pl", "question": "W jakim pokoju siedzi Bakalarski?", "expected": ["staff:Sławomir Bakalarski"], "note": "samo nazwisko"}
+{"id": "staff-03", "category": "staff", "lang": "pl", "question": "Kiedy dyżur ma prof. Zbigniew Błocki?", "expected": ["staff:Zbigniew Błocki"]}
+{"id": "staff-04", "category": "staff", "lang": "pl", "question": "Jakie są godziny konsultacji u Błockiego?", "expected": ["staff:Zbigniew Błocki"], "note": "dopelniacz"}
+{"id": "staff-05", "category": "staff", "lang": "pl", "question": "Czym naukowo zajmuje się dr hab. Bartłomiej Bosek?", "expected": ["staff:Bartłomiej Bosek"]}
+{"id": "staff-06", "category": "staff", "lang": "pl", "question": "Gdzie znajdę dr Ewę Cygan?", "expected": ["staff:Ewa Cygan"], "note": "biernik"}
+{"id": "staff-07", "category": "staff", "lang": "pl", "question": "dyżury Ewy Cygan", "expected": ["staff:Ewa Cygan"], "note": "bez pytajnika, dopelniacz"}
+{"id": "staff-08", "category": "staff", "lang": "pl", "question": "Jakie stanowisko ma Lech Duraj?", "expected": ["staff:Lech Duraj"]}
+{"id": "staff-09", "category": "staff", "lang": "pl", "question": "W którym pokoju przyjmuje prodziekan Dumnicki?", "expected": ["staff:Marcin Dumnicki", "page:matinf.uj.edu.pl/studenci/kierownictwo-sekretariaty-dydaktyczne"]}
+{"id": "staff-10", "category": "staff", "lang": "pl", "question": "Kiedy mogę złapać dr. Jacka Cyrankę?", "expected": ["staff:Jacek Cyranka"], "note": "biernik"}
+{"id": "staff-11", "category": "staff", "lang": "pl", "question": "Gdzie ma gabinet profesor Armen Edigarian?", "expected": ["staff:Armen Edigarian"]}
+{"id": "staff-12", "category": "staff", "lang": "pl", "question": "Czym się zajmuje Jarosław Duda?", "expected": ["staff:Jarosław Duda"]}
+{"id": "staff-13", "category": "staff", "lang": "pl", "question": "Kiedy dyżuruje dr Borówka?", "expected": ["staff:Aleksandra Borówka", "staff:Paweł Borówka"], "note": "dwie osoby o tym nazwisku"}
+{"id": "staff-14", "category": "staff", "lang": "pl", "question": "Jaki pokój ma Krzysztof Ciesielski?", "expected": ["staff:Krzysztof Ciesielski"]}
+{"id": "staff-15", "category": "staff", "lang": "pl", "question": "dyżury Rafała Czyża", "expected": ["staff:Rafał Czyż"], "note": "dopelniacz"}
+{"id": "staff-16", "category": "staff", "lang": "pl", "question": "Kto to jest Maciej Gawron?", "expected": ["staff:Maciej Gawron"]}
+{"id": "staff-17", "category": "staff", "lang": "pl", "question": "Gdzie siedzi dr Michał Farnik?", "expected": ["staff:Michał Farnik"]}
+{"id": "staff-18", "category": "staff", "lang": "pl", "question": "Kiedy ma dyżur Monika Gillert?", "expected": ["staff:Monika Gillert"]}
+{"id": "staff-19", "category": "staff", "lang": "pl", "question": "Jaki numer pokoju ma Andrzej Czarnecki?", "expected": ["staff:Andrzej Czarnecki"]}
+{"id": "staff-20", "category": "staff", "lang": "pl", "question": "Kim jest dr Jakub Byszewski i gdzie go znajdę?", "expected": ["staff:Jakub Byszewski"]}
+{"id": "staff-21", "category": "staff", "lang": "pl", "question": "Czym zajmuje się Leokadia Białas-Cież?", "expected": ["staff:Leokadia Białas-Cież"], "note": "nazwisko dwuczlonowe"}
+{"id": "staff-22", "category": "staff", "lang": "pl", "question": "Jaki e-mail ma dr Paweł Gniadek?", "expected": ["staff:Paweł Gniadek"], "note": "w danych USOS nie ma e-maili - odpowiedz powinna to powiedziec"}
+{"id": "staff-23", "category": "staff", "lang": "pl", "question": "Dyżury Dębeckiego", "expected": ["staff:Jacek Dębecki"]}
+{"id": "staff-24", "category": "staff", "lang": "pl", "question": "Gdzie znajdę dr. Grzegorza Hermana?", "expected": ["staff:Grzegorz Herman"], "note": "biernik"}
+{"id": "staff-25", "category": "staff", "lang": "pl", "question": "Czym zajmuje się Marcin Kozik?", "expected": ["staff:Marcin Kozik"]}
+{"id": "staff-26", "category": "staff", "lang": "pl", "question": "Kiedy przyjmuje studentów Piotr Micek?", "expected": ["staff:Piotr Micek"]}
+{"id": "staff-27", "category": "staff", "lang": "pl", "question": "pokój Moczurad", "expected": ["staff:Małgorzata Moczurad", "staff:Włodzimierz Moczurad"], "note": "dwie osoby, ten sam pokoj"}
+{"id": "staff-28", "category": "staff", "lang": "pl", "question": "Kiedy ma dyżur dziekan Maciej Ulas?", "expected": ["staff:Maciej Ulas"]}
+{"id": "staff-29", "category": "staff", "lang": "pl", "question": "Gdzie znajdę kierownika studiów informatyki, dr. Zygadło?", "expected": ["staff:Jakub Zygadło"], "note": "nazwisko nieodmienne"}
+{"id": "staff-30", "category": "staff", "lang": "pl", "question": "Jakie zainteresowania naukowe ma Łukasz Struski?", "expected": ["staff:Łukasz Struski"]}
+{"id": "study-01", "category": "study", "lang": "pl", "question": "Jak złożyć wniosek o urlop dziekański?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/urlop+dziekański.pdf*", "page:matinf.uj.edu.pl/studenci/formularze-wnioskow"]}
+{"id": "study-02", "category": "study", "lang": "pl", "question": "Gdzie znajdę formularz powtarzania roku?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/powtarzanie+roku.pdf*", "page:matinf.uj.edu.pl/studenci/formularze-wnioskow"]}
+{"id": "study-03", "category": "study", "lang": "pl", "question": "Co muszę zrobić, żeby dostać wpis warunkowy?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/wpis+warunkowy.pdf*", "page:matinf.uj.edu.pl/documents/41633/151084044/zalacznik_wpis_warunkowy*", "page:matinf.uj.edu.pl/studenci/formularze-wnioskow"]}
+{"id": "study-04", "category": "study", "lang": "pl", "question": "Jak zrezygnować ze studiów?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/rezygnacja+ze+studiow.pdf*", "page:matinf.uj.edu.pl/studenci/formularze-wnioskow"]}
+{"id": "study-05", "category": "study", "lang": "pl", "question": "Zgubiłem legitymację, jak dostać duplikat?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/wydanie+duplikatu+elektronicznej+legitymacji+studenckiej.pdf*", "page:usosownia.uj.edu.pl/usosweb/ogolne/legitymacja", "page:usosownia.uj.edu.pl/usos/legitymacje"]}
+{"id": "study-06", "category": "study", "lang": "pl", "question": "Kiedy jest egzamin licencjacki z informatyki w lipcu?", "expected": ["page:matinf.uj.edu.pl/studenci/egzaminy-dyplomowe/informatyka"]}
+{"id": "study-07", "category": "study", "lang": "pl", "question": "Do kiedy trzeba wybrać promotora pracy magisterskiej?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/harmonogram_czynnosci_2025_26*"]}
+{"id": "study-08", "category": "study", "lang": "pl", "question": "Jakie są pytania na egzamin licencjacki z informatyki?", "expected": ["page:matinf.uj.edu.pl/documents/758200/7139474/WMiI-2019-20-i1-egz-lic.pdf*"]}
+{"id": "study-09", "category": "study", "lang": "pl", "question": "Jak wygląda egzamin magisterski na matematyce komputerowej?", "expected": ["page:matinf.uj.edu.pl/studenci/egzaminy-dyplomowe/matematyka-komputerowa/egzamin-magisterski", "page:matinf.uj.edu.pl/documents/41633/151084044/WMiI-mk2-reg-dypl-2024.pdf*", "page:matinf.uj.edu.pl/documents/758200/7140024/WMiI-mk2-egz-mgr-przyklad.pdf*"]}
+{"id": "study-10", "category": "study", "lang": "pl", "question": "Kto jest prodziekanem ds. studenckich?", "expected": ["page:matinf.uj.edu.pl/studenci/kierownictwo-sekretariaty-dydaktyczne", "page:matinf.uj.edu.pl/o-nas/struktura/wladze/dziekani-i-pelnomocnicy"]}
+{"id": "study-11", "category": "study", "lang": "pl", "question": "Kto jest kierownikiem studiów na informatyce?", "expected": ["page:matinf.uj.edu.pl/studenci/kierownictwo-sekretariaty-dydaktyczne"]}
+{"id": "study-12", "category": "study", "lang": "pl", "question": "Kto jest dziekanem wydziału?", "expected": ["page:matinf.uj.edu.pl/o-nas/struktura/wladze/dziekani-i-pelnomocnicy"]}
+{"id": "study-13", "category": "study", "lang": "pl", "question": "Gdzie jest regulamin studiów?", "expected": ["page:matinf.uj.edu.pl/studenci/akty-prawne"]}
+{"id": "study-14", "category": "study", "lang": "pl", "question": "Czy na zajęciach można korzystać z narzędzi AI? Jakie są zasady?", "expected": ["page:matinf.uj.edu.pl/studenci/akty-prawne"], "note": "zarzadzenie nr 80 Rektora UJ"}
+{"id": "study-15", "category": "study", "lang": "pl", "question": "Jakie stypendia są dla najlepszych studentów wydziału?", "expected": ["page:matinf.uj.edu.pl/studenci/sprawy-socjalne-stypendia", "page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych", "page:matinf.uj.edu.pl/documents/41633/146147014/stypendia_2026_a*"]}
+{"id": "study-16", "category": "study", "lang": "pl", "question": "Do kiedy można złożyć wniosek o stypendium rektora?", "expected": ["page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/stypendium-rektora-dla-studentow"]}
+{"id": "study-17", "category": "study", "lang": "pl", "question": "Kto może dostać stypendium Mertensa?", "expected": ["page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/stypendium-mertensa/informacje", "page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/stypendium-mertensa/faq"]}
+{"id": "study-18", "category": "study", "lang": "pl", "question": "Co to jest stypendium im. Julii Zdanowskiej?", "expected": ["page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/stypendium-julii-zdanowskiej/informacja-ogolna", "page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/stypendium-julii-zdanowskiej/julia-zdanowska"]}
+{"id": "study-19", "category": "study", "lang": "pl", "question": "Jak przepisać przedmioty zaliczone na innej uczelni?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/przepisanie+przedmiotów.pdf*", "page:matinf.uj.edu.pl/documents/41633/156734637/uznanie_przedmiotow*"]}
+{"id": "study-20", "category": "study", "lang": "pl", "question": "Gdzie znajdę poradnik pierwszaka?", "expected": ["page:matinf.uj.edu.pl/documents/41633/151084044/poradnik_pierwszaka*", "page:matinf.uj.edu.pl/dla-studentow/-/journal_content/com_liferay_journal_content_web_portlet_JournalContentPortlet_INSTANCE_SaA7HRzna0dW/758200/27896940"]}
+{"id": "study-21", "category": "study", "lang": "pl", "question": "Jak wygląda program studiów na informatyce?", "expected": ["page:matinf.uj.edu.pl/studenci/programy-studiow/informatyka"]}
+{"id": "study-22", "category": "study", "lang": "pl", "question": "Czym jest MCS Advanced Track?", "expected": ["page:matinf.uj.edu.pl/kandydaci/mcs-advanced-track"]}
+{"id": "study-23", "category": "study", "lang": "pl", "question": "Czy 5 marca są zajęcia?", "expected": ["page:matinf.uj.edu.pl/dla-studentow/-/journal_content/com_liferay_journal_content_web_portlet_JournalContentPortlet_INSTANCE_SaA7HRzna0dW/758200/27893149"]}
+{"id": "study-24", "category": "study", "lang": "pl", "question": "Jakie są zasady zaliczania zajęć na wydziale?", "expected": ["page:matinf.uj.edu.pl/studenci/akty-prawne"]}
+{"id": "study-25", "category": "study", "lang": "pl", "question": "Jak zaliczyć lektorat egzaminem eksternistycznym?", "expected": ["page:matinf.uj.edu.pl/documents/41633/156734637/zaliczenie+lektoratu+egzaminem+eksternistycznym.pdf*", "page:matinf.uj.edu.pl/documents/41633/156734637/wniosek+o+wyrażenie+zgody+na+przystąpienie+do+egzaminu+bez+konieczności+uczęszczania+na+lektorat.docx*"]}
+{"id": "study-26", "category": "study", "lang": "pl", "question": "Co to jest program MOST i do kiedy trwa rekrutacja?", "expected": ["page:matinf.uj.edu.pl/dla-studentow/-/journal_content/com_liferay_journal_content_web_portlet_JournalContentPortlet_INSTANCE_SaA7HRzna0dW/758200/27897726"]}
+{"id": "study-27", "category": "study", "lang": "pl", "question": "Gdzie są zebrane informacje o dydaktyce na wydziale?", "expected": ["page:matinf.uj.edu.pl/dydaktyka"]}
+{"id": "study-28", "category": "study", "lang": "pl", "question": "Jakie są minima programowe z informatyki dla studentów SMP?", "expected": ["page:matinf.uj.edu.pl/documents/758200/7139167/WMiI-i1-minima-SMP.pdf*", "page:matinf.uj.edu.pl/documents/758200/7139167/WMiI-i1-minima-SMP-do_2022.pdf*"]}
+{"id": "faculty-01", "category": "faculty", "lang": "pl", "question": "W jakich godzinach jest otwarta biblioteka wydziałowa?", "expected": ["page:matinf.uj.edu.pl/o-nas/biblioteka"]}
+{"id": "faculty-02", "category": "faculty", "lang": "pl", "question": "Czy biblioteka działa w sierpniu?", "expected": ["page:matinf.uj.edu.pl/o-nas/biblioteka"]}
+{"id": "faculty-03", "category": "faculty", "lang": "pl", "question": "Gdzie można zjeść na wydziale?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/bistro-swietlica", "page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/opis-i-plan-budynku"]}
+{"id": "faculty-04", "category": "faculty", "lang": "pl", "question": "Jaki jest adres wydziału?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/opis-i-plan-budynku", "page:matinf.uj.edu.pl/o-nas/biblioteka", "page:pl.wikipedia.org/wiki/Wydział_Matematyki_i_Informatyki_Uniwersytetu_Jagiellońskiego"]}
+{"id": "faculty-05", "category": "faculty", "lang": "pl", "question": "Kiedy oddano do użytku nowy budynek wydziału?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/opis-i-plan-budynku", "page:pl.wikipedia.org/wiki/Wydział_Matematyki_i_Informatyki_Uniwersytetu_Jagiellońskiego"]}
+{"id": "faculty-06", "category": "faculty", "lang": "pl", "question": "Ile kosztuje nocleg w pokoju gościnnym wydziału?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/pokoje-goscinne"]}
+{"id": "faculty-07", "category": "faculty", "lang": "pl", "question": "Co to jest Ławka Banacha i Nikodyma?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/lawka-banacha-i-nikodyma"]}
+{"id": "faculty-08", "category": "faculty", "lang": "pl", "question": "Jakie murale są na budynku wydziału?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/murale*"]}
+{"id": "faculty-09", "category": "faculty", "lang": "pl", "question": "Jakie instytuty wchodzą w skład wydziału?", "expected": ["page:matinf.uj.edu.pl/o-nas/struktura/jednostki", "page:pl.wikipedia.org/wiki/Wydział_Matematyki_i_Informatyki_Uniwersytetu_Jagiellońskiego"]}
+{"id": "faculty-10", "category": "faculty", "lang": "pl", "question": "Gdzie zgłosić problem z komputerem albo siecią na wydziale?", "expected": ["page:matinf.uj.edu.pl/o-nas/administracja"]}
+{"id": "faculty-11", "category": "faculty", "lang": "pl", "question": "Jaka jest historia wydziału?", "expected": ["page:matinf.uj.edu.pl/o-nas/historia", "page:pl.wikipedia.org/wiki/Wydział_Matematyki_i_Informatyki_Uniwersytetu_Jagiellońskiego"]}
+{"id": "faculty-12", "category": "faculty", "lang": "pl", "question": "Ile osób pracuje na wydziale?", "expected": ["page:matinf.uj.edu.pl/pracownicy1", "page:matinf.uj.edu.pl/en-GB/pracownicy/wizytowka"]}
+{"id": "faculty-13", "category": "faculty", "lang": "pl", "question": "Na którym miejscu jest wydział w rankingu Perspektyw?", "expected": ["page:matinf.uj.edu.pl/perspektywy", "page:matinf.uj.edu.pl/nauka/rankingi"]}
+{"id": "faculty-14", "category": "faculty", "lang": "pl", "question": "Kto wygłosił Wykład Łojasiewicza w 2025 roku?", "expected": ["page:matinf.uj.edu.pl/nauka/wyklad-lojasiewicza/2025"]}
+{"id": "faculty-15", "category": "faculty", "lang": "pl", "question": "Kiedy odbędzie się Bieg w dobrej sprawie?", "expected": ["page:matinf.uj.edu.pl/bieg-w-dobrej-sprawie", "page:matinf.uj.edu.pl/wydarzenia/-/journal_content/com_liferay_journal_content_web_portlet_JournalContentPortlet_INSTANCE_SaA7HRzna0dW/758200/42197225"]}
+{"id": "usos-01", "category": "usos", "lang": "pl", "question": "Jak działa rejestracja żetonowa w USOS?", "expected": ["page:usosownia.uj.edu.pl/usosweb/dla-studentow/rejestracje-zetonowe", "page:usosownia.uj.edu.pl/usosweb/dla-studentow/rejestracje"]}
+{"id": "usos-02", "category": "usos", "lang": "pl", "question": "Czym jest mLegitymacja i jak ją dostać?", "expected": ["page:usosownia.uj.edu.pl/usosweb/ogolne/mlegitymacja"]}
+{"id": "usos-03", "category": "usos", "lang": "pl", "question": "Czym różni się USOSmail od poczty UJ?", "expected": ["page:usosownia.uj.edu.pl/usosweb/ogolne/usosmail"]}
+{"id": "usos-04", "category": "usos", "lang": "pl", "question": "Dlaczego nie widzę swoich zajęć w planie w USOSweb?", "expected": ["page:usosownia.uj.edu.pl/usosweb/dla-studentow/plan-zajec"]}
+{"id": "usos-05", "category": "usos", "lang": "pl", "question": "Jak wygenerować zaświadczenie o byciu studentem?", "expected": ["page:usosownia.uj.edu.pl/usos/przebieg-studiow/zaswiadczenia"]}
+{"id": "usos-06", "category": "usos", "lang": "pl", "question": "Jak złożyć podanie przez USOSweb?", "expected": ["page:usosownia.uj.edu.pl/usosweb/dla-studentow/wnioski"]}
+{"id": "usos-07", "category": "usos", "lang": "pl", "question": "Jak wgrać poprawioną wersję pracy dyplomowej do Archiwum Prac?", "expected": ["page:usosownia.uj.edu.pl/archiwum-prac/faq", "page:usosownia.uj.edu.pl/archiwum-prac"]}
+{"id": "usos-08", "category": "usos", "lang": "pl", "question": "Co to są podpięcia przedmiotów?", "expected": ["page:usosownia.uj.edu.pl/podpiecia"]}
+{"id": "usos-09", "category": "usos", "lang": "pl", "question": "Jak założyć konto w USOSweb?", "expected": ["page:usosownia.uj.edu.pl/usosweb/ogolne/dostep-do-systemu"]}
+{"id": "usos-10", "category": "usos", "lang": "pl", "question": "Czym jest aplikacja Mobilny USOS?", "expected": ["page:usosownia.uj.edu.pl/mobilny-usos"]}
+{"id": "usos-11", "category": "usos", "lang": "pl", "question": "Gdzie wypełnić ankiety oceny zajęć?", "expected": ["page:usosownia.uj.edu.pl/usosweb/ankiety", "page:usosownia.uj.edu.pl/usos/ankiety"]}
+{"id": "usos-12", "category": "usos", "lang": "pl", "question": "Co to jest elektroniczny indeks?", "expected": ["page:usosownia.uj.edu.pl/usosweb/ogolne/elektroniczny-indeks"]}
+{"id": "usos-13", "category": "usos", "lang": "pl", "question": "Komu zgłosić błędne dane w USOS?", "expected": ["page:usosownia.uj.edu.pl/kontakt"]}
+{"id": "usos-14", "category": "usos", "lang": "pl", "question": "Ile kosztuje elektroniczna legitymacja studencka?", "expected": ["page:usosownia.uj.edu.pl/usosweb/ogolne/legitymacja", "page:usosownia.uj.edu.pl/usos/legitymacje"]}
+{"id": "groups-01", "category": "groups", "lang": "pl", "question": "Czym zajmuje się Koło Matematyków Studentów UJ?", "expected": ["page:kmsuj.matinf.uj.edu.pl", "page:kmsuj.matinf.uj.edu.pl/historia_koa"]}
+{"id": "groups-02", "category": "groups", "lang": "pl", "question": "Do kiedy trwa rejestracja na Międzynarodowe Warsztaty dla Młodych Matematyków?", "expected": ["page:kmsuj.matinf.uj.edu.pl/workshop/reg_and_timeline/pl", "page:kmsuj.matinf.uj.edu.pl/workshop/reg_and_timeline/en"]}
+{"id": "groups-03", "category": "groups", "lang": "pl", "question": "Jakie warsztaty organizuje koło NKRSI?", "expected": ["page:nkr.si/warsztaty"]}
+{"id": "groups-04", "category": "groups", "lang": "pl", "question": "Czym jest seminarium NKRSI?", "expected": ["page:nkr.si/seminarium"]}
+{"id": "groups-05", "category": "groups", "lang": "pl", "question": "Co to są Matematyczne Czwartki?", "expected": ["page:matinf.uj.edu.pl/szkoly/matematyczne-czwartki"]}
+{"id": "groups-06", "category": "groups", "lang": "pl", "question": "Jakie koła naukowe działają na wydziale?", "expected": ["page:matinf.uj.edu.pl/studenci/rozwoj-kola-studenckie-samorzad"]}
+{"id": "groups-07", "category": "groups", "lang": "pl", "question": "Co organizuje koło KNMF?", "expected": ["page:knmf.im.uj.edu.pl"]}
+{"id": "groups-08", "category": "groups", "lang": "pl", "question": "Jak dołączyć do projektu w Kole Robotyki i Sztucznej Inteligencji?", "expected": ["page:nkr.si/projekty", "page:nkr.si"]}
+{"id": "ksi-01", "category": "ksi", "lang": "pl", "question": "Czym jest KSI?", "expected": ["ksi:*"]}
+{"id": "ksi-02", "category": "ksi", "lang": "pl", "question": "Jak dołączyć do KSI?", "expected": ["ksi:*"]}
+{"id": "ksi-03", "category": "ksi", "lang": "pl", "question": "Gdzie spotykają się członkowie KSI?", "expected": ["ksi:*"]}
+{"id": "ksi-04", "category": "ksi", "lang": "pl", "question": "Kto jest w zarządzie KSI?", "expected": ["ksi:*"]}
+{"id": "ksi-05", "category": "ksi", "lang": "pl", "question": "Co to jest Mordor?", "expected": ["ksi:*"], "note": "serwis KSI z materialami"}
+{"id": "ksi-06", "category": "ksi", "lang": "pl", "question": "Kto stworzył muzeum komputerów na wydziale?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/muzeum-komputerow", "ksi:*"]}
+{"id": "ksi-07", "category": "ksi", "lang": "pl", "question": "Jakie projekty prowadzi KSI?", "expected": ["ksi:*"]}
+{"id": "ksi-08", "category": "ksi", "lang": "pl", "question": "Jak skontaktować się z zarządem KSI?", "expected": ["ksi:*"]}
+{"id": "mordor-01", "category": "mordor", "lang": "pl", "question": "Masz rozwiązania kolokwium z analizy matematycznej?", "expected": ["mordor:analiz"]}
+{"id": "mordor-02", "category": "mordor", "lang": "pl", "question": "Są jakieś notatki z algebry liniowej?", "expected": ["mordor:algebr"]}
+{"id": "mordor-03", "category": "mordor", "lang": "pl", "question": "Pokaż egzamin z programowania obiektowego", "expected": ["mordor:obiekt"]}
+{"id": "mordor-04", "category": "mordor", "lang": "pl", "question": "Czy są materiały z matematyki dyskretnej?", "expected": ["mordor:dyskret"]}
+{"id": "mordor-05", "category": "mordor", "lang": "pl", "question": "Jakie zadania były na egzaminie z baz danych?", "expected": ["mordor:baz"]}
+{"id": "mordor-06", "category": "mordor", "lang": "pl", "question": "notatki z systemów operacyjnych", "expected": ["mordor:operac"]}
+{"id": "followup-01", "category": "followup", "lang": "pl", "history": ["Gdzie ma pokój dr Sławomir Bakalarski?"], "question": "A kiedy ma dyżury?", "expected": ["staff:Sławomir Bakalarski"]}
+{"id": "followup-02", "category": "followup", "lang": "pl", "history": ["Kto jest prodziekanem ds. studenckich?"], "question": "W którym pokoju go znajdę?", "expected": ["staff:Marcin Dumnicki", "page:matinf.uj.edu.pl/studenci/kierownictwo-sekretariaty-dydaktyczne"]}
+{"id": "followup-03", "category": "followup", "lang": "pl", "history": ["Czym jest mLegitymacja?"], "question": "A ile kosztuje ta zwykła, plastikowa?", "expected": ["page:usosownia.uj.edu.pl/usosweb/ogolne/legitymacja", "page:usosownia.uj.edu.pl/usos/legitymacje"]}
+{"id": "followup-04", "category": "followup", "lang": "pl", "history": ["Kiedy jest egzamin licencjacki z informatyki?"], "question": "A w jakiej sali?", "expected": ["page:matinf.uj.edu.pl/studenci/egzaminy-dyplomowe/informatyka"]}
+{"id": "followup-05", "category": "followup", "lang": "pl", "history": ["Jakie stypendia są dla olimpijczyków?"], "question": "Kto je dostał w tym roku?", "expected": ["page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/dziekanski-fundusz-dla-olimpijczykow/wyniki", "page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/rektorski-fundusz-dla-olimpijczykow"]}
+{"id": "followup-06", "category": "followup", "lang": "pl", "history": ["Co to jest stypendium Mertensa?"], "question": "A jakie są wyniki?", "expected": ["page:matinf.uj.edu.pl/kandydaci/oferta-dla-najlepszych/stypendium-mertensa/wyniki"]}
+{"id": "followup-07", "category": "followup", "lang": "pl", "history": ["Gdzie jest biblioteka wydziałowa?"], "question": "Do której jest otwarta?", "expected": ["page:matinf.uj.edu.pl/o-nas/biblioteka"]}
+{"id": "followup-08", "category": "followup", "lang": "pl", "history": ["Czym zajmuje się dr hab. Bartłomiej Bosek?"], "question": "A gdzie ma pokój?", "expected": ["staff:Bartłomiej Bosek"]}
+{"id": "followup-09", "category": "followup", "lang": "pl", "history": ["Co to jest Archiwum Prac?"], "question": "Jak poprawić przesłany plik?", "expected": ["page:usosownia.uj.edu.pl/archiwum-prac/faq"]}
+{"id": "followup-10", "category": "followup", "lang": "pl", "history": ["Kto jest dziekanem wydziału?"], "question": "A jaki ma e-mail?", "expected": ["page:matinf.uj.edu.pl/o-nas/struktura/wladze/dziekani-i-pelnomocnicy"]}
+{"id": "en-01", "category": "english", "lang": "en", "question": "Where is the faculty library and when is it open?", "expected": ["page:matinf.uj.edu.pl/o-nas/biblioteka"]}
+{"id": "en-02", "category": "english", "lang": "en", "question": "Who is the dean of the faculty?", "expected": ["page:matinf.uj.edu.pl/o-nas/struktura/wladze/dziekani-i-pelnomocnicy"]}
+{"id": "en-03", "category": "english", "lang": "en", "question": "When can I meet dr Lech Duraj?", "expected": ["staff:Lech Duraj"]}
+{"id": "en-04", "category": "english", "lang": "en", "question": "How does token registration work in USOS?", "expected": ["page:usosownia.uj.edu.pl/usosweb/dla-studentow/rejestracje-zetonowe", "page:usosownia.uj.edu.pl/usosweb/dla-studentow/rejestracje"]}
+{"id": "en-05", "category": "english", "lang": "en", "question": "What is the registration deadline for the International Workshop for Young Mathematicians?", "expected": ["page:kmsuj.matinf.uj.edu.pl/workshop/reg_and_timeline/en", "page:kmsuj.matinf.uj.edu.pl/workshop/reg_and_timeline/pl"]}
+{"id": "en-06", "category": "english", "lang": "en", "question": "How much does a guest room at the faculty cost?", "expected": ["page:matinf.uj.edu.pl/o-nas/siedziba-wydzialu/pokoje-goscinne"]}
+{"id": "none-01", "category": "none", "lang": "pl", "question": "Jaki jest przepis na pierogi?", "expected": [], "note": "poza zakresem"}
+{"id": "none-02", "category": "none", "lang": "pl", "question": "Kto wygrał ostatni mundial?", "expected": [], "note": "poza zakresem"}
+{"id": "none-03", "category": "none", "lang": "pl", "question": "Jaki numer telefonu ma dr Jan Kowalski?", "expected": [], "note": "nie ma takiej osoby"}
+{"id": "none-04", "category": "none", "lang": "pl", "question": "Ile kosztuje parking przy wydziale dla studentów?", "expected": [], "note": "brak w danych"}
+{"id": "none-05", "category": "none", "lang": "pl", "question": "Jakie jest hasło do wifi na wydziale?", "expected": [], "note": "brak w danych"}
+{"id": "none-06", "category": "none", "lang": "pl", "question": "Kto prowadzi Algorytmy i Struktury Danych w tym semestrze?", "expected": [], "note": "brak planow zajec w danych"}
+{"id": "none-07", "category": "none", "lang": "pl", "question": "Napisz mi wiersz o kotach", "expected": [], "note": "poza zakresem"}
+{"id": "none-08", "category": "none", "lang": "pl", "question": "Kiedy jest kolokwium z Analizy Matematycznej 2 w tym semestrze?", "expected": [], "note": "brak w danych"}

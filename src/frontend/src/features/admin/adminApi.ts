@@ -116,6 +116,15 @@ export interface AdminIncident {
   createdAt: string;
 }
 
+// Documents of one RAG source: vector entries (from the index metadata, null
+// for the legacy layout) and BM25 entries.
+export interface RagSourceCounts {
+  name: string;
+  documents: number | null;
+  lexical: number | null;
+  collectedAt: string | null;
+}
+
 // One diagnostics value: null with the error text when that part is unavailable.
 export interface Metric<T> {
   value: T | null;
@@ -145,6 +154,12 @@ export interface Diagnostics {
     lexicalCount: Metric<number>;
     lexicalSizeBytes: Metric<number>;
     lastIngestAt: Metric<string>;
+    // index directory name; null = legacy layout without an index pointer
+    indexName: string | null;
+    embeddingModel: string | null;
+    sources: RagSourceCounts[];
+    indexMismatch: boolean;
+    indexWarnings: string[];
   };
   storage: {
     databaseSizeBytes: Metric<number>;
@@ -304,6 +319,21 @@ function numberMetric(section: JsonRecord, key: string, errorKey = 'error'): Met
   return { value: optNum(section, key), error: optStr(section, errorKey) };
 }
 
+// Index fields are newer than the rest of the RAG section: a backend without
+// them gives an empty list instead of a load error.
+function parseRagSources(rag: JsonRecord): RagSourceCounts[] {
+  if (rag.sources === undefined || rag.sources === null) return [];
+  return list(rag, 'sources').map((item) => {
+    const source = record(item, 'rag.sources');
+    return {
+      name: str(source, 'name'),
+      documents: optNum(source, 'documents'),
+      lexical: optNum(source, 'lexical'),
+      collectedAt: optStr(source, 'collected_at'),
+    };
+  });
+}
+
 export function parseDiagnostics(value: unknown): Diagnostics {
   const body = record(value, 'diagnostics');
   const llm = record(body.llm, 'llm');
@@ -345,6 +375,11 @@ export function parseDiagnostics(value: unknown): Diagnostics {
       lexicalCount: numberMetric(rag, 'lexical_count', 'lexical_error'),
       lexicalSizeBytes: numberMetric(rag, 'lexical_size_bytes', 'lexical_error'),
       lastIngestAt: { value: optStr(rag, 'last_ingest_at'), error: optStr(rag, 'last_ingest_error') },
+      indexName: optStr(rag, 'index_name'),
+      embeddingModel: optStr(rag, 'embedding_model'),
+      sources: parseRagSources(rag),
+      indexMismatch: rag.index_mismatch === undefined ? false : bool(rag, 'index_mismatch'),
+      indexWarnings: rag.index_warnings === undefined ? [] : strings(rag, 'index_warnings'),
     },
     storage: {
       databaseSizeBytes: numberMetric(storage, 'database_size_bytes', 'database_error'),

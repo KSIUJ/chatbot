@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "NoteAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "always_include": {
+          "default": false,
+          "title": "Always Include",
+          "type": "boolean"
+        }
+      },
+      "title": "NoteAttributes",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Notatka o KSI; id = nazwa pliku bez .md, content = tresc w Markdownie.",
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "note",
+      "title": "Kind",
+      "type": "string"
+    },
+    "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    },
+    "lang": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lang"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "content": {
+      "default": "",
+      "title": "Content",
+      "type": "string"
+    },
+    "attributes": {
+      "$ref": "#/$defs/NoteAttributes"
+    }
+  },
+  "required": [
+    "id",
+    "kind"
+  ],
+  "title": "NoteRecord",
+  "type": "object"
+}

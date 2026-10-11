@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "PageAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "site": {
+          "minLength": 1,
+          "title": "Site",
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "faculty",
+            "uj",
+            "usosownia",
+            "student_group",
+            "ksi",
+            "wikipedia",
+            "other"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "breadcrumbs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Breadcrumbs",
+          "type": "array"
+        },
+        "media_type": {
+          "default": "text/html",
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "site",
+        "category"
+      ],
+      "title": "PageAttributes",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Strona albo plik (pdf, docx) z witryny; content = tresc w Markdownie z naglowkami.",
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "page",
+        "document"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "title": {
+      "default": "",
+      "title": "Title",
+      "type": "string"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "lang": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lang"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "content": {
+      "default": "",
+      "title": "Content",
+      "type": "string"
+    },
+    "attributes": {
+      "$ref": "#/$defs/PageAttributes"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "url",
+    "attributes"
+  ],
+  "title": "PageRecord",
+  "type": "object"
+}
