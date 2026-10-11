@@ -435,3 +435,10 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Wide formulas in bot answers (MarkdownText) scroll inside the bubble. */
+.ksi-markdown .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}

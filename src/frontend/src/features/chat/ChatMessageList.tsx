@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Bot, Loader2, RefreshCw } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
 import AnswerActions from './AnswerActions';
@@ -9,6 +9,9 @@ import { EMPTY_FEEDBACK, canGiveFeedback, type Rating, type ReportReason } from 
 import MessageSources from './MessageSources';
 import ReportDialog from './ReportDialog';
 import { formatResetTime } from './usage';
+
+// Markdown + KaTeX is a large chunk: loaded after the chat opens, plain text until then.
+const MarkdownText = lazy(() => import('./MarkdownText'));
 
 // How close to the bottom (px) still counts as "reading the latest answer".
 const NEAR_BOTTOM_PX = 120;
@@ -54,6 +57,11 @@ export default function ChatMessageList({
 
   const last = messages.at(-1);
   const streamingText = last?.status === 'streaming' ? last.text : null;
+
+  // fetch the Markdown chunk as soon as the chat opens, before the first answer
+  useEffect(() => {
+    void import('./MarkdownText');
+  }, []);
 
   // a new bubble or the typing indicator: scroll to it
   useEffect(() => {
@@ -139,6 +147,8 @@ export default function ChatMessageList({
         const sentAttachments = isUser ? msg.attachments ?? [] : [];
         const text = marker && !hasPartialText ? markerText : msg.text;
         const hasActions = canGiveFeedback(msg);
+        // bot answers are Markdown; user messages, refusals and error notes stay plain text
+        const isMarkdown = !isUser && !isRefusal && !(marker && !hasPartialText);
         const sources = !isUser && msg.status === undefined ? msg.sources ?? [] : [];
 
         return (
@@ -147,13 +157,19 @@ export default function ChatMessageList({
 
             <div className="flex flex-col gap-2 max-w-[70%]">
               <div
-                className={`px-4 py-3 relative rounded-card text-sm leading-relaxed whitespace-pre-wrap break-words
+                className={`px-4 py-3 relative rounded-card text-sm leading-relaxed break-words ${isMarkdown ? '' : 'whitespace-pre-wrap'}
                   ${isUser ? USER_BUBBLE : BOT_BUBBLE}
                   ${isUser ? '' : isRefusal ? 'text-fg' : marker && !hasPartialText ? 'italic text-muted' : 'text-fg'}`}
                 aria-busy={isStreaming || undefined}
                 role={isRefusal ? 'alert' : undefined}
               >
-                {text}
+                {isMarkdown ? (
+                  <Suspense fallback={<span className="whitespace-pre-wrap">{text}</span>}>
+                    <MarkdownText text={text} />
+                  </Suspense>
+                ) : (
+                  text
+                )}
                 {hasPartialText && <span className="block mt-2 text-label italic text-muted">{markerText}</span>}
               </div>
 
