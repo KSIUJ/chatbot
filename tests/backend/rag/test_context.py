@@ -99,3 +99,38 @@ def test_hits_of_unknown_sources_get_a_plain_label_and_no_citation():
 
     assert "[inne: inne]\nTresc." in result.prompt
     assert result.citations == []
+
+
+def test_default_retriever_is_rebuilt_with_the_same_encoder_after_an_index_switch(monkeypatch):
+    from src.backend.rag.core import context
+
+    class Location:
+        def __init__(self, name):
+            self.name = name
+
+    class Watch:
+        current_name = "a"
+
+        def current(self):
+            return Location(Watch.current_name)
+
+    created = []
+
+    class FakeRetriever:
+        def __init__(self, encoder=None):
+            self.encoder = encoder or object()
+            created.append(self)
+
+    monkeypatch.setattr(context, "Retriever", FakeRetriever)
+    monkeypatch.setattr(context, "_watch", Watch())
+    monkeypatch.setattr(context, "_default_retriever", None)
+    monkeypatch.setattr(context, "_index_name", None)
+
+    first = context.default_retriever()
+    assert context.default_retriever() is first
+
+    Watch.current_name = "b"
+    second = context.default_retriever()
+
+    assert second is not first and second.encoder is first.encoder
+    assert context.default_retriever() is second and len(created) == 2

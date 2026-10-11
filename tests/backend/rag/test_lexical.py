@@ -77,3 +77,16 @@ def test_add_documents_is_idempotent(tmp_path):
     assert index.count() == 1
     assert index.count("usos") == 1
     assert index.count("mordor") == 0
+
+
+def test_context_line_is_the_title_and_does_not_count_as_common(tmp_path):
+    index = LexicalIndex(str(tmp_path / "lex.db"))
+    # 60 chunkow jednej strony z ta sama linia kontekstu + 1 inna strona
+    docs = [_doc(f"p_{i}", "uj_pages", f"Stypendium Mertensa › FAQ\ntresc numer {i} o zasadach") for i in range(60)]
+    docs.append(_doc("inna", "uj_pages", "Biblioteka › Godziny\notwarta od 9"))
+    index.add_documents(docs)
+
+    # slowo z linii kontekstu nie jest pospolite w tresci, wiec zostaje w zapytaniu
+    assert index.selective_tokens(["mertensa", "tresc"]) == ["mertensa"]
+    # i nadal jest wyszukiwane (kolumna tytulu)
+    assert index.search(["mertensa"], ("uj_pages",), limit=1)[0].startswith("p_")

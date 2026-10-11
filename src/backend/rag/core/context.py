@@ -11,16 +11,29 @@ from typing import NamedTuple
 
 from ..sources.base import RagSource
 from .citations import Citation, collect_citations
+from .index_store import LocationWatch
 from .retrieval import Retriever, Section
 
 _default_retriever: Retriever | None = None
+_watch: LocationWatch | None = None
+_index_name: str | None = None
 
 
 def default_retriever() -> Retriever:
-    """Wspolny retriever procesu (modele i indeksy laduja sie przy pierwszym uzyciu)."""
-    global _default_retriever
+    """Wspolny retriever procesu (modele i indeksy laduja sie przy pierwszym uzyciu).
+
+    Po przelaczeniu indeksu (python -m src.backend.rag.index build/sync)
+    powstaje nowy retriever z tym samym encoderem - zrodla odbudowuja wtedy
+    swoj stan, np. slownik nazwisk pracownikow."""
+    global _default_retriever, _watch, _index_name
+    if _watch is None:
+        _watch = LocationWatch()
+    name = _watch.current().name
     if _default_retriever is None:
         _default_retriever = Retriever()
+    elif name != _index_name:
+        _default_retriever = Retriever(encoder=_default_retriever.encoder)
+    _index_name = name
     return _default_retriever
 
 
