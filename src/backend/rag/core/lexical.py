@@ -35,6 +35,18 @@ def tokenize(text: str) -> list[str]:
     return re.findall(r"\w+", fold(text).lower(), re.UNICODE)
 
 
+def _title_and_body(text: str) -> tuple[str, str]:
+    """Pierwsza linia (u chunkow linia kontekstu "Strona › Sekcja") jako tytul,
+    reszta jako tresc. Tytul nie jest powtarzany w tresci: inaczej slowa z
+    tytulu strony wystepowalyby w kazdym jej chunku i filtr czestosci
+    (selective_tokens) odrzucalby je jako zbyt pospolite."""
+    first, newline, rest = text.partition("\n")
+    if not newline or len(first) > TITLE_MAX_CHARS:
+        # jedna linia albo bardzo dluga pierwsza linia: calosc jest tez trescia
+        return fold(first[:TITLE_MAX_CHARS]), fold(text)
+    return fold(first), fold(rest)
+
+
 class LexicalIndex:
     def __init__(self, db_path: str | None = None):
         # bez sciezki: biezacy indeks wg dataset/CURRENT, sledzony w trakcie pracy
@@ -93,10 +105,7 @@ class LexicalIndex:
             con.execute(f"DELETE FROM {TABLE} WHERE doc_id IN ({','.join('?' * len(chunk))})", chunk)
         con.executemany(
             f"INSERT INTO {TABLE} (doc_id, source, title, text) VALUES (?, ?, ?, ?)",
-            [
-                (doc_id, source, fold(text.split("\n", 1)[0][:TITLE_MAX_CHARS]), fold(text))
-                for doc_id, source, text in rows
-            ],
+            [(doc_id, source, *_title_and_body(text)) for doc_id, source, text in rows],
         )
         con.commit()
         self._doc_freq.clear()
@@ -119,7 +128,8 @@ class LexicalIndex:
         con = self._refresh()
         if token not in self._doc_freq:
             self._doc_freq[token] = con.execute(
-                f"SELECT count(*) FROM {TABLE} WHERE {TABLE} MATCH ?", (f'"{token}"',)
+                # tylko kolumna tresci - tytul (linia kontekstu) jest wspolny dla chunkow strony
+                f"SELECT count(*) FROM {TABLE} WHERE {TABLE} MATCH ?", (f'text : "{token}"',)
             ).fetchone()[0]
         return self._doc_freq[token]
 
