@@ -2,8 +2,8 @@
 
 Te same sekcje, ktore trafiaja do kontekstu modelu (Retriever.retrieve), ale
 jako lista trafien, nie gotowy tekst. Zapytanie przechodzi przez
-llm.rewrite.condense jak w produkcji (przy LLM_PROVIDER innym niz ollama bez
-zmian).
+llm.rewrite.condense jak w produkcji; bez klucza API dostawcy przepisanie
+przez model sie nie udaje i dziala regula dla dopytan (rewrite.py).
 """
 
 from __future__ import annotations

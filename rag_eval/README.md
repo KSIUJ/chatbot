@@ -30,8 +30,9 @@ docker run --rm --memory=1700m --memory-swap=1700m --user 1000:1000 \
   <obraz backendu z pytest> -m rag_eval.run --name moj-przebieg
 ```
 
-`LLM_PROVIDER=openrouter` odtwarza produkcję: przepisywanie dopytań działa
-tylko z Ollamą, więc tu jest wyłączone.
+`LLM_PROVIDER=openrouter` odtwarza produkcję. Bez klucza API przepisanie
+dopytania przez model się nie udaje i działa regułowy zapas z
+`llm/rewrite.py` (poprzednie pytanie + dopytanie) — to on jest tu mierzony.
 
 ## Punkt odniesienia (obecny RAG, dane z produkcji z 2026-10-11)
 

@@ -1,8 +1,8 @@
 """
 Rejestr RAG-a: ktore zrodla sa wlaczone i jak dziela miejsce w kontekscie.
 
-Pula to grupa zrodel wyszukiwana razem (wektory + BM25), z wlasna liczba
-miejsc i naglowkiem sekcji w kontekscie - Mordor ma osobna pule, zeby duzo
+Pula to grupa zrodel wyszukiwana razem (wektory + BM25), z wlasnym budzetem
+znakow i naglowkiem sekcji w kontekscie - Mordor ma osobna pule, zeby duzo
 wiekszy zbior notatek nie zagluszal zrodel oficjalnych. Kolejnosc sekcji:
 najpierw dokladne wyszukiwania zrodel (np. PRACOWNIK), potem pule w
 kolejnosci POOLS. Nowe zrodlo = pakiet w sources/ i wpis tutaj.
@@ -29,14 +29,23 @@ MORDOR_HEADER = "MATERIALY STUDENCKIE (Mordor - notatki i skany, moga zawierac b
 class Pool:
     name: str
     sources: tuple[str, ...]
-    # ile trafien z puli trafia do kontekstu
+    # najwiecej fragmentow puli w kontekscie (sasiednie chunki jednego
+    # dokumentu sklejone w jeden fragment licza sie raz)
     k: int
     header: str
+    # budzet znakow tekstu puli: kolejne fragmenty dochodza, dopoki sie mieszcza
+    budget: int = 4000
+    # tyle fragmentow wchodzi nawet ponad budzet (jesli przeszly prog trafnosci)
+    min_hits: int = 1
+    # najwiecej chunkow jednego dokumentu (strona, plik, karta pracownika)
+    per_document: int = 2
+    # kandydaci z kazdej listy (wektory, BM25) przed fuzja RRF
+    candidates: int = 20
 
 
 POOLS: tuple[Pool, ...] = (
-    Pool("official", ("uj_pages", "usos", "ksi"), k=5, header=OFFICIAL_HEADER),
-    Pool("student", ("mordor",), k=5, header=MORDOR_HEADER),
+    Pool("official", ("uj_pages", "usos", "ksi"), k=6, header=OFFICIAL_HEADER, budget=4000),
+    Pool("student", ("mordor",), k=4, header=MORDOR_HEADER, budget=2000),
 )
 
 
