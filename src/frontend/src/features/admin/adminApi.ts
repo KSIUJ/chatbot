@@ -5,7 +5,8 @@ import { bool, list, num, oneOf, optNum, optStr, record, str, strings, type Json
 
 // Admin panel API (only for the admin group; the server checks it again):
 // limits (/admin/settings, /admin/users), answer reports (/admin/feedback),
-// security incidents (/admin/incidents) and diagnostics (/admin/diagnostics).
+// security incidents (/admin/incidents), blocks after warnings (/admin/blocks)
+// and diagnostics (/admin/diagnostics).
 
 export const ATTACHMENT_TYPES = ['pdf', 'docx', 'txt', 'png', 'jpeg', 'webp'] as const;
 export type AttachmentType = (typeof ATTACHMENT_TYPES)[number];
@@ -114,6 +115,24 @@ export interface AdminIncident {
   adminNote: string | null;
   reviewedAt: string | null;
   createdAt: string;
+}
+
+// A person with warnings (answers where the model flagged an attempt to get
+// around its rules) or blocked after reaching the limit.
+export interface WarnedPerson {
+  user: IncidentPerson;
+  warnings: number;
+  lastWarningAt: string | null;
+  // null = may use the chat
+  blockedAt: string | null;
+  // when a board member last unblocked / reset the warnings
+  warningsResetAt: string | null;
+}
+
+export interface BlockList {
+  items: WarnedPerson[];
+  // this many warnings block the chat
+  warningLimit: number;
 }
 
 // Documents of one RAG source: vector entries (from the index metadata, null
@@ -290,10 +309,14 @@ export function parseReportPage(value: unknown): Page<AdminReport> {
   return parsePage(value, parseReport);
 }
 
+function readPerson(value: unknown, path: string): IncidentPerson {
+  const body = record(value, path);
+  return { id: str(body, 'id'), name: optStr(body, 'name'), username: optStr(body, 'username'), email: optStr(body, 'email') };
+}
+
 function parsePerson(value: unknown): IncidentPerson | null {
   if (value === null || value === undefined) return null;
-  const body = record(value, 'incident.user');
-  return { id: str(body, 'id'), name: optStr(body, 'name'), username: optStr(body, 'username'), email: optStr(body, 'email') };
+  return readPerson(value, 'incident.user');
 }
 
 export function parseIncident(value: unknown): AdminIncident {
@@ -313,6 +336,22 @@ export function parseIncident(value: unknown): AdminIncident {
 
 export function parseIncidentPage(value: unknown): Page<AdminIncident> {
   return parsePage(value, parseIncident);
+}
+
+export function parseWarnedPerson(value: unknown): WarnedPerson {
+  const body = record(value, 'block');
+  return {
+    user: readPerson(body.user, 'block.user'),
+    warnings: num(body, 'warnings'),
+    lastWarningAt: optStr(body, 'last_warning_at'),
+    blockedAt: optStr(body, 'blocked_at'),
+    warningsResetAt: optStr(body, 'warnings_reset_at'),
+  };
+}
+
+export function parseBlockList(value: unknown): BlockList {
+  const body = record(value, 'blocks');
+  return { items: list(body, 'items').map(parseWarnedPerson), warningLimit: num(body, 'warning_limit') };
 }
 
 function numberMetric(section: JsonRecord, key: string, errorKey = 'error'): Metric<number> {
@@ -485,6 +524,16 @@ export async function fetchIncidents(status: ReviewStatus | null, offset: number
 export async function reviewIncident(id: string, update: ReviewUpdate): Promise<AdminIncident> {
   const path = `/admin/incidents/${encodeURIComponent(id)}`;
   return parseIncident(await apiJson<unknown>(path, { method: 'PATCH', headers: JSON_HEADERS, body: reviewBody(update) }));
+}
+
+export async function fetchBlocks(): Promise<BlockList> {
+  return parseBlockList(await apiJson<unknown>('/admin/blocks'));
+}
+
+// Lifts the block (if any) and resets the warnings; returns the updated entry.
+export async function unblockPerson(userId: string): Promise<WarnedPerson> {
+  const path = `/admin/blocks/${encodeURIComponent(userId)}`;
+  return parseWarnedPerson(await apiJson<unknown>(path, { method: 'DELETE' }));
 }
 
 // The server keeps a snapshot for ~15 s; `refresh` asks for a new one.

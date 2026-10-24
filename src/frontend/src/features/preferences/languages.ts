@@ -92,6 +92,20 @@ export interface AdminTranslation {
   rules: string;
   detectedBy: string;
   incidentSources: Record<IncidentSource, string>;
+  // blocks after warnings
+  blocksIntro: (limit: number) => string;
+  noBlocks: string;
+  blockedBadge: string;
+  warningsCount: (count: number, limit: number) => string;
+  blockedSince: string;
+  lastWarning: string;
+  lastReset: string;
+  unblock: string;
+  resetWarnings: string;
+  confirmUnblockTitle: string;
+  confirmUnblockText: string;
+  confirmResetTitle: string;
+  confirmResetText: string;
   // diagnostics
   model: string;
   provider: string;

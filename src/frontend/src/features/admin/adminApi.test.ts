@@ -4,6 +4,7 @@ import {
   feedbackExportUrl,
   parseAdminSettings,
   parseDiagnostics,
+  parseBlockList,
   parseIncidentPage,
   parseReportPage,
   parseUserPage,
@@ -287,5 +288,38 @@ describe('chat switch', () => {
     expect(toChatSwitchPayload(false, '  Awaria modelu ')).toEqual({ chat_enabled: false, chat_disabled_message: 'Awaria modelu' });
     expect(toChatSwitchPayload(false, '   ')).toEqual({ chat_enabled: false, chat_disabled_message: null });
     expect(toChatSwitchPayload(true, 'Awaria')).toEqual({ chat_enabled: true });
+  });
+});
+
+describe('parseBlockList', () => {
+  it('reads blocked and warned people with the warning limit', () => {
+    const list = parseBlockList({
+      warning_limit: 3,
+      items: [
+        {
+          user: { id: 'u1', name: 'Alice', username: 'alice', email: 'alice@uj.edu.pl' },
+          warnings: 3,
+          last_warning_at: '2026-10-11T10:00:00Z',
+          blocked_at: '2026-10-11T10:00:01Z',
+          warnings_reset_at: null,
+        },
+        { user: { id: 'u2', name: null, username: 'bob', email: null }, warnings: 1, last_warning_at: null, blocked_at: null },
+      ],
+    });
+
+    expect(list.warningLimit).toBe(3);
+    expect(list.items[0]).toEqual({
+      user: { id: 'u1', name: 'Alice', username: 'alice', email: 'alice@uj.edu.pl' },
+      warnings: 3,
+      lastWarningAt: '2026-10-11T10:00:00Z',
+      blockedAt: '2026-10-11T10:00:01Z',
+      warningsResetAt: null,
+    });
+    expect(list.items[1]).toMatchObject({ warnings: 1, blockedAt: null, warningsResetAt: null });
+  });
+
+  it('rejects a list without the limit or an entry without a person', () => {
+    expect(() => parseBlockList({ items: [] })).toThrow();
+    expect(() => parseBlockList({ warning_limit: 3, items: [{ warnings: 1 }] })).toThrow();
   });
 });

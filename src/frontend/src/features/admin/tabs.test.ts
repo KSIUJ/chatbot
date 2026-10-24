@@ -6,6 +6,7 @@ describe('tabForKey', () => {
     expect(tabForKey('limits', 'ArrowRight')).toBe('reports');
     expect(tabForKey('diagnostics', 'ArrowRight')).toBe('limits');
     expect(tabForKey('limits', 'ArrowLeft')).toBe('diagnostics');
+    expect(tabForKey('incidents', 'ArrowRight')).toBe('blocks');
   });
 
   it('jumps to the ends with Home / End and ignores other keys', () => {
