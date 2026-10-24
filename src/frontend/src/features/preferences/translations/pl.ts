@@ -87,6 +87,9 @@ export const pl: Translation = {
   usageToday: (used, limit) => `Pytania dzisiaj: ${used}/${limit}`,
   chatOffTitle: 'Czat jest wyłączony',
   chatOffDefault: 'Zarząd KSI tymczasowo wyłączył chatbota. Spróbuj ponownie później.',
+  chatBlockedTitle: 'Dostęp do czatu zablokowany',
+  chatBlocked:
+    'Twój dostęp do czatu został zablokowany po ostrzeżeniach za próby obejścia zasad chatbota. Skontaktuj się z członkiem zarządu KSI, aby wyjaśnić sytuację.',
   attachments: {
     attach: 'Dołącz pliki',
     dropHint: 'Upuść pliki, aby je dołączyć',

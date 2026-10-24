@@ -11,7 +11,7 @@ import { useChat } from './useChat';
 import { useDrawer } from './useDrawer';
 import ChatSidebar from './ChatSidebar';
 import ChatMessageList from './ChatMessageList';
-import ChatInput from './ChatInput';
+import ChatInput, { type OffNotice } from './ChatInput';
 
 interface ChatScreenProps {
   user: AuthUser;
@@ -50,8 +50,13 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
     wasAdminOpenRef.current = isAdminOpen;
   }, [isAdminOpen, menuButtonRef]);
 
-  // banner over the input while the admins have the chat switched off
-  const offNotice = chat.chatDisabled ? chat.usage?.chatDisabledMessage ?? lang.chatOffDefault : null;
+  // banner over the input while this person is blocked after warnings or the
+  // admins have the chat switched off
+  const offNotice: OffNotice | null = chat.chatBlocked
+    ? { title: lang.chatBlockedTitle, text: lang.chatBlocked }
+    : chat.chatDisabled
+      ? { title: lang.chatOffTitle, text: chat.usage?.chatDisabledMessage ?? lang.chatOffDefault }
+      : null;
   const canDrop = attachments.limits !== null && offNotice === null;
   // a new conversation shows the occasion facade in full colour, a running one dims it
   const isNewChat = chat.messages.length === 0 && !chat.isWaiting && !chat.isLoadingConversation;

@@ -91,6 +91,9 @@ export const de: Translation = {
   usageToday: (used, limit) => `Fragen heute: ${used}/${limit}`,
   chatOffTitle: 'Der Chat ist ausgeschaltet',
   chatOffDefault: 'Der KSI-Vorstand hat den Chatbot vorübergehend ausgeschaltet. Bitte versuchen Sie es später erneut.',
+  chatBlockedTitle: 'Chat-Zugang gesperrt',
+  chatBlocked:
+    'Ihr Zugang zum Chat wurde nach Warnungen wegen Versuchen, die Regeln des Chatbots zu umgehen, gesperrt. Bitte wenden Sie sich an ein Mitglied des KSI-Vorstands, um die Situation zu klären.',
   attachments: {
     attach: 'Dateien anhängen',
     dropHint: 'Dateien hier ablegen, um sie anzuhängen',

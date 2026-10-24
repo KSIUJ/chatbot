@@ -40,6 +40,7 @@ export type AttachmentProblem =
   | { code: 'disabled' }
   | { code: 'not_found' }
   | { code: 'chat_disabled' }
+  | { code: 'chat_blocked' }
   | { code: 'upload_timeout'; name: string }
   // too many uploads at once (the input queues them, so this is rare)
   | { code: 'busy' }
@@ -229,6 +230,8 @@ export function attachmentProblemOf(error: unknown, name?: string): AttachmentPr
       return { code: 'not_found' };
     case 'chat_disabled':
       return name === undefined ? null : { code: 'chat_disabled' };
+    case 'chat_blocked':
+      return name === undefined ? null : { code: 'chat_blocked' };
     case 'upload_timeout':
       return { code: 'upload_timeout', name: name ?? '' };
     case 'uploads_busy':

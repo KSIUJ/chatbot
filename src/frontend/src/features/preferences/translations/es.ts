@@ -90,6 +90,9 @@ export const es: Translation = {
   usageToday: (used, limit) => `Preguntas hoy: ${used}/${limit}`,
   chatOffTitle: 'El chat está desactivado',
   chatOffDefault: 'La junta de KSI ha desactivado temporalmente el chatbot. Inténtalo de nuevo más tarde.',
+  chatBlockedTitle: 'Acceso al chat bloqueado',
+  chatBlocked:
+    'Tu acceso al chat ha sido bloqueado tras advertencias por intentar eludir las reglas del chatbot. Ponte en contacto con un miembro de la junta de KSI para aclarar la situación.',
   attachments: {
     attach: 'Adjuntar archivos',
     dropHint: 'Suelta los archivos para adjuntarlos',

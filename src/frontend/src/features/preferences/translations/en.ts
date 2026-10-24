@@ -86,6 +86,9 @@ export const en: Translation = {
   usageToday: (used, limit) => `Questions today: ${used}/${limit}`,
   chatOffTitle: 'The chat is switched off',
   chatOffDefault: 'The KSI board has temporarily switched the chatbot off. Please try again later.',
+  chatBlockedTitle: 'Chat access blocked',
+  chatBlocked:
+    'Your access to the chat has been blocked after warnings about attempts to get around the chatbot’s rules. Please contact a KSI board member to discuss the situation.',
   attachments: {
     attach: 'Attach files',
     dropHint: 'Drop files to attach them',

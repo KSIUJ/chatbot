@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '../../lib/api';
-import { exhaustedUsage, formatResetTime, parseChatDisabled, parseRateLimit, parseUsage } from './usage';
+import { exhaustedUsage, formatResetTime, isChatBlocked, parseChatDisabled, parseRateLimit, parseUsage } from './usage';
 
 const RESET = '2026-10-02T22:00:00+00:00';
 
@@ -58,6 +58,7 @@ describe('exhaustedUsage', () => {
       resetAt: RESET,
       chatEnabled: true,
       chatDisabledMessage: null,
+      chatBlocked: false,
     });
   });
 });
@@ -109,5 +110,23 @@ describe('chat availability', () => {
     expect(parseChatDisabled(new ApiRequestError(503, 'provider_unavailable', { code: 'provider_unavailable' }, null))).toBeNull();
     expect(parseChatDisabled(new ApiRequestError(500, null, { code: 'chat_disabled' }, null))).toBeNull();
     expect(parseChatDisabled(new TypeError('Failed to fetch'))).toBeNull();
+  });
+});
+
+describe('block after warnings', () => {
+  it('reads chat_blocked from /usage (missing = not blocked)', () => {
+    expect(parseUsage({ used: 1, limit: 10, reset_at: RESET, chat_blocked: true })).toMatchObject({ chatBlocked: true });
+    expect(parseUsage({ used: 1, limit: 10, reset_at: RESET })).toMatchObject({ chatBlocked: false });
+    expect(parseUsage({ used: 1, limit: 10, reset_at: RESET, chat_blocked: 'yes' })).toMatchObject({ chatBlocked: false });
+  });
+
+  it('recognises the 403 chat_blocked answer', () => {
+    expect(isChatBlocked(new ApiRequestError(403, null, { code: 'chat_blocked', message: 'x', warning_limit: 3 }, null))).toBe(true);
+  });
+
+  it('ignores other 403s and other errors', () => {
+    expect(isChatBlocked(new ApiRequestError(403, 'not_member', { code: 'not_member' }, null))).toBe(false);
+    expect(isChatBlocked(new ApiRequestError(500, null, { code: 'chat_blocked' }, null))).toBe(false);
+    expect(isChatBlocked(new TypeError('Failed to fetch'))).toBe(false);
   });
 });

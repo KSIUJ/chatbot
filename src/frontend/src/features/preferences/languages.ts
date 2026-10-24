@@ -255,6 +255,9 @@ export interface Translation {
   // banner above the input while the admins have the chat switched off
   chatOffTitle: string;
   chatOffDefault: string;
+  // banner above the input while this person is blocked after warnings
+  chatBlockedTitle: string;
+  chatBlocked: string;
   attachments: AttachmentTranslation;
   admin: AdminTranslation;
 }

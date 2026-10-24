@@ -28,6 +28,7 @@ import { describeStop, waitForStoppedExchange, type StoppedExchange } from './st
 import {
   exhaustedUsage,
   fetchUsage,
+  isChatBlocked,
   parseChatDisabled,
   parseRateLimit,
   type RateLimitInfo,
@@ -150,8 +151,10 @@ export function useChat(language: HtmlLang) {
     }
   }, []);
 
-  // chat switched off by the admins: poll until it is back on
-  const chatDisabled = usage?.chatEnabled === false;
+  // chat switched off by the admins, or this person blocked after warnings:
+  // no questions; poll until it is back on (or a board member lifts the block)
+  const chatBlocked = usage?.chatBlocked === true;
+  const chatDisabled = usage?.chatEnabled === false || chatBlocked;
   useEffect(() => {
     if (!chatDisabled) return;
     const timer = window.setInterval(() => void refreshUsage(), CHAT_SWITCH_POLL_MS);
@@ -309,6 +312,14 @@ export function useChat(language: HtmlLang) {
       if (signal.aborted || isSessionLost(error)) return;
       // daily limit used up: a clear message instead of the generic error,
       // and no automatic retry (it would fail the same way until the reset)
+      // blocked after warnings: the banner above the input asks to contact
+      // the board, instead of an error bubble
+      if (isChatBlocked(error)) {
+        setMessages((prev) => dropUnsentQuestion(prev, question));
+        setUsage((prev) => (prev === null ? prev : { ...prev, chatBlocked: true }));
+        void refreshUsage();
+        return;
+      }
       // chat switched off by the admins: the banner above the input says so,
       // instead of an error bubble
       const disabled = parseChatDisabled(error);
@@ -479,6 +490,7 @@ export function useChat(language: HtmlLang) {
     feedbackErrorId,
     usage,
     chatDisabled,
+    chatBlocked,
     refreshUsage,
     openConversation,
     startNewChat,

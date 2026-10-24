@@ -16,6 +16,7 @@ const PROBLEMS: AttachmentProblem[] = [
   { code: 'disabled' },
   { code: 'not_found' },
   { code: 'chat_disabled' },
+  { code: 'chat_blocked' },
   { code: 'upload_timeout', name: 'a.pdf' },
   { code: 'busy' },
   { code: 'storage_full' },
