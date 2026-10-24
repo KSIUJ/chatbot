@@ -1,6 +1,6 @@
 """
 Przeglad ocen i zgloszen przez adminow (grupa OIDC_ADMIN_GROUP, domyslnie
-/Zarząd): lista z filtrami i stronicowaniem, obsluga zgloszenia, eksport CSV
+/Zespoły/Zarząd): lista z filtrami i stronicowaniem, obsluga zgloszenia, eksport CSV
 i flaga is_admin w GET /auth/me.
 """
 
@@ -92,7 +92,7 @@ def test_member_outside_admin_group_gets_403(member):
 
 
 def test_admin_group_only_counts_alongside_membership(client):
-    # sam /Zarząd bez /Członek nie wpuszcza do aplikacji w ogole
+    # sam /Zespoły/Zarząd bez /Członek nie wpuszcza do aplikacji w ogole
     r = login(client, client.keycloak, "outsider", groups=[ADMIN_GROUP])
 
     assert "auth_error=not_member" in r.headers["location"]

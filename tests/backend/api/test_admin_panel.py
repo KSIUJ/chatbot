@@ -1,5 +1,5 @@
 """
-Panel administratora (grupa OIDC_ADMIN_GROUP, domyslnie /Zarząd): globalne
+Panel administratora (grupa OIDC_ADMIN_GROUP, domyslnie /Zespoły/Zarząd): globalne
 limity (pytania i zalaczniki) z walidacja zakresow, wyszukiwarka uzytkownikow
 z dzisiejszym zuzyciem i wyjatkami, edycja wyjatkow per osoba.
 """

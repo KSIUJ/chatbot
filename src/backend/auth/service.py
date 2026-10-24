@@ -89,7 +89,7 @@ def is_member(claims: JSONObject, settings: AuthSettings) -> bool:
 
 def is_admin(claims: JSONObject, settings: AuthSettings) -> bool:
     """Czy claimy (z userinfo) zawieraja grupe adminow (OIDC_ADMIN_GROUP,
-    domyslnie /Zarząd). Wylaczona grupa adminow = nikt nie jest adminem."""
+    domyslnie /Zespoły/Zarząd). Wylaczona grupa adminow = nikt nie jest adminem."""
     if settings.admin_group is None:
         return False
     return settings.admin_group in extract_groups(claims, settings.groups_claim)
