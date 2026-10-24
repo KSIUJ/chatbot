@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import type { Translation } from '../preferences/languages';
 import DiagnosticsTab from './DiagnosticsTab';
+import BlocksTab from './BlocksTab';
 import IncidentsTab from './IncidentsTab';
 import LimitsTab from './LimitsTab';
 import ReportsTab from './ReportsTab';
@@ -20,6 +21,8 @@ function TabContent({ tab, lang }: { tab: AdminTab; lang: Translation }) {
       return <ReportsTab lang={lang} />;
     case 'incidents':
       return <IncidentsTab lang={lang} />;
+    case 'blocks':
+      return <BlocksTab lang={lang} />;
     case 'diagnostics':
       return <DiagnosticsTab lang={lang} />;
   }

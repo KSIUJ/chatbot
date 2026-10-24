@@ -9,14 +9,20 @@ import type { AttachmentsController } from './useAttachments';
 
 const MAX_INPUT_HEIGHT_PX = 200;
 
+export interface OffNotice {
+  title: string;
+  text: string;
+}
+
 interface ChatInputProps {
   lang: Translation;
   isWaiting: boolean;
   // returns false when the message was not sent (empty / busy) - text stays
   onSend: (text: string, attachments: readonly AttachmentMeta[]) => boolean;
   onStop: () => void;
-  // set while the admins have the chat switched off: banner instead of sending
-  offNotice: string | null;
+  // set while the admins have the chat switched off or this person is blocked
+  // after warnings: banner instead of sending
+  offNotice: OffNotice | null;
   attachments: AttachmentsController;
   // files sent earlier in this conversation (the server adds them to every question)
   earlierFiles: number;
@@ -84,12 +90,12 @@ export default function ChatInput({
 
   return (
     <form onSubmit={handleSubmit} className="px-4 pb-8 z-20">
-      {isOff && (
+      {offNotice !== null && (
         <div role="status" className="ksi-alert-danger rounded-card max-w-2xl mx-auto mb-3 flex gap-2.5 px-4 py-3 text-sm">
           <PowerOff size={16} className="shrink-0 mt-0.5 text-danger-text" aria-hidden="true" />
           <div>
-            <p className="font-semibold text-danger-text">{lang.chatOffTitle}</p>
-            <p className="text-fg break-words">{offNotice}</p>
+            <p className="font-semibold text-danger-text">{offNotice.title}</p>
+            <p className="text-fg break-words">{offNotice.text}</p>
           </div>
         </div>
       )}

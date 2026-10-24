@@ -3,7 +3,7 @@
 Za nginxem jest pod /api/* (nginx obcina /api).
 
     GET /usage -> {used, limit (null = bez limitu), reset_at, chat_enabled,
-                   chat_disabled_message, attachments: {limity plikow,
+                   chat_disabled_message, chat_blocked, attachments: {limity plikow,
                    used_today, images_supported}}
 """
 
@@ -19,6 +19,7 @@ from ..auth.dependencies import require_member
 from ..database import get_db
 from ..llm.provider import provider_supports_images
 from ..models import User
+from ..security.blocks import is_blocked
 from .schemas import AttachmentUsage, UsageResponse
 from .settings import MAX_IMAGE_MB, ChatDisabled, get_attachment_limits, get_chat_availability
 from .usage import Clock, LimitExceeded, attachments_used, get_clock, usage_status
@@ -37,7 +38,7 @@ def get_usage(
     clock: Clock = Depends(get_clock),
 ) -> UsageResponse:
     """Dzienny limit pytan biezacego uzytkownika (podpowiedz w sidebarze) i stan
-    wylacznika czatu (baner nad polem pytania)."""
+    wylacznika czatu i blokady osoby (baner nad polem pytania)."""
     response.headers["Cache-Control"] = "no-store"
     now = clock()
     status = usage_status(db, user.id, now)
@@ -49,6 +50,7 @@ def get_usage(
         reset_at=status.reset_at,
         chat_enabled=availability.enabled,
         chat_disabled_message=availability.message,
+        chat_blocked=is_blocked(user),
         attachments=AttachmentUsage(
             max_file_mb=attachments.max_file_mb,
             max_image_mb=min(MAX_IMAGE_MB, attachments.max_file_mb),

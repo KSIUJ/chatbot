@@ -30,4 +30,7 @@ class UsageResponse(BaseModel):
     # wylacznik czatu (panel administratora); komunikat None = domyslny
     chat_enabled: bool = True
     chat_disabled_message: str | None = None
+    # osoba zablokowana po ostrzezeniach (security/blocks.py) - baner z prosba
+    # o kontakt z zarzadem zamiast pola pytania
+    chat_blocked: bool = False
     attachments: AttachmentUsage | None = None

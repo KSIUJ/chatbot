@@ -28,6 +28,8 @@ export function describeAttachmentProblem(problem: AttachmentProblem, lang: Tran
       return text.notFound;
     case 'chat_disabled':
       return lang.chatOffDefault;
+    case 'chat_blocked':
+      return lang.chatBlocked;
     case 'upload_timeout':
       return text.uploadTimeout(problem.name);
     case 'busy':

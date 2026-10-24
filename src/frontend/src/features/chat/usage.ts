@@ -1,8 +1,9 @@
 import { ApiRequestError, apiJson } from '../../lib/api';
 import { parseAttachmentLimits, type AttachmentLimits } from './attachments';
 
-// Daily question limit and the admins' chat switch: GET /usage, the 429
-// "rate_limited" and the 503 "chat_disabled" answers of POST /chat/stream.
+// Daily question limit, the admins' chat switch and the block after warnings:
+// GET /usage, the 429 "rate_limited", the 503 "chat_disabled" and the 403
+// "chat_blocked" answers of POST /chat/stream.
 // The day ends at midnight Polish time (server side).
 
 export interface UsageStatus {
@@ -15,6 +16,9 @@ export interface UsageStatus {
   chatEnabled: boolean;
   // the admins' own text for the banner (null = translated default)
   chatDisabledMessage: string | null;
+  // true = this person was blocked after warnings for trying to get around
+  // the bot's rules (until a board member lifts it)
+  chatBlocked: boolean;
   // attachment limits for the input (missing = older backend, no paperclip)
   attachments?: AttachmentLimits;
 }
@@ -32,6 +36,7 @@ export interface RateLimitInfo {
 
 const RATE_LIMITED = 'rate_limited';
 const CHAT_DISABLED = 'chat_disabled';
+const CHAT_BLOCKED = 'chat_blocked';
 const MS_PER_SECOND = 1000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -60,6 +65,7 @@ export function parseUsage(value: unknown): UsageStatus | null {
     // a backend without the switch never disables the chat
     chatEnabled: enabled !== false,
     chatDisabledMessage: typeof message === 'string' && message !== '' ? message : null,
+    chatBlocked: value.chat_blocked === true,
     ...(attachments !== null ? { attachments } : {}),
   };
 }
@@ -72,6 +78,14 @@ export function parseChatDisabled(error: unknown): ChatDisabledInfo | null {
   if (!isRecord(detail) || detail.code !== CHAT_DISABLED) return null;
   const message = detail.admin_message;
   return { adminMessage: typeof message === 'string' && message !== '' ? message : null };
+}
+
+// True for the 403 chat_blocked answer (blocked after warnings); a 403 from
+// the login server (not_member, ...) is something else.
+export function isChatBlocked(error: unknown): boolean {
+  if (!(error instanceof ApiRequestError) || error.status !== 403) return false;
+  const { detail } = error;
+  return isRecord(detail) && detail.code === CHAT_BLOCKED;
 }
 
 // Reset time from the body, or now + Retry-After (seconds) when it is missing.
@@ -93,13 +107,14 @@ export function parseRateLimit(error: unknown, now: Date = new Date()): RateLimi
 // Usage right after a 429: the whole limit is used up until the reset.
 // `attachments` (the last known attachment limits) are kept as they were.
 export function exhaustedUsage(info: RateLimitInfo, attachments?: AttachmentLimits): UsageStatus {
-  // a 429 means the chat itself is on
+  // a 429 means the chat itself is on and the person is not blocked
   return {
     used: info.limit,
     limit: info.limit,
     resetAt: info.resetAt,
     chatEnabled: true,
     chatDisabledMessage: null,
+    chatBlocked: false,
     ...(attachments !== undefined ? { attachments } : {}),
   };
 }

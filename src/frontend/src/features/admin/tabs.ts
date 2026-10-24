@@ -1,5 +1,5 @@
 // Sections of the admin panel, in tab order.
-export const ADMIN_TABS = ['limits', 'reports', 'incidents', 'diagnostics'] as const;
+export const ADMIN_TABS = ['limits', 'reports', 'incidents', 'blocks', 'diagnostics'] as const;
 
 export type AdminTab = (typeof ADMIN_TABS)[number];
 

@@ -18,8 +18,9 @@ i rozlacz" dawalaby nielimitowane wywolania modelu.
 
 Wiodacy znacznik [[NARUSZENIE]] (zasada 18 promptu) nigdy nie trafia do
 klienta: poczatek odpowiedzi jest buforowany, dopoki nie wiadomo, czy to
-znacznik (security/marker.py). Na koncu tury powstaje incydent, jesli
-pytanie pasowalo do heurystyki albo model dal znacznik.
+znacznik (security/marker.py). Incydent (heurystyka albo znacznik) jest zapisywany
+przed "done" (po bledzie - na koncu tury), wiec blokada po ostatnim
+ostrzezeniu (security/blocks.py) jest juz widoczna w /usage.
 """
 
 from __future__ import annotations
@@ -93,6 +94,8 @@ class _Progress:
     marker: MarkerFilter = field(default_factory=MarkerFilter)
     # odpowiedz zapisana albo porazka - wtedy niczego juz nie zapisujemy
     finished: bool = False
+    # incydent (jesli byl) zapisany przed "done" - _finish go nie powtarza
+    incident_recorded: bool = False
     # jakas odpowiedz (pelna albo czesciowa) jest w bazie
     saved: bool = False
     # blad po stronie serwera (model, pusta odpowiedz, zapis) - pytanie wraca do limitu
@@ -180,6 +183,10 @@ async def chat_events(
             progress.server_failed = True
             yield _error_event(SAVE_FAILED)
             return
+        # incydent i ewentualna blokada przed "done": klient zaraz potem pyta o /usage
+        with anyio.CancelScope(shield=True):
+            await to_thread.run_sync(record_turn_incident, session_factory, turn, progress.marker.detected, True)
+            progress.incident_recorded = True
         yield sse_event("done", {"conversation_id": turn.conversation_id, "message": message.model_dump(mode="json")})
     finally:
         try:
@@ -225,4 +232,5 @@ async def _finish(
         except Exception:
             logger.exception("refunding question failed (conversation %s)", turn.conversation_id)
     # record_turn_incident sam loguje swoje bledy
-    await to_thread.run_sync(record_turn_incident, session_factory, turn, progress.marker.detected, progress.saved)
+    if not progress.incident_recorded:
+        await to_thread.run_sync(record_turn_incident, session_factory, turn, progress.marker.detected, progress.saved)

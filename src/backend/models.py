@@ -48,6 +48,12 @@ class User(Base):
     # Lokalny wylacznik konta, niezalezny od Keycloaka.
     is_active: Mapped[bool] = mapped_column(default=True)
 
+    # Blokada czatu po WARNING_LIMIT ostrzezeniach za proby obejscia promptu
+    # (security/blocks.py); NULL = brak blokady. Zdejmuje ja tylko zarzad.
+    chat_blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Ostrzezenia sprzed tej chwili sie nie licza - ustawiane przy zdjeciu blokady
+    warnings_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
