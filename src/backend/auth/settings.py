@@ -37,7 +37,7 @@ _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 DEFAULT_REQUIRED_GROUP = "/Członek"
 # Zarzad KSI przeglada oceny i zgloszenia odpowiedzi (/admin/*)
-DEFAULT_ADMIN_GROUP = "/Zarząd"
+DEFAULT_ADMIN_GROUP = "/Zespoły/Zarząd"
 
 
 class AuthConfigError(RuntimeError):

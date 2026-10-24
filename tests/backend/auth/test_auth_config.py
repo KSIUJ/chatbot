@@ -118,8 +118,10 @@ def test_is_member_normalizes_unicode_and_matches_exactly():
 def test_admin_group_defaults_to_board():
     s = load_auth_settings(BASE_ENV)
 
-    assert s.admin_group == "/Zarząd"
-    assert is_admin({"groups": ["/Członek", "/Zarząd"]}, s)
+    assert s.admin_group == "/Zespoły/Zarząd"
+    assert is_admin({"groups": ["/Członek", "/Zespoły/Zarząd"]}, s)
+    # pelna sciezka - sama nazwa grupy albo inna grupa o tej nazwie nie wystarcza
+    assert not is_admin({"groups": ["/Członek", "/Zarząd"]}, s)
     assert not is_admin({"groups": ["/Członek"]}, s)
 
 
@@ -137,14 +139,14 @@ def test_admin_group_can_be_disabled(value):
     s = load_auth_settings({**BASE_ENV, "OIDC_ADMIN_GROUP": value})
 
     assert s.admin_group is None
-    assert not is_admin({"groups": ["/Zarząd", "off", value]}, s)
+    assert not is_admin({"groups": ["/Zespoły/Zarząd", "off", value]}, s)
 
 
 def test_empty_admin_group_means_default():
     # jak reszta .env.example: puste = wartosc domyslna
     s = load_auth_settings({**BASE_ENV, "OIDC_ADMIN_GROUP": "  "})
 
-    assert s.admin_group == "/Zarząd"
+    assert s.admin_group == "/Zespoły/Zarząd"
 
 
 def test_cipher_roundtrip_and_key_separation():
