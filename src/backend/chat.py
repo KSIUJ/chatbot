@@ -29,6 +29,7 @@ from .llm.provider import provider_supports_images
 from .models import Attachment, Conversation, Message, MessageRole
 from .rag.core.citations import Citation
 from .response import AttachmentInfo, FeedbackState, MessageResponse, parse_sources
+from .security.blocks import apply_warning_block
 from .security.incidents import record_incident
 
 logger = logging.getLogger(__name__)
@@ -198,7 +199,9 @@ def record_turn_incident(
 ) -> None:
     """Incydent dla tury z trafieniem heurystyki i/lub znacznikiem od modelu
     (jeden na pytanie). Wolane na koncu tury, takze po bledzie modelu; bez
-    zapisanej odpowiedzi incydent nie wskazuje wiadomosci.
+    zapisanej odpowiedzi incydent nie wskazuje wiadomosci. Znacznik od modelu
+    to ostrzezenie dla osoby - po WARNING_LIMIT ostrzezeniach czat jest
+    blokowany (security/blocks.py).
 
     Blad zapisu incydentu jest logowany i nie psuje odpowiedzi - uzytkownik
     dostal juz odpowiedz, a proba i tak trafia do logow (warning ponizej)."""
@@ -210,7 +213,7 @@ def record_turn_incident(
     )
     db = session_factory()
     try:
-        record_incident(
+        incident = record_incident(
             db,
             user_id=turn.user_id,
             conversation_id=turn.conversation_id,
@@ -219,6 +222,8 @@ def record_turn_incident(
             rules=turn.injection_rules,
             model_flagged=model_flagged,
         )
+        if incident is not None and model_flagged:
+            apply_warning_block(db, turn.user_id)
     except Exception:
         db.rollback()
         logger.exception("recording security incident failed (conversation %s)", turn.conversation_id)

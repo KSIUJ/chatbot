@@ -43,3 +43,21 @@ class AdminIncidentPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class AdminWarnedUser(BaseModel):
+    """Wpis w GET /admin/blocks: osoba z ostrzezeniami albo blokada."""
+    user: IncidentUser
+    # ostrzezenia liczone do blokady (bez odrzuconych i sprzed zdjecia blokady)
+    warnings: int
+    last_warning_at: datetime | None
+    # None = osoba moze korzystac z czatu
+    blocked_at: datetime | None
+    # ostatnie zdjecie blokady / wyzerowanie ostrzezen przez zarzad
+    warnings_reset_at: datetime | None
+
+
+class AdminWarnedUserList(BaseModel):
+    items: list[AdminWarnedUser]
+    # tyle ostrzezen blokuje czat
+    warning_limit: int

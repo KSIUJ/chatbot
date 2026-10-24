@@ -155,3 +155,30 @@ def test_attachment_ocr_migration_up_and_down(alembic_config):
         engine.dispose()
 
     command.upgrade(config, "head")
+
+
+BLOCKS_REVISION = "a9c4e7b2d1f3"
+BLOCK_COLUMNS = {"chat_blocked_at", "warnings_reset_at"}
+
+
+def _user_columns(url: str) -> dict[str, dict]:
+    engine = create_engine(url)
+    try:
+        return {c["name"]: c for c in inspect(engine).get_columns("users")}
+    finally:
+        engine.dispose()
+
+
+def test_chat_blocks_migration_up_and_down(alembic_config):
+    config, url = alembic_config
+
+    command.upgrade(config, BLOCKS_REVISION)
+    columns = _user_columns(url)
+    assert BLOCK_COLUMNS <= set(columns)
+    assert all(columns[name]["nullable"] for name in BLOCK_COLUMNS)
+
+    command.downgrade(config, OCR_REVISION)
+    assert not BLOCK_COLUMNS & set(_user_columns(url))
+
+    command.upgrade(config, "head")
+    assert BLOCK_COLUMNS <= set(_user_columns(url))

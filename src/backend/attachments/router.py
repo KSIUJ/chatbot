@@ -54,6 +54,7 @@ from ..limits.usage import (
     refund_attachment,
 )
 from ..models import User
+from ..security.blocks import ensure_not_blocked
 from ..security.injection import detect_injection
 from . import storage
 from .errors import (
@@ -148,10 +149,12 @@ def _check_free_space() -> None:
 
 
 def _start_upload(
-    db: Session, user_id: str, now_clock: Clock, declared: int | None
+    db: Session, user: User, now_clock: Clock, declared: int | None
 ) -> tuple[AttachmentLimits, Reservation]:
     """Sprawdzenia przed odczytem ciala i zuzycie miejsca w dziennym limicie."""
     ensure_chat_enabled(db)
+    ensure_not_blocked(user)
+    user_id = user.id
     limits = get_attachment_limits(db)
     if limits.max_per_day <= 0:
         raise AttachmentError(403, ATTACHMENTS_DISABLED, "Załączniki są wyłączone przez zarząd KSI.")
@@ -292,15 +295,15 @@ async def upload_attachment(
     user: User = Depends(require_member),
     clock: Clock = Depends(get_clock),
 ) -> AttachmentUploadResponse:
-    """Wysyla jeden plik (surowe cialo). Bledy: 403 attachments_disabled,
-    408 upload_timeout, 413 file_too_large, 415 unsupported_type,
+    """Wysyla jeden plik (surowe cialo). Bledy: 403 attachments_disabled /
+    chat_blocked, 408 upload_timeout, 413 file_too_large, 415 unsupported_type,
     422 empty_file / unreadable_file, 429 attachments_limited / uploads_busy /
     attachments_storage_full, 503 chat_disabled, 507 storage_unavailable."""
     if not UPLOAD_SLOTS.try_acquire(user.id):
         raise AttachmentError(429, UPLOADS_BUSY, "Za dużo plików wysyłanych naraz. Poczekaj chwilę.")
     try:
         limits, reservation = await run_in_threadpool(
-            _start_upload, db, user.id, clock, _declared_length(request)
+            _start_upload, db, user, clock, _declared_length(request)
         )
         return await _store_upload(request, db, user.id, limits, reservation)
     finally:

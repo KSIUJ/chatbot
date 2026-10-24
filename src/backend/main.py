@@ -86,6 +86,7 @@ from .llm.generate import answer as rag_answer, stream_answer as rag_stream
 from .llm.language import REFUSAL
 from .feedback.service import EMPTY_STATE, purge_old_feedback
 from .security import admin_router as security_admin_router
+from .security.blocks import ChatBlocked, chat_blocked_handler, ensure_not_blocked
 from .security.incidents import purge_old_incidents
 from .security.injection import detect_injection
 from .security.marker import strip_violation_marker
@@ -218,6 +219,8 @@ app = FastAPI(
 app.add_exception_handler(LimitExceeded, limit_exceeded_handler)
 # czat wylaczony przez zarzad -> 503 chat_disabled (przed limitem i modelem)
 app.add_exception_handler(ChatDisabled, chat_disabled_handler)
+# osoba zablokowana po ostrzezeniach -> 403 chat_blocked (po wylaczniku, przed limitem)
+app.add_exception_handler(ChatBlocked, chat_blocked_handler)
 # odrzucony plik / zalacznik w pytaniu -> kod w detail.code (attachments/errors.py)
 app.add_exception_handler(AttachmentError, attachment_error_handler)
 
@@ -336,8 +339,10 @@ def chat(
     """Pytanie do czatu, odpowiedz w calosci (JSON). Wiodacy znacznik
     [[NARUSZENIE]] jest zdejmowany przed zapisem i zglaszany jako incydent.
     Wyczerpany dzienny limit -> 429 (rate_limited), model nie jest wolany.
-    Czat wylaczony przez zarzad -> 503 (chat_disabled) przed czymkolwiek."""
+    Czat wylaczony przez zarzad -> 503 (chat_disabled) przed czymkolwiek,
+    osoba zablokowana po ostrzezeniach -> 403 (chat_blocked)."""
     ensure_chat_enabled(db)
+    ensure_not_blocked(user)
     turn = _new_turn(payload, user, history_settings)
     model_flagged = False
     saved = False
@@ -376,12 +381,13 @@ def _prepare_stream_turn(
     db: Session, payload: ChatRequest, user: User, history_settings: HistorySettings, clock: Clock
 ) -> tuple[ChatTurn, Reservation]:
     """Tura dla strumienia; wylaczony czat -> 503 (ChatDisabled, przed
-    czymkolwiek), cudza rozmowa -> 404, wyczerpany limit -> 429
-    (LimitExceeded) - jeszcze przed strumieniem. Sesja zapytania jest potem
+    czymkolwiek), zablokowana osoba -> 403 (ChatBlocked), cudza rozmowa ->
+    404, wyczerpany limit -> 429 (LimitExceeded) - jeszcze przed strumieniem. Sesja zapytania jest potem
     zamykana - strumien uzywa wlasnych sesji, a ta trzymalaby polaczenie
     z puli przez cale generowanie."""
     try:
         ensure_chat_enabled(db)
+        ensure_not_blocked(user)
         turn = _new_turn(payload, user, history_settings)
         conversation = db.get(Conversation, turn.conversation_id, populate_existing=True)
         if conversation is not None and conversation.user_id != turn.user_id:
@@ -408,7 +414,7 @@ async def chat_stream(
     clock: Clock = Depends(get_clock),
 ) -> StreamingResponse:
     """Pytanie do czatu, odpowiedz strumieniowana (SSE, patrz chat_stream.py).
-    Bledy logowania, originu, walidacji, 503 (czat wylaczony), 404 i 429 (dzienny limit) wracaja
+    Bledy logowania, originu, walidacji, 503 (czat wylaczony), 403 (blokada), 404 i 429 (dzienny limit) wracaja
     jako zwykle odpowiedzi HTTP, zanim zacznie sie strumien."""
     turn, reservation = await run_in_threadpool(_prepare_stream_turn, db, payload, user, history_settings, clock)
     refund = partial(refund_in_new_session, session_factory, reservation)
