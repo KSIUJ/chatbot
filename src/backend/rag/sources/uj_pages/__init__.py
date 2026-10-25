@@ -1,4 +1,4 @@
-"""Strony UJ: wydzial, USOSownia, kola naukowe, Wikipedia (data/uj_pages/)."""
+"""Strony UJ: wydzial, kola naukowe, Wikipedia (data/uj_pages/)."""
 
 from __future__ import annotations
 
