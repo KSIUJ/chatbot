@@ -24,7 +24,7 @@ from src.backend.rag.sources.mordor.documents import material_documents
 from src.backend.rag.sources.uj_pages import legacy as uj_legacy
 from src.backend.rag.sources.uj_pages.dataset import PageAttributes, PageRecord
 from src.backend.rag.sources.uj_pages.documents import page_documents
-from src.backend.rag.sources.usos import legacy as usos_legacy
+from src.backend.rag.sources.usos.dataset import Position, Room, StaffAttributes, StaffRecord
 from src.backend.rag.sources.usos.documents import staff_document
 
 REPO = Path(__file__).resolve().parents[3]
@@ -197,36 +197,29 @@ def test_page_documents_start_with_breadcrumbs_title_and_section():
 
 # --- usos --------------------------------------------------------------------------
 
-EMPLOYEE = {
-    "id": 12345,
-    "first_name": "Jan",
-    "last_name": "Kowalski",
-    "titles": {"before": "dr hab.", "after": "prof. UJ"},
-    "room": {"number": "2144", "building_name": {"pl": "Łojasiewicza 6"}},
-    "employment_positions": [
-        {"position": {"name": {"pl": "adiunkt"}}, "faculty": {"name": {"pl": "WMiI"}}},
-        {"position": {"name": {"pl": "kierownik"}}, "faculty": None},
-    ],
-    "office_hours_text": "<p>wtorek <b>10-12</b></p>",
-    "interests_text": "analiza",
-    "email": None,
-    "phone_numbers": [" 12 664 00 00 ", ""],
-    "homepage_url": "",
-    "profile_url": "https://usosweb.uj.edu.pl/kontroler.php?_action=katalog2/osoby/pokazOsobe&os_id=12345",
-}
+EMPLOYEE = StaffRecord(
+    id="12345",
+    kind="staff",
+    title="Jan Kowalski",
+    url="https://usosweb.uj.edu.pl/kontroler.php?_action=katalog2/osoby/pokazOsobe&os_id=12345",
+    attributes=StaffAttributes(
+        usos_id="12345",
+        first_name="Jan",
+        last_name="Kowalski",
+        titles_before="dr hab.",
+        titles_after="prof. UJ",
+        positions=[Position(name="adiunkt", unit="WMiI"), Position(name="kierownik")],
+        room=Room(number="2144", building="Łojasiewicza 6"),
+        office_hours="wtorek 10-12",
+        interests="analiza",
+        phones=["12 664 00 00"],
+    ),
+)
 
 
-def test_legacy_staff_record_and_card_text(tmp_path):
-    staff_dir = tmp_path / "usos" / "staff"
-    staff_dir.mkdir(parents=True)
-    (staff_dir / "staff_UJ.WMI_20260101T000000Z.json").write_text(json.dumps([{"id": 1, "last_name": "Stary"}]), encoding="utf-8")
-    (staff_dir / "staff_UJ.WMI_20260906T102458Z.json").write_text(json.dumps([EMPLOYEE]), encoding="utf-8")
+def test_staff_card_text():
+    document = staff_document("usos", EMPLOYEE)
 
-    (record,) = usos_legacy.convert(tmp_path)
-    document = staff_document("usos", record)
-
-    assert record.id == "12345" and record.title == "Jan Kowalski"
-    assert record.attributes.office_hours == "wtorek 10-12"
     # ten sam tekst karty co przed zmiana formatu; do wyszukiwania z dopelniaczem
     card = (
         "dr hab. prof. UJ Jan Kowalski\n"
@@ -241,11 +234,16 @@ def test_legacy_staff_record_and_card_text(tmp_path):
     assert document.embed_text == card + "\nOdmiana: Jana Kowalskiego"
     assert document.id == make_id("usos", "12345")
     assert document.metadata["employee_name"] == "Jan Kowalski"
-    assert document.metadata["profile_url"] == EMPLOYEE["profile_url"]
+    assert document.metadata["kind"] == "staff"
+    assert document.metadata["profile_url"] == EMPLOYEE.url
 
 
-def test_legacy_staff_missing_is_none(tmp_path):
-    assert usos_legacy.convert(tmp_path) is None
+def test_usos_has_no_legacy_format(tmp_path):
+    staff_dir = tmp_path / "usos" / "staff"
+    staff_dir.mkdir(parents=True)
+    (staff_dir / "staff_UJ.WMI_20260906T102458Z.json").write_text("[]", encoding="utf-8")
+
+    assert create_sources()["usos"].convert_legacy(tmp_path) is None
 
 
 # --- mordor ------------------------------------------------------------------------

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..core.citations import Citation
-    from ..core.datasets import Record
+    from ..core.datasets import Record, RecordModel
     from ..core.documents import Document
     from ..core.lexical import LexicalIndex
     from ..core.vectorstore import VectorStore
@@ -28,7 +28,7 @@ class RagSource(ABC):
     # klucz zrodla w indeksie (Document.source) i w zapisanych zrodlach odpowiedzi
     name: str
     # model rekordu zbioru data/<zrodlo>/ (dataset.py zrodla)
-    record_model: type[Record]
+    record_model: RecordModel
 
     # dokladne wyszukiwanie: naglowek sekcji i ile trafien; None = brak
     lookup_header: str | None = None

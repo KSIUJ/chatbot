@@ -1,5 +1,633 @@
 {
   "$defs": {
+    "BuildingAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "building_id": {
+          "minLength": 1,
+          "title": "Building Id",
+          "type": "string"
+        },
+        "campus": {
+          "default": "",
+          "title": "Campus",
+          "type": "string"
+        },
+        "address": {
+          "default": "",
+          "title": "Address",
+          "type": "string"
+        },
+        "fac_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fac Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "building_id"
+      ],
+      "title": "BuildingAttributes",
+      "type": "object"
+    },
+    "BuildingRecord": {
+      "additionalProperties": false,
+      "description": "Budynek UJ (adres, kampus), dla budynkow wydzialu takze sale;\nid = building:<id>.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "building",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/BuildingAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "BuildingRecord",
+      "type": "object"
+    },
+    "CalendarAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "academic_year": {
+          "minLength": 1,
+          "title": "Academic Year",
+          "type": "string"
+        },
+        "fac_id": {
+          "default": "",
+          "title": "Fac Id",
+          "type": "string"
+        },
+        "start_date": {
+          "format": "date",
+          "title": "Start Date",
+          "type": "string"
+        },
+        "end_date": {
+          "format": "date",
+          "title": "End Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "academic_year",
+        "start_date",
+        "end_date"
+      ],
+      "title": "CalendarAttributes",
+      "type": "object"
+    },
+    "CalendarRecord": {
+      "additionalProperties": false,
+      "description": "Rok akademicki: semestry, przerwy, sesje i dni wolne;\nid = calendar:<rok>:<jednostka>.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "calendar",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/CalendarAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "CalendarRecord",
+      "type": "object"
+    },
+    "CourseAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "course_id": {
+          "minLength": 1,
+          "title": "Course Id",
+          "type": "string"
+        },
+        "term_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Term Ids",
+          "type": "array"
+        },
+        "fac_id": {
+          "default": "",
+          "title": "Fac Id",
+          "type": "string"
+        },
+        "ects": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ects"
+        },
+        "lecturers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Lecturers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "course_id"
+      ],
+      "title": "CourseAttributes",
+      "type": "object"
+    },
+    "CourseRecord": {
+      "additionalProperties": false,
+      "description": "Przedmiot z jego zajeciami w aktywnych cyklach (grupy, prowadzacy,\nterminy i sale); id = course:<kod>.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "course",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/CourseAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "CourseRecord",
+      "type": "object"
+    },
+    "DormitoryAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "dormitory_id": {
+          "minLength": 1,
+          "title": "Dormitory Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dormitory_id"
+      ],
+      "title": "DormitoryAttributes",
+      "type": "object"
+    },
+    "DormitoryRecord": {
+      "additionalProperties": false,
+      "description": "Dom studencki UJ; id = dormitory:<id>.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "dormitory",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/DormitoryAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "DormitoryRecord",
+      "type": "object"
+    },
+    "NewsAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "news_id": {
+          "minLength": 1,
+          "title": "News Id",
+          "type": "string"
+        },
+        "category": {
+          "default": "",
+          "title": "Category",
+          "type": "string"
+        },
+        "faculty": {
+          "default": "",
+          "title": "Faculty",
+          "type": "string"
+        },
+        "expiry_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expiry Date"
+        }
+      },
+      "required": [
+        "news_id"
+      ],
+      "title": "NewsAttributes",
+      "type": "object"
+    },
+    "NewsRecord": {
+      "additionalProperties": false,
+      "description": "Artykul z aktualnosci USOSweb; id = news:<id>, updated_at = data publikacji.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "news",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/NewsAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "NewsRecord",
+      "type": "object"
+    },
+    "PageAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "site": {
+          "minLength": 1,
+          "title": "Site",
+          "type": "string"
+        },
+        "section": {
+          "const": "usosweb",
+          "title": "Section",
+          "type": "string"
+        },
+        "breadcrumbs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Breadcrumbs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "site",
+        "section"
+      ],
+      "title": "PageAttributes",
+      "type": "object"
+    },
+    "PageRecord": {
+      "additionalProperties": false,
+      "description": "Strona informacyjna; id = adres strony, url wymagany.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "page",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/PageAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "url",
+        "content",
+        "attributes"
+      ],
+      "title": "PageRecord",
+      "type": "object"
+    },
     "Position": {
       "additionalProperties": false,
       "properties": {
@@ -18,6 +646,244 @@
         "name"
       ],
       "title": "Position",
+      "type": "object"
+    },
+    "ProgrammeAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "programme_id": {
+          "minLength": 1,
+          "title": "Programme Id",
+          "type": "string"
+        },
+        "fac_id": {
+          "default": "",
+          "title": "Fac Id",
+          "type": "string"
+        },
+        "level": {
+          "default": "",
+          "title": "Level",
+          "type": "string"
+        },
+        "mode": {
+          "default": "",
+          "title": "Mode",
+          "type": "string"
+        },
+        "duration": {
+          "default": "",
+          "title": "Duration",
+          "type": "string"
+        }
+      },
+      "required": [
+        "programme_id"
+      ],
+      "title": "ProgrammeAttributes",
+      "type": "object"
+    },
+    "ProgrammeRecord": {
+      "additionalProperties": false,
+      "description": "Program studiow (kierunek); id = programme:<id>.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "programme",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/ProgrammeAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "ProgrammeRecord",
+      "type": "object"
+    },
+    "RegistrationAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "registration_id": {
+          "minLength": 1,
+          "title": "Registration Id",
+          "type": "string"
+        },
+        "fac_id": {
+          "default": "",
+          "title": "Fac Id",
+          "type": "string"
+        },
+        "registration_type": {
+          "default": "course",
+          "enum": [
+            "course",
+            "token"
+          ],
+          "title": "Registration Type",
+          "type": "string"
+        },
+        "start_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Date"
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Date"
+        }
+      },
+      "required": [
+        "registration_id"
+      ],
+      "title": "RegistrationAttributes",
+      "type": "object"
+    },
+    "RegistrationRecord": {
+      "additionalProperties": false,
+      "description": "Rejestracja z turami (terminy, tryb) i przedmiotami do wyboru;\nid = registration:<id>.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "registration",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/RegistrationAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "RegistrationRecord",
       "type": "object"
     },
     "Room": {
@@ -117,77 +983,220 @@
       ],
       "title": "StaffAttributes",
       "type": "object"
+    },
+    "StaffRecord": {
+      "additionalProperties": false,
+      "description": "Pracownik; id = id osoby w USOS, title = imie i nazwisko, url = profil\nw USOSweb. Rekord bez tresci - wszystko jest w attributes.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "staff",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "default": "",
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/StaffAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "attributes"
+      ],
+      "title": "StaffRecord",
+      "type": "object"
+    },
+    "UnitAttributes": {
+      "additionalProperties": false,
+      "properties": {
+        "fac_id": {
+          "minLength": 1,
+          "title": "Fac Id",
+          "type": "string"
+        },
+        "parent_id": {
+          "default": "",
+          "title": "Parent Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fac_id"
+      ],
+      "title": "UnitAttributes",
+      "type": "object"
+    },
+    "UnitRecord": {
+      "additionalProperties": false,
+      "description": "Jednostka organizacyjna (wydzial, instytut, katedra); id = unit:<fac_id>.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "unit",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/UnitAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "content",
+        "attributes"
+      ],
+      "title": "UnitRecord",
+      "type": "object"
     }
   },
-  "additionalProperties": false,
-  "description": "Pracownik; id = id osoby w USOS, title = imie i nazwisko, url = profil\nw USOSweb. Rekord bez tresci - wszystko jest w attributes.",
-  "properties": {
-    "id": {
-      "minLength": 1,
-      "title": "Id",
-      "type": "string"
+  "discriminator": {
+    "mapping": {
+      "building": "#/$defs/BuildingRecord",
+      "calendar": "#/$defs/CalendarRecord",
+      "course": "#/$defs/CourseRecord",
+      "dormitory": "#/$defs/DormitoryRecord",
+      "news": "#/$defs/NewsRecord",
+      "page": "#/$defs/PageRecord",
+      "programme": "#/$defs/ProgrammeRecord",
+      "registration": "#/$defs/RegistrationRecord",
+      "staff": "#/$defs/StaffRecord",
+      "unit": "#/$defs/UnitRecord"
     },
-    "kind": {
-      "const": "staff",
-      "title": "Kind",
-      "type": "string"
-    },
-    "title": {
-      "default": "",
-      "title": "Title",
-      "type": "string"
-    },
-    "url": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Url"
-    },
-    "lang": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Lang"
-    },
-    "updated_at": {
-      "anyOf": [
-        {
-          "format": "date-time",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Updated At"
-    },
-    "content": {
-      "default": "",
-      "title": "Content",
-      "type": "string"
-    },
-    "attributes": {
-      "$ref": "#/$defs/StaffAttributes"
-    }
+    "propertyName": "kind"
   },
-  "required": [
-    "id",
-    "kind",
-    "attributes"
-  ],
-  "title": "StaffRecord",
-  "type": "object"
+  "oneOf": [
+    {
+      "$ref": "#/$defs/StaffRecord"
+    },
+    {
+      "$ref": "#/$defs/NewsRecord"
+    },
+    {
+      "$ref": "#/$defs/PageRecord"
+    },
+    {
+      "$ref": "#/$defs/UnitRecord"
+    },
+    {
+      "$ref": "#/$defs/CourseRecord"
+    },
+    {
+      "$ref": "#/$defs/ProgrammeRecord"
+    },
+    {
+      "$ref": "#/$defs/CalendarRecord"
+    },
+    {
+      "$ref": "#/$defs/RegistrationRecord"
+    },
+    {
+      "$ref": "#/$defs/BuildingRecord"
+    },
+    {
+      "$ref": "#/$defs/DormitoryRecord"
+    }
+  ]
 }

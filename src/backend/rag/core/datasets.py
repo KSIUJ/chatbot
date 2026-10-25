@@ -10,13 +10,14 @@ a blad wskazuje plik i linie - scraper dowiaduje sie od razu, co poprawic.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator
 
 from .citations import http_url
 
@@ -84,6 +85,14 @@ class Record(BaseModel):
 
 R = TypeVar("R", bound=Record)
 
+# Model rekordu zrodla: klasa rekordu albo TypeAdapter unii rekordow rozroznianych
+# po `kind` (zrodlo z kilkoma rodzajami rekordow o roznych `attributes`, np. usos).
+RecordModel = type[Record] | TypeAdapter[Any]
+
+
+def record_adapter(model: RecordModel) -> TypeAdapter[Any]:
+    return model if isinstance(model, TypeAdapter) else TypeAdapter(model)
+
 
 @dataclass(frozen=True)
 class Dataset(Generic[R]):
@@ -98,7 +107,7 @@ def _validation_message(error: ValidationError) -> str:
     )
 
 
-def read_dataset(directory: Path, source: str, record_model: type[R]) -> Dataset[R] | None:
+def read_dataset(directory: Path, source: str, record_model: RecordModel) -> Dataset[Any] | None:
     """Zbior z katalogu; None, gdy nie ma manifestu (zrodlo bez danych).
 
     Raises:
@@ -119,17 +128,20 @@ def read_dataset(directory: Path, source: str, record_model: type[R]) -> Dataset
             f"{manifest_path}: wersja formatu {manifest.format_version}, obslugiwana {FORMAT_VERSION}"
         )
 
-    records: list[R] = []
+    adapter = record_adapter(record_model)
+    records: list[Record] = []
     seen: set[str] = set()
     for name in manifest.files:
         path = directory / name
         if not path.is_file():
             raise DatasetError(f"{path}: brak pliku wymienionego w manifescie")
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        # tylko "\n" konczy rekord - splitlines() dzielilby tez na U+2028 i NEL,
+        # ktore JSON dopuszcza wewnatrz napisow
+        for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), start=1):
             if not line.strip():
                 continue
             try:
-                record = record_model.model_validate_json(line)
+                record = adapter.validate_json(line)
             except ValidationError as error:
                 raise DatasetError(f"{path}:{number}: {_validation_message(error)}") from None
             if record.id in seen:
@@ -150,7 +162,11 @@ def write_dataset(
     """Zapisuje zbior (manifest + jeden plik JSONL); dla scraperow w Pythonie
     i adapterow starych formatow."""
     directory.mkdir(parents=True, exist_ok=True)
-    with (directory / file_name).open("w", encoding="utf-8") as out:
+    # najpierw pliki tymczasowe, potem podmiana (os.replace jest atomowe) - zapis
+    # przerwany w trakcie zostawia poprzedni zbior bez zmian
+    records_path = directory / file_name
+    records_tmp = records_path.with_name(records_path.name + ".tmp")
+    with records_tmp.open("w", encoding="utf-8") as out:
         for record in records:
             out.write(record.model_dump_json(exclude_defaults=True) + "\n")
     manifest = Manifest(
@@ -160,13 +176,16 @@ def write_dataset(
         collector=collector,
         files=[file_name],
     )
-    (directory / MANIFEST).write_text(manifest.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    manifest_tmp = directory / (MANIFEST + ".tmp")
+    manifest_tmp.write_text(manifest.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    os.replace(records_tmp, records_path)
+    os.replace(manifest_tmp, directory / MANIFEST)
     return manifest
 
 
-def json_schemas(models: Sequence[tuple[str, type[Record]]]) -> dict[str, dict]:
+def json_schemas(models: Sequence[tuple[str, RecordModel]]) -> dict[str, dict]:
     """Schematy JSON (manifest i rekord kazdego zrodla) dla scraperow w innych jezykach."""
     schemas = {"manifest": Manifest.model_json_schema()}
     for name, model in models:
-        schemas[name] = model.model_json_schema()
+        schemas[name] = record_adapter(model).json_schema()
     return schemas

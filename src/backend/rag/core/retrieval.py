@@ -101,10 +101,13 @@ def fuse(vector_hits: list[dict], lexical_hits: list[dict], rrf_k: int = RRF_K) 
 
 
 def document_key(hit: dict) -> str:
-    """Dokument, z ktorego pochodzi chunk: notatka KSI, strona (url), plik
+    """Dokument, z ktorego pochodzi chunk: rekord zbioru (record_id - kilka
+    rekordow USOS moze miec ten sam adres), notatka KSI, strona (url), plik
     Mordoru (katalog + plik); inaczej sam wpis (np. karta pracownika)."""
     metadata = hit.get("metadata") or {}
     source = hit.get("source") or ""
+    if metadata.get("record_id"):
+        return f"{source}|record|{metadata['record_id']}"
     if metadata.get("note"):
         return f"{source}|note|{metadata['note']}"
     if metadata.get("url"):
