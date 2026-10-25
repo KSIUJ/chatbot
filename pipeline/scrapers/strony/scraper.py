@@ -30,7 +30,7 @@ START_URLS = [
     "https://kmsuj.matinf.uj.edu.pl/",
     "https://nkr.si/",
     "https://knmf.im.uj.edu.pl/",
-    "https://usosownia.uj.edu.pl/start",
+    # bez usosownia.uj.edu.pl - jej robots.txt zabrania robotow (usunieta z indeksu 2026-10-25)
 ]
 
 ALLOWED_DOMAINS = {urlparse(u).netloc for u in START_URLS}
