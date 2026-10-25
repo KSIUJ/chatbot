@@ -46,6 +46,8 @@ class StaffAttributes(_Strict):
     office_hours: str = ""
     interests: str = ""
     email: str = ""
+    # strona USOSweb z adresem, gdy osoba ukryla go przed robotami (captcha) - email pusty
+    email_url: str = ""
     phones: list[str] = Field(default_factory=list)
     homepage_url: str = ""
 

@@ -50,6 +50,12 @@ def _positions(record: StaffRecord) -> str:
     return "; ".join(f"{p.name} ({p.unit})" if p.unit else p.name for p in record.attributes.positions)
 
 
+def _hidden_email(url: str) -> str:
+    """Adres ukryty przez osobe przed robotami - USOSweb pokaze go po sprawdzeniu,
+    ze to czlowiek; model podaje wtedy link zamiast adresu."""
+    return f"ukryty przed robotami, widoczny w profilu USOSweb: {url}" if url else ""
+
+
 def staff_document(source: str, record: StaffRecord) -> Document:
     a = record.attributes
     name = full_name(record)
@@ -63,7 +69,7 @@ def staff_document(source: str, record: StaffRecord) -> Document:
         lines.append(f"Stanowisko: {positions}")
     lines.append(f"Pokoj: {room or MISSING}")
     lines.append(f"Dyzury: {a.office_hours or MISSING}")
-    lines.append(f"E-mail: {a.email or MISSING}")
+    lines.append(f"E-mail: {a.email or _hidden_email(a.email_url) or MISSING}")
     lines.append(f"Telefon: {phones or MISSING}")
     if a.homepage_url:
         lines.append(f"Strona domowa: {a.homepage_url}")
@@ -84,6 +90,7 @@ def staff_document(source: str, record: StaffRecord) -> Document:
             "employee_id": a.usos_id,
             "employee_name": name,
             "email": a.email,
+            "email_url": a.email_url,
             "phone": phones,
             "room": room,
             "office_hours": a.office_hours,

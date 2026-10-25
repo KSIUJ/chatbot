@@ -73,7 +73,7 @@ Rodzaje rekordów (`kind`); poza pracownikiem treść jest w `content`
 
 | `kind` | `id` | treść | `attributes` |
 |---|---|---|---|
-| `staff` | id osoby w USOS | pusty — karta budowana przez RAG z `attributes` | `usos_id`, `first_name`, `last_name`, `titles_before` (`dr hab.`), `titles_after` (`prof. UJ`), `positions` (lista `{name, unit}`), `room` (`{number, building}` albo `null`), `office_hours` i `interests` (zwykły tekst, bez HTML-a), `email`, `phones` (lista), `homepage_url` |
+| `staff` | id osoby w USOS | pusty — karta budowana przez RAG z `attributes` | `usos_id`, `first_name`, `last_name`, `titles_before` (`dr hab.`), `titles_after` (`prof. UJ`), `positions` (lista `{name, unit}`), `room` (`{number, building}` albo `null`), `office_hours` i `interests` (zwykły tekst, bez HTML-a), `email`, `email_url` (profil USOSweb z adresem, gdy osoba ukryła go przed robotami — wtedy `email` pusty), `phones` (lista), `homepage_url` |
 | `news` | `news:<id>` | artykuł z aktualności USOSweb (UJ i wydziału) z datą publikacji; `updated_at` = data publikacji; `url` z kotwicą `#news-<id>` (każdy rekord ma własny adres) | `news_id`, `category`, `faculty`, `expiry_date` |
 | `page` | adres strony | strona informacyjna USOSweb (Dokumenty, Kontakt); `url` wymagany; `updated_at` przybliżony (z dopisku „ostatnia modyfikacja: N dni temu”, zaokrąglony) | `site`, `section` (`usosweb`), `breadcrumbs` |
 | `unit` | `unit:<kod>` | jednostka (wydział, instytut, katedra): kontakt, jednostki podrzędne | `fac_id`, `parent_id` |

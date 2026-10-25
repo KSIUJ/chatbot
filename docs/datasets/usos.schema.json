@@ -964,6 +964,11 @@
           "title": "Email",
           "type": "string"
         },
+        "email_url": {
+          "default": "",
+          "title": "Email Url",
+          "type": "string"
+        },
         "phones": {
           "items": {
             "type": "string"

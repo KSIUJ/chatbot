@@ -3,8 +3,10 @@ Pracownicy wydzialu (users/staff_index + users/users - z kluczem aplikacji):
 karta pracownika (StaffRecord) - stanowiska, pokoj, dyzury, kontakt.
 
 Zbierane sa tylko pola z publicznego profilu w USOSweb. Adres e-mail USOS
-podaje tylko, gdy osoba go udostepnia (albo z tokenem uzytkownika
-z uprawnieniem other_emails - USOS_ACCESS_TOKEN); bez niego pole zostaje puste.
+podaje z tokenem operatora (USOS_ACCESS_TOKEN, uprawnienie other_emails) tylko
+osob, ktore pokazuja go jawnie; ukryty przed robotami (captcha w USOSweb, wiekszosc
+pracownikow) zostaje jako link do profilu (email_url) - pelny dostep ma tylko
+klucz administracyjny USOS.
 
 Ustala ctx.staff (id -> imie i nazwisko z tytulami) i ctx.course_editions
 (edycje przedmiotow prowadzone w aktywnych cyklach) dla kolektora przedmiotow.
@@ -24,10 +26,13 @@ NAME = "staff"
 NEEDS_CONSUMER = True
 
 USER_FIELDS = fields(
-    "id", "first_name", "last_name", "titles", "staff_status", "email", "homepage_url", "profile_url",
+    "id", "first_name", "last_name", "titles", "staff_status", "email", "email_url", "homepage_url", "profile_url",
     "phone_numbers", "office_hours", "interests", "room", "employment_positions", "course_editions_conducted",
+    "has_email",
 )
 # staff_status: 2 = obecny pracownik (1 = byly)
+# link do adresu e-mail tylko na USOSweb (trafia do karty pracownika)
+USOSWEB_PREFIX = "https://www.usosweb.uj.edu.pl/"
 ACTIVE_STAFF = 2
 
 
@@ -62,6 +67,11 @@ def _positions(raw: list | None) -> list[Position]:
             seen.add((name, unit))
             positions.append(Position(name=name, unit=unit))
     return positions
+
+
+def _email_url(user: dict) -> str:
+    url = (user.get("email_url") or "").strip()
+    return url if url.startswith(USOSWEB_PREFIX) else ""
 
 
 def display_name(user: dict) -> str:
@@ -101,6 +111,8 @@ def staff_record(ctx: Context, user: dict) -> StaffRecord | None:
             office_hours=pick_text(user.get("office_hours")),
             interests=pick_text(user.get("interests")),
             email=email.strip() if isinstance(email, str) else "",
+            # adres ukryty przed robotami (captcha w USOSweb) - zostaje link do profilu
+            email_url=_email_url(user) if not isinstance(email, str) and user.get("has_email", True) else "",
             phones=[str(p).strip() for p in user.get("phone_numbers") or [] if str(p).strip()],
             homepage_url=(user.get("homepage_url") or "").strip(),
         ),

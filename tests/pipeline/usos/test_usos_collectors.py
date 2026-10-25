@@ -290,3 +290,29 @@ def test_plain_text_fields_keep_paragraphs():
 
     assert pick_markdown({"pl": "Pierwszy.\r\n\r\nDrugi:\n• a\n• b <3"}) == "Pierwszy.\n\nDrugi:\n• a\n• b <3"
     assert pick_markdown({"pl": "<p>HTML</p>\n<p>x</p>"}) == "HTML\n\nx"
+
+
+def test_hidden_email_becomes_a_profile_link():
+    from src.backend.rag.sources.usos.documents import staff_document
+
+    users = {
+        "1": {**USERS["1"], "email": None, "has_email": True,
+              "email_url": "https://www.usosweb.uj.edu.pl/kontroler.php?_action=katalog2/osoby/pokazOsobe&focus=email&os_id=1"},
+        "4": {"id": "4", "first_name": "Ola", "last_name": "Jawna", "staff_status": 2, "email": "ola@uj.edu.pl",
+              "email_url": "https://www.usosweb.uj.edu.pl/x"},
+        "5": {"id": "5", "first_name": "Bez", "last_name": "Adresu", "staff_status": 2, "email": None, "has_email": False,
+              "email_url": "https://www.usosweb.uj.edu.pl/x"},
+    }
+    ctx = context({
+        "services/users/staff_index": {"users": [{"id": i} for i in users], "next_page": False},
+        "services/users/users": lambda user_ids, fields: {i: users[i] for i in user_ids},
+    }, faculty_units=["UJ.WMI"], active_terms=[TERM])
+
+    hidden, public, none = _valid(staff.collect(ctx))
+
+    assert (hidden.attributes.email, hidden.attributes.email_url) == ("", users["1"]["email_url"])
+    assert (public.attributes.email, public.attributes.email_url) == ("ola@uj.edu.pl", "")
+    assert none.attributes.email_url == ""
+    card = staff_document("usos", hidden).value
+    assert f"E-mail: ukryty przed robotami, widoczny w profilu USOSweb: {users['1']['email_url']}" in card
+    assert "E-mail: brak danych w USOS" in staff_document("usos", none).value
