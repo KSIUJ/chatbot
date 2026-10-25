@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head><meta charset="utf-8"><title>Uniwersytet Jagielloński - USOSweb</title></head>
+<body>
+<usos-layout>
+<div id='layout-container'>
+<app-header display-name="Uniwersytet Jagielloński w Krakowie" href="https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/default"></app-header>
+<menu-top tabindex="0"><menu-top-item href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/kontakt' name='KONTAKT'></menu-top-item></menu-top>
+<main-panel id="main">
+<menu-left slot="left-menu" tabindex="0" aria-label="Panel boczny"><ul><li><a href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/default'>DOKUMENTY</a></li><li><a href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/kontakt'>KONTAKT</a></li></ul></menu-left>
+<main id="layout-main-content" slot="page-body" tabindex="0">
+    <div class='wrtext'>
+            <h2>Kontakt z administratorem USOSweb</h2>
+        <p class="norm">
+            Prosimy o kontakt z administratorem jedynie w przypadku problemów technicznych. <u>Zapomniane/zgubione hasło
+                nie jest problemem technicznym.</u>
+            <br><br>
+            W przypadku <b>problemów z logowaniem</b> prosimy o ścisłe zastosowanie się do informacji z instrukcji
+            znajdujcej się pod tym adresem <a href="https://usosownia.uj.edu.pl/usosweb/ogolne/dostep-do-systemu">INSTRUKCJA LOGOWANIA</a>
+            <br><br>
+            <b>W przypadku potrzeby kontaktu bardzo prosimy o podanie w mailu podstawowych danych:</b><br>
+        <ul>
+            <li>program studiów(kierunek)
+            <li> rok studiów
+            <li>kody przedmiotów
+        </ul>
+        <!-- Adres e-mail do kontaktu: <a href="mailto:stary@example.com">stary@example.com</a> -->
+        Adres e-mail do kontaktu:
+        <a href="mailto:usosweb@uj.edu.pl">usosweb@uj.edu.pl</a>
+        <br>
+        <h4>W wypadku problemów z kontem pocztowym, MS Teams prosimy o kontakt z PomocIT</h4>
+        <a href="https://pomocit.uj.edu.pl">https://pomocit.uj.edu.pl</a>
+        <h4>Odzyskiwanie hasła SMS</h4>
+        <a href="https://passwordreset.uj.edu.pl">https://passwordreset.uj.edu.pl</a>
+        </p>
+                </main>
+            </main-panel>
+            <usos-footer style="min-height: 4.75rem; font-size: 80%;">
+                <footer-panel id="footer-university" header="Uniwersytet Jagielloński w Krakowie">
+                    <footer-row icon="outlined.place"><span>ul. Gołębia 24, 31-007 Kraków</span></footer-row>
+                </footer-panel>
+                <footer-panel id="footer-system" header="Uniwersytecki System Obsługi Studiów\nUSOSweb">
+                    <footer-row icon="signpost"><a href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/mapaSerwisu'>mapa serwisu</a></footer-row>
+                    <footer-row icon="outlined.privacy_tip">USOSweb 7.3.1.0 usosweb13b</footer-row>
+                </footer-panel>
+            </usos-footer>
+</div>
+</usos-layout>
+</body>
+</html>

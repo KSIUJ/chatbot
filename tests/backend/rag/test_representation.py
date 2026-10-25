@@ -283,3 +283,15 @@ def test_legacy_scan_without_ocr_stays_a_scan(tmp_path, monkeypatch):
     (record,) = mordor_legacy.convert(tmp_path)
 
     assert (record.kind, record.attributes.pages, record.attributes.material_kind) == ("scan", [], "egzamin")
+
+
+def test_split_table_keeps_its_header_in_every_chunk():
+    from src.backend.rag.core.chunking import chunk_markdown
+
+    rows = "\n".join(f"| {i:04d} | {i} | sala ćwiczeniowa z projektorem i tablicą |" for i in range(80))
+    chunks = chunk_markdown(f"# Budynek\n\n## Sale\n\n| Sala | Miejsca | Opis |\n| --- | --- | --- |\n{rows}")
+
+    assert len(chunks) > 2
+    for chunk in chunks:
+        table_lines = [line for line in chunk.text.splitlines() if line.startswith("|")]
+        assert table_lines[0] == "| Sala | Miejsca | Opis |" and table_lines[1] == "| --- | --- | --- |"

@@ -18,10 +18,14 @@ from .sources.mordor import MordorSource
 from .sources.uj_pages import UjPagesSource
 from .sources.usos import UsosSource
 
-# Naglowki sekcji wewnatrz bloku KONTEKST - ich nazwy (ZRODLA OFICJALNE, INFORMACJE
-# KSI, MATERIALY STUDENCKIE) opisuje prompt systemowy (llm/generate.py, zasada 5);
+# Naglowki sekcji wewnatrz bloku KONTEKST - ich nazwy (ZRODLA OFICJALNE, DANE Z USOS,
+# INFORMACJE KSI, MATERIALY STUDENCKIE) opisuje prompt systemowy (llm/generate.py, zasada 5);
 # zmieniaja sie tylko razem z nim.
-OFFICIAL_HEADER = "ŹRÓDŁA OFICJALNE (strony UJ i wydziału, USOSownia - wiarygodne):"
+OFFICIAL_HEADER = "ŹRÓDŁA OFICJALNE (strony UJ i wydziału - wiarygodne):"
+USOS_HEADER = (
+    "DANE Z USOS (przedmioty i plan zajęć, kierunki, kalendarz akademicki, rejestracje, aktualności, "
+    "budynki i sale - wiarygodne, stan z dnia pobrania):"
+)
 KSI_HEADER = "INFORMACJE KSI (strony i notatki koła - wiarygodne):"
 MORDOR_HEADER = "MATERIAŁY STUDENCKIE (Mordor - notatki i skany, mogą zawierać błędy lub być nieaktualne):"
 
@@ -45,7 +49,10 @@ class Pool:
 
 
 POOLS: tuple[Pool, ...] = (
-    Pool("official", ("uj_pages", "usos"), k=6, header=OFFICIAL_HEADER, budget=4000),
+    Pool("official", ("uj_pages",), k=5, header=OFFICIAL_HEADER, budget=3500),
+    # USOS osobno: ponad tysiac fragmentow przedmiotow i budynkow o podobnej budowie
+    # zagluszalby strony wydzialu we wspolnej puli
+    Pool("usos", ("usos",), k=4, header=USOS_HEADER, budget=2500),
     Pool("ksi", ("ksi",), k=3, header=KSI_HEADER, budget=1500),
     Pool("student", ("mordor",), k=4, header=MORDOR_HEADER, budget=2000),
 )

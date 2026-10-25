@@ -7,7 +7,7 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 - **Frontend** (React + Vite + Tailwind) — czat z historią rozmów, logowanie przez Keycloak KSI.
 - **Backend** (FastAPI + SQLite) — dla każdego pytania szuka kontekstu (RAG: wyszukiwanie wektorowe w Chroma + pełnotekstowe SQLite FTS5 + wyszukiwanie pracowników) i przekazuje go do modelu językowego: lokalnej Ollamy (domyślnie `qwen2.5:14b`) albo API Claude (domyślnie Claude Haiku 5.5, `CLAUDE_MODEL`, `CLAUDE_EFFORT`) / OpenRouter / Cursor (`LLM_PROVIDER`).
 - Odpowiedź pojawia się na bieżąco (strumieniowo, `POST /chat/stream`), w języku interfejsu (te same języki co logowanie KSI: polski, angielski, niemiecki, hiszpański, francuski, włoski, ukraiński; domyślnie język przeglądarki), z listą źródeł: strony wydziału, profile pracowników w USOS, pliki z Mordoru.
-- **Dane** pochodzą ze stron wydziału, USOS API (pracownicy) i Mordoru (materiały studenckie). Scrapery i ingest do bazy RAG są w `pipeline/`.
+- **Dane** pochodzą ze stron wydziału, USOS (pracownicy, przedmioty z planem zajęć, kierunki, kalendarz akademicki, rejestracje, aktualności, budynki i sale, strony informacyjne USOSweb) i Mordoru (materiały studenckie). Scrapery i ingest do bazy RAG są w `pipeline/`.
 - Wchodzą tylko osoby z grupy `/Członek` w Keycloaku KSI; członkostwo jest sprawdzane przy każdym zapytaniu.
 - Odpowiedzi można oceniać (kciuk w górę / w dół) i zgłaszać (błąd, nieaktualne, nieodpowiednie, inne); oceny z kopią pytania i odpowiedzi przegląda zarząd — grupa `OIDC_ADMIN_GROUP` (domyślnie `/Zespoły/Zarząd`) — przez `/api/admin/feedback` (lista, obsługa zgłoszeń, eksport CSV). Kopie są anonimizowane, gdy rozmowa znika; usunięcie rozmowy przez użytkownika kasuje też jego same oceny (zostają tylko zgłoszenia), a wszystko bez zmian od roku znika w tle.
 - Prompt systemowy zawiera dzisiejszą datę i rok akademicki; próby obejścia jego zasad (heurystyka backendu i znacznik od modelu) są zapisywane jako incydenty dla zarządu (`/Zespoły/Zarząd`) — `/api/admin/incidents`, z danymi osoby, kasowane po 90 dniach.
@@ -94,12 +94,18 @@ Scrapery zapisują do `data/<źródło>/`, CLI indeksu buduje z tych zbiorów in
 
 ```bash
 python pipeline/scrapers/strony/scraper.py         # strony wydziału
-python pipeline/scrapers/usos/scrape_staff.py      # pracownicy (USOS_CONSUMER_KEY/SECRET)
+python -m pipeline.scrapers.usos                    # USOS (USOS_CONSUMER_KEY/SECRET)
 python pipeline/scrapers/mordor/files_downloader.py  # Mordor (MORDOR_COOKIE)
 python -m src.backend.rag.index sync               # nowe, zmienione i usunięte dokumenty
 ```
 
-E-maile pracowników: najpierw jednorazowo `python pipeline/scrapers/usos/usos_login.py`, potem `scrape_staff.py --with-email`.
+Scraper USOS (`pipeline/scrapers/usos/`, rodzaje rekordów w `src/backend/rag/DATASETS.md`):
+
+- Zbiór jest podmieniany tylko tym, co się udało zebrać — inaczej `sync` usunąłby z indeksu resztę danych. Błąd albo pominięcie kolektora (np. brak klucza aplikacji — bez niego są tylko cykle, jednostki, kierunki, budynki i strony USOSweb) wstrzymuje zapis; `--partial` zapisuje mimo to, a rekordy tego kolektora zostają z poprzedniego zbioru. `--only news,calendar` zbiera wybrane kolektory (z ich zależnościami, np. przedmioty potrzebują pracowników i kalendarza) i podmienia tylko ich rekordy. Spadek liczby rekordów jakiegoś rodzaju o ponad połowę wstrzymuje zapis (`--force` zapisuje mimo to).
+- Pełny przebieg to ok. 2 tys. zapytań co najmniej 0,3 s (`--delay`), ok. 10 minut; wynik w `data/usos/` (`--out`). Po kilku kolejnych błędach chwilowych (USOS niedostępny) przebieg się przerywa.
+- `python -m pipeline.scrapers.usos call services/fac/faculty fac_id=UJ.WMI` wypisuje odpowiedź jednej metody (do sprawdzania danych).
+- Adresy e-mail pracowników: jednorazowo `python -m pipeline.scrapers.usos login` (token operatora z uprawnieniami `other_emails|offline_access` trafia do `.env`). USOS podaje tak tylko adresy pokazywane jawnie (ok. 15% pracowników); ukryte przed robotami (captcha w USOSweb) zostają w karcie jako link do profilu — wszystkie adresy daje tylko klucz administracyjny USOS.
+- Dane studentów nie są zbierane. USOSownia nie jest zbierana (jej `robots.txt` zabrania robotów).
 
 Każdy indeks (wektory Chromy, BM25 w SQLite FTS5, `meta.json`) leży we własnym katalogu `dataset/indexes/<czas UTC>/`, a plik `dataset/CURRENT` wskazuje bieżący. Polecenia nigdy nie zmieniają indeksu, z którego korzysta backend — pracują na nowym katalogu i na końcu atomowo przełączają `CURRENT`; backend zauważa zmianę w ciągu 10 s, bez restartu. W kontenerze: `docker compose exec -u app backend python -m src.backend.rag.index …`.
 

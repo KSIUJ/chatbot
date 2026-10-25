@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head><meta charset="utf-8"><title>Uniwersytet Jagielloński - USOSweb</title></head>
+<body>
+<usos-layout>
+<div id='layout-container'>
+<app-header display-name="Uniwersytet Jagielloński w Krakowie" href="https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/default"></app-header>
+<menu-top tabindex="0"><menu-top-item href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/kontakt' name='KONTAKT'></menu-top-item></menu-top>
+<main-panel id="main">
+<menu-left slot="left-menu" tabindex="0" aria-label="Panel boczny"><ul><li><a href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/default'>DOKUMENTY</a></li><li><a href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/kontakt'>KONTAKT</a></li></ul></menu-left>
+<main id="layout-main-content" slot="page-body" tabindex="0">
+<script>JSGLOBALS.backendUrl = 'https://zapisy.usos.uj.edu.pl/'</script>
+<div style="box-sizing: border-box;" id="reset-this-root"><div><app-root></app-root>
+<script src="spa/rejestracje/pl/main-es2015.js?v=1" type="module"></script></div></div>
+                </main>
+            </main-panel>
+            <usos-footer style="min-height: 4.75rem; font-size: 80%;">
+                <footer-panel id="footer-university" header="Uniwersytet Jagielloński w Krakowie">
+                    <footer-row icon="outlined.place"><span>ul. Gołębia 24, 31-007 Kraków</span></footer-row>
+                </footer-panel>
+                <footer-panel id="footer-system" header="Uniwersytecki System Obsługi Studiów\nUSOSweb">
+                    <footer-row icon="signpost"><a href='https://www.usosweb.uj.edu.pl/kontroler.php?_action=news/mapaSerwisu'>mapa serwisu</a></footer-row>
+                    <footer-row icon="outlined.privacy_tip">USOSweb 7.3.1.0 usosweb13b</footer-row>
+                </footer-panel>
+            </usos-footer>
+</div>
+</usos-layout>
+</body>
+</html>

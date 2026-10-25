@@ -18,6 +18,8 @@ from ...core.lexical import LexicalIndex, fold
 from .names import COMMON_WORDS, inflected_forms, is_female
 
 DEFAULT_LIMIT = 2
+# ile razy wiecej trafien BM25 brac przed odfiltrowaniem rekordow innych niz karty
+STAFF_SEARCH_FACTOR = 10
 
 # tytuly i slowa, przy ktorych odmienione nazwisko na pewno dotyczy osoby
 # (bez polskich znakow): cale slowa i poczatki slow
@@ -30,8 +32,11 @@ _WORD = re.compile(r"\w+", re.UNICODE)
 
 
 class StaffIndex:
-    def __init__(self, names: list[str], lexical: LexicalIndex):
+    def __init__(self, names: list[str], lexical: LexicalIndex, staff_ids: set[str] | None = None):
         self.lexical = lexical
+        # id kart pracownikow - zrodlo usos ma tez inne rekordy (przedmioty z nazwiskami
+        # prowadzacych), a wyszukiwanie zwraca tylko karty; None = same karty
+        self.staff_ids = staff_ids
         self.name_tokens: set[str] = set()
         self.surnames: set[str] = set()
         # forma odmieniona -> tokeny imion/nazwisk, od ktorych pochodzi
@@ -54,8 +59,16 @@ class StaffIndex:
     @classmethod
     def from_collection(cls, collection, lexical: LexicalIndex) -> StaffIndex:
         got = collection.get(where={"source": "usos"}, include=["metadatas"])
-        names = [(m or {}).get("employee_name") or "" for m in got.get("metadatas", [])]
-        return cls(names, lexical)
+        names: list[str] = []
+        staff_ids: set[str] = set()
+        for doc_id, metadata in zip(got.get("ids", []), got.get("metadatas", [])):
+            metadata = metadata or {}
+            # indeksy sprzed innych rodzajow rekordow nie maja "kind"
+            if metadata.get("kind", "staff") != "staff":
+                continue
+            names.append(metadata.get("employee_name") or "")
+            staff_ids.add(doc_id)
+        return cls(names, lexical, staff_ids)
 
     def _first_name(self, token: str) -> bool:
         return token in self.name_tokens and token not in self.surnames
@@ -89,7 +102,11 @@ class StaffIndex:
             return []
 
         matched = list(dict.fromkeys(exact + [c for canon in inflected for c in canon]))
-        return self.lexical.search(matched, sources=("usos",), limit=limit)
+        if self.staff_ids is None:
+            return self.lexical.search(matched, sources=("usos",), limit=limit)
+        # zapas na trafienia spoza kart (przedmioty, aktualnosci z tym nazwiskiem)
+        found_ids = self.lexical.search(matched, sources=("usos",), limit=limit * STAFF_SEARCH_FACTOR)
+        return [doc_id for doc_id in found_ids if doc_id in self.staff_ids][:limit]
 
 
 def _declined_tokens(parts: list[str]) -> list[str]:

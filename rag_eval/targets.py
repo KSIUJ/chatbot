@@ -8,6 +8,9 @@ budowy RAG-a (stary i nowy RAG sa mierzone tym samym zbiorem).
     mordor:<fragment> plik z Mordoru, ktorego sciezka zawiera fragment
     ksi:<fragment>    informacja o KSI (strony KSI, pliki pisane recznie);
                       "ksi:*" = dowolna
+    usos:<id rekordu> rekord USOS inny niz pracownik (przedmiot, kalendarz,
+                      rejestracja, budynek...), np. usos:course:WMI.II-WMD-2MK;
+                      "*" na koncu = prefiks (usos:registration:*)
 
 System pod testem zamienia kazde trafienie na zbior celow (hit_targets
 w adapterze), a expected_rank szuka pierwszego trafienia, ktore pasuje do
@@ -19,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from urllib.parse import unquote, urlsplit
 
-KINDS = ("page", "staff", "mordor", "ksi")
+KINDS = ("page", "staff", "mordor", "ksi", "usos")
 
 
 def normalize_url(url: str) -> str:
@@ -47,6 +50,10 @@ def ksi(key: str) -> str:
     return f"ksi:{key.casefold()}"
 
 
+def usos(record_id: str) -> str:
+    return f"usos:{record_id.casefold()}"
+
+
 def _split(target: str) -> tuple[str, str]:
     kind, sep, value = target.partition(":")
     if not sep or kind not in KINDS or not value:
@@ -70,6 +77,9 @@ def matches(expected: str, actual: str) -> bool:
         return actual_value == normalize_url(value)
     if kind == "staff":
         return actual_value == " ".join(value.split()).casefold()
+    if kind == "usos":
+        value = value.casefold()
+        return actual_value.startswith(value[:-1]) if value.endswith("*") else actual_value == value
     # mordor, ksi: fragment sciezki/klucza; "*" = cokolwiek tego rodzaju
     return value == "*" or value.casefold() in actual_value
 

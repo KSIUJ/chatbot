@@ -53,7 +53,7 @@ cały zbiór z komunikatem `plik:linia: pole: błąd`; sprawdzenie bez ingestu:
 
 ## `uj_pages` — strony UJ
 
-Wydział, USOSownia, koła naukowe, pozostałe strony UJ, Wikipedia. Strony KSI
+Wydział, koła naukowe, pozostałe strony UJ, Wikipedia. Strony KSI
 idą do `ksi` (ten sam format).
 
 - `kind`: `page` (strona HTML) albo `document` (plik pdf/docx/... ze strony)
@@ -65,15 +65,28 @@ idą do `ksi` (ten sam format).
   - `breadcrumbs` — ścieżka w menu witryny, np. `["Studenci", "Formularze wniosków"]`
   - `media_type` — `text/html` dla stron, typ pliku dla dokumentów
 
-## `usos` — pracownicy
+## `usos` — USOS UJ
 
-- `kind`: `staff`; `id`: id osoby w USOS; `title`: imię i nazwisko; `url`: profil w USOSweb
-- `content`: pusty — wszystko jest w `attributes`
-- `attributes`: `usos_id`, `first_name`, `last_name`, `titles_before`
-  (`dr hab.`), `titles_after` (`prof. UJ`), `positions` (lista
-  `{name, unit}`), `room` (`{number, building}` albo `null`),
-  `office_hours` i `interests` (zwykły tekst, bez HTML-a), `email`,
-  `phones` (lista), `homepage_url`
+Zbiera `pipeline/scrapers/usos` (USOS API i strony informacyjne USOSweb).
+Rodzaje rekordów (`kind`); poza pracownikiem treść jest w `content`
+(Markdown z nagłówkami), a `attributes` mają tylko pola do metadanych:
+
+| `kind` | `id` | treść | `attributes` |
+|---|---|---|---|
+| `staff` | id osoby w USOS | pusty — karta budowana przez RAG z `attributes` | `usos_id`, `first_name`, `last_name`, `titles_before` (`dr hab.`), `titles_after` (`prof. UJ`), `positions` (lista `{name, unit}`), `room` (`{number, building}` albo `null`), `office_hours` i `interests` (zwykły tekst, bez HTML-a), `email`, `email_url` (profil USOSweb z adresem, gdy osoba ukryła go przed robotami — wtedy `email` pusty), `phones` (lista), `homepage_url` |
+| `news` | `news:<id>` | artykuł z aktualności USOSweb (UJ i wydziału) z datą publikacji; `updated_at` = data publikacji; `url` z kotwicą `#news-<id>` (każdy rekord ma własny adres) | `news_id`, `category`, `faculty`, `expiry_date` |
+| `page` | adres strony | strona informacyjna USOSweb (Dokumenty, Kontakt); `url` wymagany; `updated_at` przybliżony (z dopisku „ostatnia modyfikacja: N dni temu”, zaokrąglony) | `site`, `section` (`usosweb`), `breadcrumbs` |
+| `unit` | `unit:<kod>` | jednostka (wydział, instytut, katedra): kontakt, jednostki podrzędne | `fac_id`, `parent_id` |
+| `course` | `course:<kod>` | przedmiot: informacje (ECTS, jednostka, język, prowadzący), sylabus przedmiotu, jeśli jest, i sekcja `Zajęcia: <cykl>` na każdą aktywną edycję — najpierw grupy z prowadzącymi, terminem i salą, potem opis, literatura i uwagi edycji (tu zwykle jest właściwy sylabus) | `course_id`, `term_ids`, `fac_id`, `ects`, `lecturers` |
+| `programme` | `programme:<kod>` | program studiów (kierunek): poziom, tryb, czas trwania, jednostka | `programme_id`, `fac_id`, `level`, `mode`, `duration` |
+| `calendar` | `calendar:<rok>:<jednostka>` | rok akademicki: semestry i wydarzenia (dni wolne, przerwy, sesje) | `academic_year`, `fac_id`, `start_date`, `end_date` |
+| `registration` | `registration:<id>` (żetonowe `registration:token:<id>`) | rejestracja: tury (terminy, tryb, limit wyborów) i przedmioty z limitami miejsc | `registration_id`, `fac_id`, `registration_type` (`course` / `token`), `start_date`, `end_date` |
+| `building` | `building:<kod>` | budynek UJ (adres, kampus, jednostki), dla budynków wydziału także sale dydaktyczne | `building_id`, `campus`, `address`, `fac_ids` |
+| `dormitory` | `dormitory:<id>` (`dormitory:all` — jeden rekord z listą) | domy studenckie UJ | `dormitory_id` |
+
+Fragment rekordu z treścią zaczyna się linią kontekstu z rodzajem, np.
+`USOS › Przedmiot › Analiza matematyczna 1 (WMI.II-AM1-O) › Zajęcia: Semestr
+zimowy 2026/2027`. Dane studentów nie są zbierane.
 
 ## `mordor` — materiały studenckie
 
@@ -103,8 +116,7 @@ Pliki leżą w `data/mordor/` w strukturze katalogów Mordoru, rekordy obok nich
 ## Stare formaty scraperów
 
 Do czasu przebudowy scraperów ich dotychczasowe wyjście
-(`data/strony/website_data.txt`, `data/usos/staff/staff_*.json`, pliki
-w `data/mordor/`) zamienia na ten format:
+(`data/strony/website_data.txt`, pliki w `data/mordor/`) zamienia na ten format:
 
 ```bash
 python -m src.backend.rag.datasets_cli convert

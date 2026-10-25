@@ -1,5 +1,7 @@
-"""Pracownicy wydzialu z USOS (data/usos/): karta pracownika i dokladne
-wyszukiwanie po imieniu i nazwisku (staff.py)."""
+"""USOS (data/usos/): pracownicy wydzialu z karta i dokladnym wyszukiwaniem po
+imieniu i nazwisku (staff.py) oraz aktualnosci, strony informacyjne USOSweb,
+jednostki, przedmioty z planem zajec, studia, kalendarz akademicki,
+rejestracje, budynki i akademiki (dataset.py)."""
 
 from __future__ import annotations
 
@@ -10,9 +12,8 @@ from ...core.citations import Citation, http_url, text
 from ...core.datasets import read_dataset
 from ...core.documents import Document
 from ..base import RagSource
-from . import legacy
-from .dataset import StaffRecord
-from .documents import staff_document
+from .dataset import USOS_RECORD, StaffRecord
+from .documents import STAFF_KIND, entry_documents, staff_document
 from .staff import DEFAULT_LIMIT, StaffIndex
 
 if TYPE_CHECKING:
@@ -23,9 +24,14 @@ if TYPE_CHECKING:
 STAFF_HEADER = "PRACOWNIK (dane z USOS - najbardziej wiarygodne):"
 
 
+def _is_staff(metadata: dict) -> bool:
+    # indeksy sprzed rekordow innych rodzajow nie maja "kind" - byly tam sami pracownicy
+    return metadata.get("kind", STAFF_KIND) == STAFF_KIND
+
+
 class UsosSource(RagSource):
     name = "usos"
-    record_model = StaffRecord
+    record_model = USOS_RECORD
     lookup_header = STAFF_HEADER
     lookup_limit = DEFAULT_LIMIT
 
@@ -33,21 +39,31 @@ class UsosSource(RagSource):
         self._staff: StaffIndex | None = None
 
     def load_documents(self, data_dir: Path) -> list[Document]:
-        dataset = read_dataset(self.dataset_dir(data_dir), self.name, StaffRecord)
-        return [staff_document(self.name, record) for record in dataset.records] if dataset else []
-
-    def convert_legacy(self, data_dir: Path) -> list[StaffRecord] | None:
-        return legacy.convert(data_dir)
+        dataset = read_dataset(self.dataset_dir(data_dir), self.name, USOS_RECORD)
+        if dataset is None:
+            return []
+        staff = [record for record in dataset.records if isinstance(record, StaffRecord)]
+        others = [record for record in dataset.records if not isinstance(record, StaffRecord)]
+        return [staff_document(self.name, record) for record in staff] + entry_documents(self.name, others)
 
     def label(self, hit: dict) -> str:
-        return (hit.get("metadata") or {}).get("employee_name", self.name)
+        metadata = hit.get("metadata") or {}
+        if _is_staff(metadata):
+            return metadata.get("employee_name", self.name)
+        return text(metadata.get("title")) or self.name
 
     def cite(self, hit: dict) -> Citation | None:
         metadata = hit.get("metadata") or {}
-        name = text(metadata.get("employee_name"))
-        if not name:
+        if _is_staff(metadata):
+            name = text(metadata.get("employee_name"))
+            if not name:
+                return None
+            return {"kind": "usos", "title": name, "url": http_url(metadata.get("profile_url"))}
+        title = text(metadata.get("title"))
+        url = http_url(metadata.get("url"))
+        if not title and url is None:
             return None
-        return {"kind": "usos", "title": name, "url": http_url(metadata.get("profile_url"))}
+        return {"kind": "usos", "title": title or url or "", "url": url}
 
     def prepare_lookup(self, vectorstore: VectorStore, lexical: LexicalIndex) -> bool:
         if self._staff is None and lexical.count(self.name):

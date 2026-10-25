@@ -3,7 +3,7 @@ CLI zbiorow danych zrodel (format: core/datasets.py, DATASETS.md).
 Uruchamiane z katalogu glownego repo (data/ jest wzgledne).
 
     python -m src.backend.rag.datasets_cli convert            # stare wyjscie scraperow -> nowy format
-    python -m src.backend.rag.datasets_cli convert --source usos
+    python -m src.backend.rag.datasets_cli convert --source uj_pages
     python -m src.backend.rag.datasets_cli check              # sprawdzenie zbiorow i notatek KSI
     python -m src.backend.rag.datasets_cli schemas --out docs/datasets
 """

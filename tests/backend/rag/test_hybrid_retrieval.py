@@ -299,3 +299,11 @@ def test_reranker_is_off_without_env(monkeypatch):
     monkeypatch.delenv(rerank.MODEL_ENV, raising=False)
 
     assert rerank.default_reranker() is None
+
+
+def test_document_key_prefers_record_id():
+    # kilka rekordow USOS pod jednym adresem to rozne dokumenty
+    a = {"id": "a", "source": "usos", "metadata": {"record_id": "news:1", "url": "https://u/news", "chunk_index": 0}}
+    b = {"id": "b", "source": "usos", "metadata": {"record_id": "news:2", "url": "https://u/news", "chunk_index": 1}}
+
+    assert document_key(a) != document_key(b)

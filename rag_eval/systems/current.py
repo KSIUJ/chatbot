@@ -32,6 +32,11 @@ def hit_targets(hit: dict) -> frozenset[str]:
         return frozenset(found)
     if source == "usos" and metadata.get("employee_name"):
         return frozenset({targets.staff(metadata["employee_name"])})
+    if source == "usos" and metadata.get("record_id"):
+        found = {targets.usos(metadata["record_id"])}
+        if metadata.get("kind") == "page" and metadata.get("url"):
+            found.add(targets.page(metadata["url"]))
+        return frozenset(found)
     if source == "mordor":
         name = metadata.get("source_file") or metadata.get("file_name") or ""
         path = os.path.join(metadata.get("directory") or "", name) if name else hit.get("value") or ""

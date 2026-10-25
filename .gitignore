@@ -10,7 +10,6 @@ dataset/
 *.db.bak*
 # kopie bazy robione przez deploy.sh
 backups/
-pipeline/scrapers/usos/.last_request_time
 # zalaczniki z czatu (ATTACHMENTS_DIR)
 uploads/
 
