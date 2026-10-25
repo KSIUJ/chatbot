@@ -150,9 +150,41 @@ def chunk_markdown(markdown: str, splitter: RecursiveCharacterTextSplitter | Non
     for group in _groups(sections):
         section = tuple(h.text for h in _common_prefix(s.headings for s in group))
         body = _render(group)
-        pieces = [body] if len(body) <= CHUNK_SIZE else splitter.split_text(body)
+        pieces = [body] if len(body) <= CHUNK_SIZE else _with_table_headers(body, splitter.split_text(body))
         chunks.extend(Chunk(piece, section) for piece in pieces if piece.strip())
     return chunks
+
+
+_TABLE_SEPARATOR = re.compile(r"^\|(\s*:?-{3,}:?\s*\|)+\s*$")
+
+
+def _table_header_at(lines: list[str], index: int) -> list[str]:
+    """Naglowek (wiersz + separator) tabeli, do ktorej nalezy wiersz `index`."""
+    i = index
+    while i > 0 and lines[i - 1].startswith("|"):
+        i -= 1
+    if i + 1 < len(lines) and _TABLE_SEPARATOR.match(lines[i + 1]) and index > i + 1:
+        return [lines[i], lines[i + 1]]
+    return []
+
+
+def _with_table_headers(body: str, pieces: list[str]) -> list[str]:
+    """Kawalek zaczynajacy sie w srodku tabeli dostaje jej naglowek - bez niego
+    kolumn nie da sie odczytac ("| 0004 | 240 | ..." bez "| Sala | Miejsca |")."""
+    lines = body.split("\n")
+    out: list[str] = []
+    position = 0
+    for piece in pieces:
+        first = piece.split("\n", 1)[0]
+        start = body.find(piece[:200], position)
+        if start >= 0:
+            position = start + 1
+        if start < 0 or not first.startswith("|") or _TABLE_SEPARATOR.match(first):
+            out.append(piece)
+            continue
+        header = _table_header_at(lines, body.count("\n", 0, start))
+        out.append("\n".join([*header, piece]) if header and not piece.startswith(header[0]) else piece)
+    return out
 
 
 def _short(part: str) -> str:
