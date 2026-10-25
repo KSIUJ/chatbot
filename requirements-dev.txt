@@ -2,7 +2,11 @@
 # Obraz Dockera instaluje tylko requirements.txt.
 -r requirements.txt
 pytest
-beautifulsoup4
+# scrapery: wersje przypiete (HTML z sieci parsuje lxml; OAuth1 do USOS API)
+beautifulsoup4==4.15.0
+soupsieve==3.0.1
+lxml==6.1.3
+requests-oauthlib==2.0.0
+oauthlib==4.0.0
 pypdf
 python-docx
-requests_oauthlib
