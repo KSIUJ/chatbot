@@ -108,3 +108,21 @@ class LogoutResponse(BaseModel):
     # Adres wylogowania z Keycloaka - frontend przekierowuje tam przegladarke.
     # None, gdy Keycloak jest niedostepny (sesja aplikacji i tak jest skasowana).
     logout_url: str | None
+
+
+class PendingAnswer(BaseModel):
+    """Odpowiedz w toku (GET /chat/pending) - np. po odswiezeniu strony."""
+    conversation_id: str
+    question: str
+    # tekst napisany dotad
+    text: str
+    started_at: datetime
+
+
+class PendingAnswers(BaseModel):
+    items: list[PendingAnswer]
+
+
+class StopResponse(BaseModel):
+    # False = odpowiedz juz zapisana (albo nie ma jej w toku)
+    stopped: bool

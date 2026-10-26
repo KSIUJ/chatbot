@@ -4,17 +4,19 @@ Zdarzenia: "delta" {"text"} - kolejne kawalki odpowiedzi, "done"
 {"conversation_id", "message"} - zapisana odpowiedz, "error" {"code",
 "message"} - porazka, nic nie zapisano.
 
-Generator dziala po zakonczeniu zapytania HTTP, wiec otwiera wlasne sesje
-bazy (session_factory). Przez cale generowanie i zapis trzyma blokade
-rozmowy. Gdy klient zniknie (Stop, zamkniecie karty) w trakcie pisania
-odpowiedzi, zapisuje pytanie i dotychczasowy tekst tak jak pelna odpowiedz,
-a strumien od modelu zamyka.
+Odpowiedz powstaje we wlasnym watku (_Producer), niezaleznie od polaczenia:
+generator SSE tylko przekazuje klientowi to, co watek juz napisal. Dzieki
+temu odswiezenie strony albo zamkniecie karty nie przerywa odpowiedzi - model
+pisze dalej, pelna odpowiedz trafia do bazy, a frontend po powrocie pokazuje
+ja z GET /chat/pending (chat_runs.py). Przerywa tylko przycisk Stop (POST
+/chat/stop): watek konczy po biezacym kawalku i zapisuje pytanie i dotychczasowy
+tekst tak jak pelna odpowiedz. Watek trzyma blokade rozmowy do konca zapisu
+i otwiera wlasne sesje bazy (session_factory).
 
 Dzienny limit pytan jest zuzywany przed strumieniem (main.py). Pytanie wraca
 do puli (`refund`) tylko po bledzie po stronie serwera: blad modelu, pusta
-odpowiedz, nieudany zapis. Rozlaczenie albo anulowanie przez klienta (w
-dowolnym momencie) nigdy nie zwraca pytania - inaczej petla "wyslij
-i rozlacz" dawalaby nielimitowane wywolania modelu.
+odpowiedz, nieudany zapis. Stop i rozlaczenie nigdy nie zwracaja pytania -
+inaczej petla "wyslij i przerwij" dawalaby nielimitowane wywolania modelu.
 
 Wiodacy znacznik [[NARUSZENIE]] (zasada 18 promptu) nigdy nie trafia do
 klienta: poczatek odpowiedzi jest buforowany, dopoki nie wiadomo, czy to
@@ -27,15 +29,16 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
 import threading
 from collections.abc import AsyncIterator, Callable, Iterator, Mapping
 from dataclasses import dataclass, field
-from functools import partial
 from typing import Protocol
 
 import anyio
 from anyio import to_thread
 
+from . import chat_runs
 from .chat import (
     ChatTurn,
     ConversationNotOwned,
@@ -66,6 +69,8 @@ _ERROR_MESSAGES = {
 
 # co ile sekund sprawdzamy, czy blokada rozmowy jest juz wolna
 LOCK_POLL_INTERVAL = 0.05
+# najdluzsze czekanie na kolejne zdarzenie z watku, zanim sprawdzimy polaczenie
+EVENT_POLL_INTERVAL = 0.25
 
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
@@ -82,24 +87,6 @@ class DisconnectProbe(Protocol):
 
 class _EmptyAnswer(RuntimeError):
     """Model nie zwrocil zadnego tekstu."""
-
-
-@dataclass
-class _Progress:
-    chunks: Iterator[str] | None = None
-    sources: list[Citation] = field(default_factory=list)
-    # tekst wyslany klientowi (bez znacznika [[NARUSZENIE]])
-    parts: list[str] = field(default_factory=list)
-    # zdejmuje wiodacy znacznik, nawet rozciety miedzy kawalki
-    marker: MarkerFilter = field(default_factory=MarkerFilter)
-    # odpowiedz zapisana albo porazka - wtedy niczego juz nie zapisujemy
-    finished: bool = False
-    # incydent (jesli byl) zapisany przed "done" - _finish go nie powtarza
-    incident_recorded: bool = False
-    # jakas odpowiedz (pelna albo czesciowa) jest w bazie
-    saved: bool = False
-    # blad po stronie serwera (model, pusta odpowiedz, zapis) - pytanie wraca do limitu
-    server_failed: bool = False
 
 
 def sse_event(event: str, data: Mapping[str, object]) -> str:
@@ -121,6 +108,122 @@ def _start_answer(session_factory: SessionFactory, turn: ChatTurn, stream_answer
     return stream_answer(turn.question, history=history, **model_kwargs(turn))
 
 
+# koniec zdarzen z watku
+_END = object()
+
+
+@dataclass
+class _Producer:
+    """Jedna tura w watku: model -> zdarzenia SSE w kolejce -> zapis. Zwalnia
+    blokade rozmowy i wpis w chat_runs na samym koncu."""
+
+    session_factory: SessionFactory
+    turn: ChatTurn
+    stream_answer: StreamAnswerFn
+    refund: RefundFn | None
+    lock: threading.Lock
+    active: chat_runs.ActiveTurn
+    events: queue.Queue = field(default_factory=queue.Queue)
+    chunks: Iterator[str] | None = None
+    sources: list[Citation] = field(default_factory=list)
+    parts: list[str] = field(default_factory=list)
+    marker: MarkerFilter = field(default_factory=MarkerFilter)
+    saved: bool = False
+    server_failed: bool = False
+    incident_recorded: bool = False
+
+    def _delta(self, text: str) -> None:
+        self.parts.append(text)
+        self.active.append(text)
+        self.events.put(sse_event("delta", {"text": text}))
+
+    def run(self) -> None:
+        try:
+            self._generate()
+        except Exception:  # _generate sam obsluguje bledy - to tylko ostatnia oslona
+            logger.exception("chat turn failed (conversation %s)", self.turn.conversation_id)
+        finally:
+            try:
+                self._finish()
+            finally:
+                chat_runs.finish(self.active)
+                self.lock.release()
+                self.events.put(_END)
+
+    def _generate(self) -> None:
+        turn = self.turn
+        try:
+            answer = _start_answer(self.session_factory, turn, self.stream_answer)
+            self.chunks, self.sources = answer.chunks, answer.sources
+            for chunk in self.chunks:
+                text = self.marker.feed(chunk)
+                if text:
+                    self._delta(text)
+                if self.active.stop.is_set():
+                    # Stop: zapis tego, co jest (_finish)
+                    return
+            tail = self.marker.finish()
+            if self.marker.detected and not "".join(self.parts).strip() and not tail.strip():
+                # sam znacznik - stala odmowa zamiast pustej odpowiedzi i bledu
+                tail = REFUSAL[turn.language]
+            if tail:
+                self._delta(tail)
+            full_text = "".join(self.parts).strip()
+            if not full_text:
+                raise _EmptyAnswer("model returned no text")
+        except ConversationNotOwned:
+            self.parts.clear()
+            self.events.put(_error_event(CONVERSATION_NOT_FOUND))
+            return
+        except Exception:
+            logger.exception("streamed answer failed (conversation %s)", turn.conversation_id)
+            self.parts.clear()
+            self.server_failed = True
+            self.events.put(_error_event(LLM_FAILED))
+            return
+
+        try:
+            message = save_answer(self.session_factory, turn, full_text, self.sources)
+            self.saved = True
+        except Exception:
+            logger.exception("saving streamed answer failed (conversation %s)", turn.conversation_id)
+            self.server_failed = True
+            self.events.put(_error_event(SAVE_FAILED))
+            return
+        finally:
+            # zapisane albo porazka - _finish nie zapisuje drugi raz
+            self.parts.clear()
+        # incydent i ewentualna blokada przed "done": klient zaraz potem pyta o /usage
+        record_turn_incident(self.session_factory, turn, self.marker.detected, True)
+        self.incident_recorded = True
+        self.events.put(sse_event("done", {"conversation_id": turn.conversation_id, "message": message.model_dump(mode="json")}))
+
+    def _finish(self) -> None:
+        """Zamyka strumien od modelu, zapisuje przerwana odpowiedz (Stop),
+        zwraca pytanie do limitu po bledzie serwera i zglasza incydent
+        (heurystyka i/lub znacznik od modelu)."""
+        turn = self.turn
+        close = getattr(self.chunks, "close", None)
+        if close is not None:
+            try:
+                close()
+            except Exception:
+                logger.exception("closing LLM stream failed (conversation %s)", turn.conversation_id)
+        if self.parts:
+            try:
+                self.saved = save_partial_answer(self.session_factory, turn, "".join(self.parts), self.sources) is not None
+            except Exception:
+                logger.exception("saving partial answer failed (conversation %s)", turn.conversation_id)
+        if self.server_failed and not self.saved and self.refund is not None:
+            try:
+                self.refund()
+            except Exception:
+                logger.exception("refunding question failed (conversation %s)", turn.conversation_id)
+        # record_turn_incident sam loguje swoje bledy
+        if not self.incident_recorded:
+            record_turn_incident(self.session_factory, turn, self.marker.detected, self.saved)
+
+
 async def chat_events(
     probe: DisconnectProbe,
     session_factory: SessionFactory,
@@ -130,70 +233,43 @@ async def chat_events(
 ) -> AsyncIterator[str]:
     """Zdarzenia SSE dla jednej tury czatu (patrz opis modulu). `refund`
     jest wolany raz, gdy tura konczy sie bledem serwera bez zapisanej
-    odpowiedzi - nigdy po rozlaczeniu klienta."""
+    odpowiedzi - nigdy po Stop ani rozlaczeniu klienta."""
     lock = conversation_lock(turn.conversation_id)
-    progress = _Progress()
     await _acquire(lock)
-    # od zdobycia blokady do "try" nie ma await - anulowanie nie zgubi blokady
+    # od zdobycia blokady do przekazania jej watkowi nie ma await - anulowanie
+    # jej nie zgubi
     try:
-        # klient mogl zniknac, czekajac na blokade - wtedy nie pytamy modelu
+        active = chat_runs.start(turn.user_id, turn.conversation_id, turn.question)
+        producer = _Producer(session_factory, turn, stream_answer, refund, lock, active)
+        thread = threading.Thread(target=producer.run, name=f"chat-{turn.conversation_id}", daemon=True)
+    except BaseException:
+        lock.release()
+        raise
+    # klient mogl zniknac, czekajac na blokade - wtedy nie pytamy modelu
+    try:
+        gone = await probe.is_disconnected()
+    except BaseException:
+        chat_runs.finish(active)
+        lock.release()
+        raise
+    if gone:
+        chat_runs.finish(active)
+        lock.release()
+        return
+    thread.start()
+
+    while True:
+        try:
+            event = await to_thread.run_sync(producer.events.get, True, EVENT_POLL_INTERVAL)
+        except queue.Empty:
+            event = None
+        if event is _END:
+            return
+        if event is not None:
+            yield event
+        # klient zniknal (odswiezenie, zamkniecie karty): watek pisze dalej i zapisze odpowiedz
         if await probe.is_disconnected():
             return
-        try:
-            answer = await to_thread.run_sync(_start_answer, session_factory, turn, stream_answer)
-            progress.chunks, progress.sources = answer.chunks, answer.sources
-            while (chunk := await to_thread.run_sync(next, answer.chunks, None)) is not None:
-                text = progress.marker.feed(chunk)
-                if not text:
-                    continue
-                progress.parts.append(text)
-                yield sse_event("delta", {"text": text})
-                if await probe.is_disconnected():
-                    return
-            tail = progress.marker.finish()
-            if progress.marker.detected and not "".join(progress.parts).strip() and not tail.strip():
-                # sam znacznik - stala odmowa zamiast pustej odpowiedzi i bledu
-                tail = REFUSAL[turn.language]
-            if tail:
-                progress.parts.append(tail)
-                yield sse_event("delta", {"text": tail})
-            full_text = "".join(progress.parts).strip()
-            if not full_text:
-                raise _EmptyAnswer("model returned no text")
-        except ConversationNotOwned:
-            progress.finished = True
-            yield _error_event(CONVERSATION_NOT_FOUND)
-            return
-        except Exception:
-            logger.exception("streamed answer failed (conversation %s)", turn.conversation_id)
-            progress.finished = True
-            progress.server_failed = True
-            yield _error_event(LLM_FAILED)
-            return
-
-        try:
-            # oslona: zapis po anulowaniu bylby powtorzony jako czesciowy
-            with anyio.CancelScope(shield=True):
-                message = await to_thread.run_sync(save_answer, session_factory, turn, full_text, progress.sources)
-                progress.finished = True
-                progress.saved = True
-        except Exception:
-            logger.exception("saving streamed answer failed (conversation %s)", turn.conversation_id)
-            progress.finished = True
-            progress.server_failed = True
-            yield _error_event(SAVE_FAILED)
-            return
-        # incydent i ewentualna blokada przed "done": klient zaraz potem pyta o /usage
-        with anyio.CancelScope(shield=True):
-            await to_thread.run_sync(record_turn_incident, session_factory, turn, progress.marker.detected, True)
-            progress.incident_recorded = True
-        yield sse_event("done", {"conversation_id": turn.conversation_id, "message": message.model_dump(mode="json")})
-    finally:
-        try:
-            with anyio.CancelScope(shield=True):
-                await _finish(session_factory, turn, progress, refund)
-        finally:
-            lock.release()
 
 
 async def _acquire(lock: threading.Lock) -> None:
@@ -202,35 +278,3 @@ async def _acquire(lock: threading.Lock) -> None:
     Anulowanie w trakcie czekania nie zostawia zdobytej blokady."""
     while not lock.acquire(blocking=False):
         await anyio.sleep(LOCK_POLL_INTERVAL)
-
-
-async def _finish(
-    session_factory: SessionFactory, turn: ChatTurn, progress: _Progress, refund: RefundFn | None
-) -> None:
-    """Zamyka strumien od modelu, zapisuje przerwana odpowiedz (jesli jest),
-    zwraca pytanie do limitu po bledzie serwera (nie po rozlaczeniu klienta)
-    i zglasza incydent
-    (heurystyka i/lub znacznik od modelu)."""
-    if progress.chunks is not None:
-        close = getattr(progress.chunks, "close", None)
-        if close is not None:
-            try:
-                await to_thread.run_sync(close)
-            except Exception:
-                logger.exception("closing LLM stream failed (conversation %s)", turn.conversation_id)
-    if not progress.finished and progress.parts:
-        try:
-            saved = await to_thread.run_sync(
-                partial(save_partial_answer, session_factory, turn, "".join(progress.parts), progress.sources)
-            )
-            progress.saved = saved is not None
-        except Exception:
-            logger.exception("saving partial answer failed (conversation %s)", turn.conversation_id)
-    if progress.server_failed and not progress.saved and refund is not None:
-        try:
-            await to_thread.run_sync(refund)
-        except Exception:
-            logger.exception("refunding question failed (conversation %s)", turn.conversation_id)
-    # record_turn_incident sam loguje swoje bledy
-    if not progress.incident_recorded:
-        await to_thread.run_sync(record_turn_incident, session_factory, turn, progress.marker.detected, progress.saved)
