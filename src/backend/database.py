@@ -122,8 +122,10 @@ def add_message(
     role: MessageRole,
     content: str,
     sources: Sequence[Citation] | None = None,
+    personal_data: bool = False,
 ) -> Message:
-    """Dopisuje wiadomosc i commituje (razem z niezacommitowanymi zmianami sesji)."""
+    """Dopisuje wiadomosc i commituje (razem z niezacommitowanymi zmianami sesji).
+    personal_data - odpowiedz oparta na danych osoby z USOS."""
     conversation = get_conversation(db, conversation_id)
     if conversation is None:
         raise KeyError(f"Konwersacja {conversation_id} nie istnieje")
@@ -133,6 +135,7 @@ def add_message(
         role=role,
         content=content,
         sources=list(sources or []),
+        personal_data=personal_data,
     )
     db.add(message)
 

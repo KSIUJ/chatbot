@@ -106,6 +106,9 @@ class Message(Base):
     # Zrodla z RAG-a: {"kind", "title", "url"}; starsze wiadomosci maja tu
     # sciezki plikow (napisy) - API je pomija
     sources: Mapped[list[dict[str, str | None] | str]] = mapped_column(JSON, default=list)
+    # odpowiedz oparta na danych osoby z USOS (narzedzia modelu, usos/tools.py) -
+    # jej kopia nie trafia do ocen i zgloszen dla zarzadu
+    personal_data: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 

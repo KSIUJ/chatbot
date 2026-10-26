@@ -29,3 +29,13 @@ VISION_PROVIDERS = frozenset({OLLAMA, "claude", "openrouter"})
 def provider_supports_images(provider: str | None = None) -> bool:
     """Czy dostawca (domyslnie biezacy) przyjmuje obrazy."""
     return (provider or current_provider()) in VISION_PROVIDERS
+
+
+# Dostawcy, ktorym dajemy narzedzia (llm/tools.py) - petla tool use jest
+# zaimplementowana tylko w claude_client.py.
+TOOL_PROVIDERS = frozenset({"claude"})
+
+
+def provider_supports_tools(provider: str | None = None) -> bool:
+    """Czy dostawca (domyslnie biezacy) wywoluje narzedzia."""
+    return (provider or current_provider()) in TOOL_PROVIDERS
