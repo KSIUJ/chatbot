@@ -204,3 +204,15 @@ def test_user_message_says_when_context_is_empty(monkeypatch):
 
     assert seen["user"].startswith("KONTEKST:\n(Brak pasujacych materialow w bazie.)\nKONIEC KONTEKSTU")
     assert seen["user"].endswith("Answer in English.")
+
+
+def test_basic_information_section_sits_between_scope_and_context():
+    prompt = generate.system_prompt("pl", now=NOW)
+
+    assert prompt.index("ZAKRES") < prompt.index("PODSTAWOWE INFORMACJE") < prompt.index("\nKONTEKST\n")
+    section = prompt.split("PODSTAWOWE INFORMACJE")[1].split("\nKONTEKST\n")[0]
+    # kod przedmiotu, ścieżka T i zakaz zgadywania nieznanych oznaczeń
+    for fragment in ("WMI.II-ASD-2SI", "dopiskiem „T", "Oznaczenie SO", "nie zgadujesz"):
+        assert fragment in section
+    # numeracja zasad bez zmian
+    assert "\n18. " in prompt and "\n19. " in prompt
