@@ -260,3 +260,22 @@ def test_api_occasion_without_dates_has_no_known_end():
 def test_api_in_unknown_shape_raises(body):
     with pytest.raises(ApiResponseError):
         parse_api_occasion(body, NOW)
+
+
+def test_template_literal_build_of_the_landing_page():
+    # nowszy build ksi.sh: import(`...`) i facade:`...` w backtickach (2026-10)
+    script = f"<script type=module>for(let e of[`a`])addEventListener(e,t);import(`{MODULE_PATH}`)</script>"
+    page = parse_landing_page(landing_html(entry_script=script))
+    module = (
+        'import{n as e,t}from"./DP0jm0rX.js";'
+        f"t({{occasion:`{OCCASION}`,name:{{pl:`X`,en:`X`}},decorations:()=>e(()=>import(`./a.js`)),facade:`{FACADE_PATH}`}});"
+    )
+
+    assert page.occasion == OCCASION and page.entry_module == MODULE_PATH
+    assert parse_facade_paths(module, OCCASION) == FacadePaths(pl=FACADE_PATH, en=FACADE_PATH)
+
+
+def test_template_literal_with_interpolation_is_not_a_path():
+    module = f"t({{occasion:`{OCCASION}`,facade:`/assets/${{x}}.svg`}});"
+
+    assert parse_facade_paths(module, OCCASION) is None
