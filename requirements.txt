@@ -37,5 +37,9 @@ httpx==0.28.1
 joserfc==1.7.5
 cryptography==50.0.2
 
+# Polaczenie kont z USOS (src/backend/usos/) - podpisy OAuth 1.0a HMAC-SHA1
+# (czysty Python; wczesniej tylko posrednio przez requests-oauthlib)
+oauthlib==4.0.0
+
 # Naglowki notatek o KSI (src/backend/rag/sources/ksi/notes.py)
 pyyaml==6.0.3

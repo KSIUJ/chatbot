@@ -13,6 +13,10 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 
+# HKDF info klucza logowania (sesje, ciasteczka logowania i laczenia z USOS)
+AUTH_TOKEN_KEY_INFO = b"chatbot-auth-token-encryption-v1"
+
+
 class DecryptionError(Exception):
     """Szyfrogram jest uszkodzony, wygasl albo zaszyfrowano go innym kluczem."""
 
@@ -20,14 +24,15 @@ class DecryptionError(Exception):
 class TokenCipher:
     """Szyfrowanie (Fernet = AES-128-CBC + HMAC) wartosci trzymanych w bazie i
     w ciasteczku logowania. Klucz jest wyprowadzany z AUTH_SECRET_KEY przez HKDF,
-    wiec w env wystarczy dowolny dlugi losowy napis."""
+    wiec w env wystarczy dowolny dlugi losowy napis. Inne `info` = niezalezny
+    klucz do innego celu (tokeny USOS w bazie, usos/crypto.py)."""
 
-    def __init__(self, secret_key: str) -> None:
+    def __init__(self, secret_key: str, info: bytes = AUTH_TOKEN_KEY_INFO) -> None:
         key = HKDF(
             algorithm=hashes.SHA256(),
             length=32,
             salt=None,
-            info=b"chatbot-auth-token-encryption-v1",
+            info=info,
         ).derive(secret_key.encode("utf-8"))
         self._fernet = Fernet(base64.urlsafe_b64encode(key))
 

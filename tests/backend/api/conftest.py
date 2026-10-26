@@ -19,6 +19,7 @@ from src.backend.history import get_history_settings
 from src.backend.limits.settings import ATTACHMENT_ENV_VARS, get_default_limits
 from src.backend.llm.generate import AnswerStream
 from src.backend.occasion.settings import get_occasion_settings
+from src.backend.usos.settings import get_usos_settings
 from src.backend.models import Base, User
 
 from fake_keycloak import (
@@ -62,10 +63,15 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
     for name in (*ATTACHMENT_ENV_VARS, "OCCASION_SOURCE_URL", "OCCASION_REFRESH_SECONDS", "OCCASION_API_TOKEN"):
         monkeypatch.delenv(name, raising=False)
+    # polaczenie z USOS wylaczone, chyba ze test wlaczy je sam (test_usos.py)
+    for name in ("USOS_CONNECT", "USOS_CONSUMER_KEY", "USOS_CONSUMER_SECRET", "USOS_SCOPES", "USOS_CALLBACK_URL",
+                 "USOS_HTTP_TIMEOUT"):
+        monkeypatch.delenv(name, raising=False)
     get_auth_settings.cache_clear()
     get_history_settings.cache_clear()
     get_default_limits.cache_clear()
     get_occasion_settings.cache_clear()
+    get_usos_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
     yield
@@ -73,6 +79,7 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
     get_history_settings.cache_clear()
     get_default_limits.cache_clear()
     get_occasion_settings.cache_clear()
+    get_usos_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
 

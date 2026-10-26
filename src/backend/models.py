@@ -63,6 +63,11 @@ class User(Base):
     sessions: Mapped[list["UserSession"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    # SQLite bez PRAGMA foreign_keys nie wykona ON DELETE CASCADE sam - przy
+    # usunieciu konta przez ORM polaczenie z USOS znika razem z nim
+    usos_link: Mapped["UsosLink | None"] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class Conversation(Base):
@@ -101,6 +106,9 @@ class Message(Base):
     # Zrodla z RAG-a: {"kind", "title", "url"}; starsze wiadomosci maja tu
     # sciezki plikow (napisy) - API je pomija
     sources: Mapped[list[dict[str, str | None] | str]] = mapped_column(JSON, default=list)
+    # odpowiedz oparta na danych osoby z USOS (narzedzia modelu, usos/tools.py) -
+    # jej kopia nie trafia do ocen i zgloszen dla zarzadu
+    personal_data: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 
@@ -353,3 +361,29 @@ class UserSession(Base):
     id_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
+
+
+class UsosLink(Base):
+    """Polaczenie konta z USOS (OAuth 1.0a, usos/). Najwyzej jedno na konto.
+
+    token_enc to JEDEN szyfrogram (Fernet, osobny klucz HKDF z AUTH_SECRET_KEY)
+    z tokenem, sekretem i id konta - patrz usos/crypto.py. Z USOS zapisujemy
+    tylko id osoby i imie z nazwiskiem (do pokazania "polaczono jako");
+    plan, oceny i inne dane sa pobierane na biezaco i nigdzie nie zostaja.
+    needs_reconnect_at: USOS odrzucil token (401, np. cofniety w USOS) albo nie
+    da sie go odszyfrowac - polaczenie jest nieuzywane, dopoki osoba nie polaczy
+    sie ponownie (nadpisuje wiersz) albo go nie usunie.
+    """
+    __tablename__ = "usos_links"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    usos_user_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    usos_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    token_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    # uprawnienia, o ktore prosilismy (USOS_SCOPES w chwili laczenia), rozdzielone "|"
+    scopes: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    needs_reconnect_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship(back_populates="usos_link")

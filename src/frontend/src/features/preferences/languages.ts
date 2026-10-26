@@ -3,6 +3,7 @@ import type { AdminTab } from '../admin/tabs';
 import type { LoginError } from '../auth/redirect';
 import type { ReportReason } from '../chat/feedback';
 import type { SourceKind } from '../chat/sources';
+import type { UsosResult } from '../usos/usos';
 import type { ThemePreference } from './themes';
 import { de } from './translations/de';
 import { en } from './translations/en';
@@ -182,6 +183,37 @@ export interface AttachmentTranslation {
   };
 }
 
+// Strings of the USOS link (settings submenu and the notice shown after
+// coming back from the USOS consent page).
+export interface UsosTranslation {
+  // settings menu item and submenu title
+  title: string;
+  connectedAs: (name: string) => string;
+  // connected, but USOS gave no name
+  connectedUnnamed: string;
+  connectedSince: (date: string) => string;
+  notConnected: string;
+  // USOS rejected the token (revoked there or expired)
+  needsReconnect: string;
+  // a link exists but the admins switched linking off
+  switchedOff: string;
+  // consent shown before connecting
+  consentIntro: string;
+  consentData: readonly string[];
+  consentNotes: readonly string[];
+  connect: string;
+  reconnect: string;
+  connecting: string;
+  disconnect: string;
+  disconnecting: string;
+  confirmDisconnect: string;
+  connectError: string;
+  disconnectError: string;
+  // notice after the redirect back from USOS
+  results: Record<UsosResult, string>;
+  dismiss: string;
+}
+
 export interface Translation {
   // value of <html lang>
   htmlLang: HtmlLang;
@@ -259,6 +291,7 @@ export interface Translation {
   chatBlockedTitle: string;
   chatBlocked: string;
   attachments: AttachmentTranslation;
+  usos: UsosTranslation;
   admin: AdminTranslation;
 }
 

@@ -15,7 +15,8 @@ from .attachments import PromptAttachment, attachments_block, images_of
 from .images import ImageInput
 from .dates import academic_year, polish_date, warsaw_now
 from .language import ANSWER_IN, DEFAULT_LANGUAGE, LANGUAGE_NAMES, Language
-from .provider import current_provider, env_setting
+from .provider import current_provider, env_setting, provider_supports_tools
+from .tools import ToolBox
 from .rewrite import condense
 
 # Tresc zatwierdzona przez wlasciciela repo (wersja z 2026-10-26: sekcja PODSTAWOWE
@@ -153,6 +154,8 @@ class AnswerStream:
     chunks: Iterator[str]
     files: list[str]
     sources: list[Citation]
+    # narzedzia, ktore model mogl wywolac (po odpowiedzi: co uzyto) - None = bez narzedzi
+    tools: ToolBox | None = None
 
 
 class _Prompt(NamedTuple):
@@ -311,9 +314,19 @@ def stream_answer(
     history: list[dict[str, str]] | None = None,
     language: Language = DEFAULT_LANGUAGE,
     attachments: Sequence[PromptAttachment] = (),
+    tools: ToolBox | None = None,
 ) -> AnswerStream:
     """Jak answer(), ale tekst przychodzi kawalkami. Retrieval dzieje sie od
-    razu, zapytanie do modelu - przy pierwszym kawalku."""
+    razu, zapytanie do modelu - przy pierwszym kawalku.
+
+    `tools` - narzedzia dla modelu (np. dane osoby z USOS, usos/tools.py); tylko
+    dla dostawcow, ktore je obsluguja - inni odpowiadaja bez nich."""
     prompt = _build_prompt(query, history, language, attachments)
-    chunks = _resolve_stream_fn()(**_model_kwargs(prompt))
-    return AnswerStream(chunks=_measured_stream(chunks), files=prompt.files, sources=prompt.sources)
+    kwargs = _model_kwargs(prompt)
+    if tools is not None and tools.tools and provider_supports_tools():
+        kwargs["system"] = f"{prompt.system}\n{tools.prompt}" if tools.prompt else prompt.system
+        kwargs["tools"] = tools
+    else:
+        tools = None
+    chunks = _resolve_stream_fn()(**kwargs)
+    return AnswerStream(chunks=_measured_stream(chunks), files=prompt.files, sources=prompt.sources, tools=tools)

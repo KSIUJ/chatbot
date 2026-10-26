@@ -5,6 +5,8 @@ import type { AuthUser } from '../auth/useAuth';
 import OccasionFacade from '../occasion/OccasionFacade';
 import { facadeUrl } from '../occasion/occasion';
 import type { Preferences } from '../preferences/usePreferences';
+import UsosNotice from '../usos/UsosNotice';
+import { usosResultFromUrlOnce, type UsosResult } from '../usos/usos';
 import { earlierFileCount } from './conversations';
 import { useAttachments } from './useAttachments';
 import { useChat } from './useChat';
@@ -18,6 +20,8 @@ interface ChatScreenProps {
   preferences: Preferences;
   onLogout: () => void;
 }
+
+const USOS_NOTICE_MS = 8000;
 
 // a drag carries files (not text or a link from the page)
 function hasFiles(event: DragEvent<HTMLElement>): boolean {
@@ -39,6 +43,15 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
   // element to focus again after leaving the admin view
   const adminOpenerRef = useRef<HTMLElement | null>(null);
   const wasAdminOpenRef = useRef(false);
+  // ?usos=connected / ?usos_error= after coming back from the USOS consent page
+  const [usosResult, setUsosResult] = useState<UsosResult | null>(usosResultFromUrlOnce);
+
+  // a success notice goes away on its own, an error stays until dismissed
+  useEffect(() => {
+    if (usosResult !== 'connected') return;
+    const timer = window.setTimeout(() => setUsosResult(null), USOS_NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [usosResult]);
 
   useEffect(() => {
     if (!isAdminOpen && wasAdminOpenRef.current) {
@@ -177,6 +190,12 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
             </button>
             <span className="font-head text-base font-semibold text-fg truncate">{lang.appTitle}</span>
           </header>
+
+          {usosResult !== null && (
+            <div className="px-4 pt-3">
+              <UsosNotice t={lang.usos} result={usosResult} onDismiss={() => setUsosResult(null)} />
+            </div>
+          )}
 
           {/* the WMiI facade behind the messages: the ksi.sh occasion one, or the
               plain silhouette; the messages scroll over it */}

@@ -52,6 +52,7 @@ from .chat import (
 from .history import conversation_lock
 from .llm.generate import AnswerStream
 from .llm.language import REFUSAL
+from .llm.tools import ToolBox
 from .rag.core.citations import Citation
 from .security.marker import MarkerFilter
 
@@ -126,6 +127,7 @@ class _Producer:
     events: queue.Queue = field(default_factory=queue.Queue)
     chunks: Iterator[str] | None = None
     sources: list[Citation] = field(default_factory=list)
+    tools: ToolBox | None = None
     parts: list[str] = field(default_factory=list)
     marker: MarkerFilter = field(default_factory=MarkerFilter)
     saved: bool = False
@@ -154,7 +156,7 @@ class _Producer:
         turn = self.turn
         try:
             answer = _start_answer(self.session_factory, turn, self.stream_answer)
-            self.chunks, self.sources = answer.chunks, answer.sources
+            self.chunks, self.sources, self.tools = answer.chunks, answer.sources, answer.tools
             for chunk in self.chunks:
                 text = self.marker.feed(chunk)
                 if text:
@@ -183,7 +185,7 @@ class _Producer:
             return
 
         try:
-            message = save_answer(self.session_factory, turn, full_text, self.sources)
+            message = save_answer(self.session_factory, turn, full_text, *self._saved_sources())
             self.saved = True
         except Exception:
             logger.exception("saving streamed answer failed (conversation %s)", turn.conversation_id)
@@ -198,6 +200,13 @@ class _Producer:
         self.incident_recorded = True
         self.events.put(sse_event("done", {"conversation_id": turn.conversation_id, "message": message.model_dump(mode="json")}))
 
+    def _saved_sources(self) -> tuple[list[Citation], bool]:
+        """Zrodla do zapisu i czy odpowiedz opiera sie na danych osoby (model
+        uzyl narzedzi z USOS) - wtedy dochodzi zrodlo "Twoje dane z USOS"."""
+        if self.tools is None or not self.tools.used:
+            return self.sources, False
+        return [*self.sources, *self.tools.citations], True
+
     def _finish(self) -> None:
         """Zamyka strumien od modelu, zapisuje przerwana odpowiedz (Stop),
         zwraca pytanie do limitu po bledzie serwera i zglasza incydent
@@ -211,7 +220,9 @@ class _Producer:
                 logger.exception("closing LLM stream failed (conversation %s)", turn.conversation_id)
         if self.parts:
             try:
-                self.saved = save_partial_answer(self.session_factory, turn, "".join(self.parts), self.sources) is not None
+                self.saved = save_partial_answer(
+                    self.session_factory, turn, "".join(self.parts), *self._saved_sources()
+                ) is not None
             except Exception:
                 logger.exception("saving partial answer failed (conversation %s)", turn.conversation_id)
         if self.server_failed and not self.saved and self.refund is not None:
