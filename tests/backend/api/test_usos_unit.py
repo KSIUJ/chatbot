@@ -41,7 +41,7 @@ def test_defaults():
     settings = _settings()
 
     assert settings.available is True
-    assert settings.scopes == "studies|grades|student_exams|offline_access"
+    assert settings.scopes == "studies|grades|crstests|student_exams|offline_access"
     assert settings.callback_url == "https://chat.ksi.sh/api/usos/callback"
     assert settings.http_timeout_seconds == 10.0
     assert CONSUMER_SECRET not in repr(settings) and CONSUMER_KEY not in repr(settings)
@@ -158,7 +158,7 @@ def test_request_token_is_signed_with_callback_and_scopes():
     [request] = recorder.requests
     assert request.method == "POST"
     assert str(request.url) == "https://apps.usos.uj.edu.pl/services/oauth/request_token"
-    assert request.content == b"scopes=studies%7Cgrades%7Cstudent_exams%7Coffline_access"
+    assert request.content == b"scopes=studies%7Cgrades%7Ccrstests%7Cstudent_exams%7Coffline_access"
     header = request.headers["authorization"]
     assert 'oauth_callback="https%3A%2F%2Fchat.ksi.sh%2Fapi%2Fusos%2Fcallback"' in header
     assert 'oauth_signature_method="HMAC-SHA1"' in header
