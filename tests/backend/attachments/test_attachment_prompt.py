@@ -97,7 +97,7 @@ def _fake_rag(monkeypatch):
     )
 
 
-def test_answer_puts_block_between_context_and_question(monkeypatch):
+def test_answer_puts_block_before_the_question_and_context_in_system(monkeypatch):
     _fake_rag(monkeypatch)
     seen = {}
 
@@ -110,7 +110,9 @@ def test_answer_puts_block_between_context_and_question(monkeypatch):
     generate.answer("streszcz plik", attachments=[PromptAttachment(name="a.txt", kind="txt", text="TRESC")])
 
     user = seen["user"]
-    assert user.index("KONIEC KONTEKSTU") < user.index(ATTACHMENTS_HEADER) < user.index("TRESC")
+    # zalaczniki napisal uzytkownik - sa w jego wiadomosci; kontekst nie
+    assert "KONIEC KONTEKSTU" not in user and seen["system"].rstrip().endswith("KONIEC KONTEKSTU")
+    assert user.index(ATTACHMENTS_HEADER) < user.index("TRESC")
     assert user.index(ATTACHMENTS_FOOTER) < user.index("PYTANIE: streszcz plik")
     # bez obrazow - klient nie dostaje argumentu images
     assert "images" not in seen

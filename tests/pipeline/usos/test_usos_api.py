@@ -171,3 +171,12 @@ def test_redirects_are_not_followed():
 
     with pytest.raises(UsosError):
         api.call("services/a")
+
+
+def test_token_in_error_message_is_hidden():
+    api, _, _ = _api([Response(401, {"message": "Invalid access token: DdCPFjbSMt9ARcRrRzfz"},
+                               text='{"message": "Invalid access token: DdCPFjbSMt9ARcRrRzfz"}')])
+
+    with pytest.raises(UsosError) as error:
+        api.call("services/users/users")
+    assert "DdCPFjbSMt9ARcRrRzfz" not in str(error.value) and "[ukryty]" in str(error.value)

@@ -316,3 +316,17 @@ def test_hidden_email_becomes_a_profile_link():
     card = staff_document("usos", hidden).value
     assert f"E-mail: ukryty przed robotami, widoczny w profilu USOSweb: {users['1']['email_url']}" in card
     assert "E-mail: brak danych w USOS" in staff_document("usos", none).value
+
+
+def test_group_with_several_slots_lists_each_on_its_own_line():
+    from pipeline.scrapers.usos.collectors.courses import Group, Slot, _edition_section, Edition
+
+    group = Group("11", 7, "Ćwiczenia", ["dr Ewa Cygan, prof. UJ"], [
+        Slot("poniedziałek", "10:00", "12:00", "1008", "budynek WMI", "co tydzień"),
+        Slot("wtorek", "08:00", "10:00", "0116", "budynek WMI", "co tydzień"),
+    ])
+    text = _edition_section(context({}), {}, Edition(TERM, {}, {("11", 7): group}))
+
+    assert ("- grupa 7: dr Ewa Cygan, prof. UJ\n"
+            "  - poniedziałek 10:00–12:00, co tydzień, sala 1008, budynek WMI\n"
+            "  - wtorek 08:00–10:00, co tydzień, sala 0116, budynek WMI") in text

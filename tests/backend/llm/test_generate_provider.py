@@ -94,9 +94,9 @@ def test_answer_returns_answer_files_and_sources(monkeypatch):
     result = generate.answer("gdzie jest sala 0004?")
 
     assert result == {"answer": "odpowiedz", "files": ["a/b/plan.png"], "sources": SOURCES}
-    assert seen["user"].startswith("KONTEKST:\nkontekst")
-    assert "- plan.png (folder: b)" in seen["user"]
-    assert seen["user"].endswith("Odpowiedz po polsku.")
+    assert seen["user"] == "PYTANIE: gdzie jest sala 0004?\n\nOdpowiedz po polsku."
+    assert "\nkontekst\n" in seen["system"] and "- plan.png (folder: b)" in seen["system"]
+    assert seen["system"].index("po polsku") < seen["system"].index("KONTEKST (")
     assert "po polsku" in seen["system"]
 
 
@@ -194,4 +194,8 @@ def test_tools_only_for_providers_that_run_them(monkeypatch, provider, with_tool
 
     assert ("tools" in seen) == with_tools
     assert ("DANE UŻYTKOWNIKA Z USOS" in seen["system"]) == with_tools
+    if with_tools:
+        # sekcja narzedzi przed kontekstem, kontekst na koncu instrukcji
+        assert seen["system"].index("DANE UŻYTKOWNIKA") < seen["system"].index("KONTEKST (")
+    assert "KONTEKST" not in seen["user"]
     assert (stream.tools is box) == with_tools

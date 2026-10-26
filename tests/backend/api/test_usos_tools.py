@@ -84,7 +84,10 @@ def test_timetable_is_trimmed_and_bounded(session_factory, cipher, user_id):
         "course_name": {"pl": "Analiza matematyczna 1"}, "classtype_name": {"pl": "Wykład"}, "group_number": 1,
         "room_number": "0004", "building_name": {"pl": "budynek WMI"}, "lecturer_ids": [1], "secret": "x",
     }
-    box, client = _toolbox(session_factory, user_id, cipher, {"services/tt/student": [activity]})
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/tt/student": [activity],
+        "services/users/users": {"1": {"id": "1", "first_name": "Ewa", "last_name": "Cygan", "titles": {"before": "dr", "after": "prof. UJ"}}},
+    })
 
     result = box.execute("usos_my_timetable", {"start_date": "2026-10-27", "days": 30})
 
@@ -93,9 +96,10 @@ def test_timetable_is_trimmed_and_bounded(session_factory, cipher, user_id):
     assert data["from"] == "2026-10-27" and data["to"] == "2026-11-02"
     assert data["activities"] == [{
         "start": "2026-10-27 10:00:00", "end": "2026-10-27 12:00:00", "course": "Analiza matematyczna 1",
-        "type": "Wykład", "group": 1, "room": "0004", "building": "budynek WMI",
+        "type": "Wykład", "group": 1, "room": "0004", "building": "budynek WMI", "lecturers": ["dr Ewa Cygan, prof. UJ"],
     }]
-    (uid, method, params), = client.calls
+    (uid, method, params), (_, names_method, _) = client.calls
+    assert names_method == "services/users/users"
     assert (uid, method, params["days"]) == (user_id, "services/tt/student", 7)
     assert box.used == ["usos_my_timetable"]
     assert box.execute("usos_my_timetable", {"start_date": "jutro"}).is_error
@@ -128,17 +132,22 @@ def test_grades_with_course_names_and_default_terms(session_factory, cipher, use
     assert box.execute("usos_my_grades", {"term_id": "25/26X; DROP"}).is_error
 
 
-def test_courses_filter_by_term(session_factory, cipher, user_id):
-    editions = {
-        "26/27Z": [{"course_id": "A", "course_name": {"pl": "Algebra"}, "user_groups": [{"class_type": {"pl": "Ćwiczenia"}, "group_number": 3}]}],
-        "25/26L": [{"course_id": "B", "course_name": {"pl": "Bazy danych"}}],
+def test_groups_with_lecturers_filter_by_term(session_factory, cipher, user_id):
+    groups = {
+        "26/27Z": [{"course_id": "WMI.IM-AM1-OL.1", "course_name": {"pl": "Analiza matematyczna 1"}, "class_type": {"pl": "Ćwiczenia"},
+                    "group_number": 7, "lecturers": [{"id": "5", "first_name": "Ewa", "last_name": "Cygan"}],
+                    "participants": [{"first_name": "Inny", "last_name": "Student"}]}],
+        "25/26L": [{"course_id": "B", "course_name": {"pl": "Bazy danych"}, "group_number": 1}],
     }
-    box, client = _toolbox(session_factory, user_id, cipher, {"services/courses/user": {"course_editions": editions}})
+    box, client = _toolbox(session_factory, user_id, cipher, {"services/groups/participant": {"groups": groups, "terms": []}})
 
     data = json.loads(box.execute("usos_my_courses", {"term_id": "26/27Z"}).content)
 
-    assert data == {"courses": [{"term": "26/27Z", "course_id": "A", "course": "Algebra", "groups": [{"type": "Ćwiczenia", "group": 3}]}]}
-    assert client.calls[0][2]["active_terms_only"] is False
+    assert data == {"groups": [{"term": "26/27Z", "course_id": "WMI.IM-AM1-OL.1", "course": "Analiza matematyczna 1",
+                                "type": "Ćwiczenia", "group": 7, "lecturers": ["Ewa Cygan"]}]}
+    # bez list uczestnikow
+    assert "participants" not in client.calls[0][2]["fields"] and "Student" not in json.dumps(data)
+    assert client.calls[0][2]["active_terms"] is False
 
 
 @pytest.mark.parametrize(
@@ -220,3 +229,21 @@ def test_personal_answer_is_marked_and_not_copied_into_feedback(client, member_o
     copy = db.query(MessageFeedback).one()
     assert copy.answer == PERSONAL_DATA_PLACEHOLDER and copy.question == "Jakie mam oceny?"
     db.close()
+
+
+def test_programmes_of_the_user(session_factory, cipher, user_id):
+    box, client = _toolbox(session_factory, user_id, cipher, {"services/progs/student": [
+        {"id": "1", "programme": {"id": "WMI-0189-1SO", "description": {"pl": "Sztuczna inteligencja, stacjonarne pierwszego stopnia"}},
+         "status": "active", "admission_date": "2025-10-01", "is_primary": True,
+         "stages": [{"id": "9", "code": "1R", "description": {"pl": "pierwszy rok"}}]},
+        {"id": "2", "programme": {"id": "WMI-0037-1SO", "description": {"pl": "Informatyka"}}, "status": "cancelled"},
+    ]})
+
+    data = json.loads(box.execute("usos_my_programmes", {}).content)
+
+    assert data["programmes"][0] == {
+        "programme_id": "WMI-0189-1SO", "name": "Sztuczna inteligencja, stacjonarne pierwszego stopnia",
+        "status": "aktywny", "admission_date": "2025-10-01", "primary": True, "stages": ["pierwszy rok"],
+    }
+    assert data["programmes"][1]["status"] == "skreślony"
+    assert client.calls[0][1] == "services/progs/student"

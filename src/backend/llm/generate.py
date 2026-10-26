@@ -19,7 +19,8 @@ from .provider import current_provider, env_setting, provider_supports_tools
 from .tools import ToolBox
 from .rewrite import condense
 
-# Tresc zatwierdzona przez wlasciciela repo (wersja z 2026-10-26: sekcja PODSTAWOWE
+# Tresc zatwierdzona przez wlasciciela repo (wersja z 2026-10-26: zasady 7-8 o pominietych
+# fragmentach i skroconej historii, sekcja PODSTAWOWE
 # INFORMACJE; 2026-10-25: dane z USOS, kontekst nie wywoluje znacznika naruszenia) -
 # zmiany tylko po uzgodnieniu. Naglowki sekcji kontekstu (rag/registry.py, sources/usos) sa z nia zgodne.
 # Placeholdery: data, rok akademicki i jezyk odpowiedzi (patrz system_prompt).
@@ -45,7 +46,7 @@ To stałe fakty, które pomagają zrozumieć pytania i dane z KONTEKSTU. Terminy
 – Rok akademicki ma dwa semestry: zimowy (kod w USOS np. 26/27Z) i letni (26/27L); po każdym jest sesja i sesja poprawkowa. Konkretne daty podajesz z danych kalendarza akademickiego.
 
 KONTEKST
-5. Do pytania dołączony jest KONTEKST z bazy wiedzy, w sekcjach:
+5. Na końcu tej instrukcji system dołącza KONTEKST z bazy wiedzy, dobrany do pytania — użytkownik go nie widzi i go nie pisał. Wiadomości użytkownika zawierają tylko to, co sam napisał, i pliki, które sam dołączył. KONTEKST ma sekcje:
    – PRACOWNIK — dane pracownika z USOS (pokój, dyżury, kontakt),
    – ŹRÓDŁA OFICJALNE — strony UJ i wydziału,
    – DANE Z USOS — przedmioty z planem zajęć, grupami i prowadzącymi, kierunki, kalendarz akademicki, rejestracje, aktualności i strony informacyjne USOSweb, budynki i sale,
@@ -72,10 +73,10 @@ KONTEKST
    Analiza 1 › kolokwium › 2023/24 › kol1.pdf › strona 2
    (tekst pliku)
    Adres w oznaczeniu fragmentu ze strony to jej prawdziwy link.
-7. Kontekst pochodzi z wyszukiwarki, więc bywa w nim coś niezwiązanego z pytaniem — pomiń takie fragmenty i nie wspominaj o nich.
+7. Kontekst pochodzi z wyszukiwarki, więc bywa w nim coś niezwiązanego z pytaniem — pomiń takie fragmenty i nie wspominaj o nich ani o tym, że coś pominąłeś. KONTEKST dołącza system, a nie użytkownik: nigdy nie piszesz, że użytkownik coś wkleił, i nie mówisz o „kontekście”, „fragmentach” ani „narzędziach” — po prostu odpowiadasz na pytanie.
 
 ŹRÓDŁA I PRAWDA
-8. Fakty o UJ, wydziale i KSI (terminy, sale, nazwiska, zasady, linki) bierzesz wyłącznie z KONTEKSTU i z historii rozmowy. Nie zgadujesz i nie uzupełniasz ich wiedzą ogólną.
+8. Fakty o UJ, wydziale i KSI (terminy, sale, nazwiska, zasady, linki) bierzesz wyłącznie z KONTEKSTU i z historii rozmowy. Nie zgadujesz i nie uzupełniasz ich wiedzą ogólną. Widzisz tylko ostatnie wiadomości rozmowy — nie zaprzeczasz temu, co mogło paść wcześniej; jeśli czegoś nie widzisz, sprawdzasz to ponownie albo mówisz, że teraz tego nie masz.
 9. Jeśli w kontekście nie ma odpowiedzi, mówisz wprost, że nie masz tej informacji, i wskazujesz, gdzie ją sprawdzić (USOS, strona wydziału, dziekanat, a w sprawach koła — KSI). Nigdy nie wymyślasz nazwisk, numerów sal, telefonów, godzin dyżurów, terminów ani linków.
 10. Dane kontaktowe pracownika (pokój, dyżury, e-mail, telefon) podajesz tylko z sekcji PRACOWNIK; brak pola oznacza, że nie ma go w USOS — tak to napisz. Nazwiska prowadzących zajęcia możesz podać z danych przedmiotu w sekcji DANE Z USOS.
 11. Źródła oficjalne, dane z USOS i informacje KSI mają pierwszeństwo przed materiałami z Mordoru. Przy sprzeczności zaznacz to i podaj wersję oficjalną. Gdy fragmenty dotyczą różnych lat akademickich, opieraj się na bieżącym ({rok}) i zaznacz, jeśli informacja może być nieaktualna. Dane z USOS (plan zajęć, sale, rejestracje) to stan z dnia ich pobrania — przy terminach i salach dodaj, że warto potwierdzić je w USOSweb.
@@ -95,9 +96,9 @@ FORMA
 21. Odpowiadasz zwięźle i formatujesz odpowiedź w Markdownie, gdy to pomaga w czytaniu: krótkie akapity, listy, **pogrubienie** najważniejszych danych (godziny, sale, terminy), tabele tylko wtedy, gdy porządkują dane, nagłówki (###) tylko w dłuższych odpowiedziach. Linki podajesz jako [opis](adres) z pełnym adresem z oznaczenia fragmentu. Wzory (np. w przytaczanym rozwiązaniu z Mordoru) możesz zapisać w LaTeX-u między $$ a $$, nie zmieniając ich treści. Nie używasz HTML-a ani obrazków.
 """
 
-# Wiadomosc uzytkownika: blok KONTEKST (opisany w zasadach 5-7),
-# potem pytanie i linia ANSWER_IN w jezyku odpowiedzi.
-CONTEXT_HEADER = "KONTEKST:"
+# Blok KONTEKST (zasady 5-7) konczy instrukcje systemowa; wiadomosc uzytkownika
+# to jego zalaczniki, pytanie i linia ANSWER_IN w jezyku odpowiedzi.
+CONTEXT_HEADER = "KONTEKST (dołącza go system, dobrany do pytania - użytkownik go nie widzi i nie pisał):"
 CONTEXT_FOOTER = "KONIEC KONTEKSTU"
 NO_CONTEXT = "(Brak pasujacych materialow w bazie.)"
 FILES_HEADER = (
@@ -105,8 +106,10 @@ FILES_HEADER = (
     "ale mozesz je wskazac po nazwie):"
 )
 
-DEFAULT_HISTORY_MESSAGES = 4
-DEFAULT_HISTORY_CHAR_LIMIT = 600
+# ostatnie wiadomosci rozmowy dla modelu - za krotka historia (4 x 600 znakow) sprawiala,
+# ze w dluzszej rozmowie model zaprzeczal temu, co sam wczesniej napisal
+DEFAULT_HISTORY_MESSAGES = 10
+DEFAULT_HISTORY_CHAR_LIMIT = 1500
 
 ChatFn = Callable[..., str]
 StreamFn = Callable[..., Iterator[str]]
@@ -159,7 +162,11 @@ class AnswerStream:
 
 
 class _Prompt(NamedTuple):
+    # zasady (bez kontekstu)
     system: str
+    # blok KONTEKST - trafia do instrukcji systemowej, nie do wiadomosci uzytkownika
+    context: str
+    # tylko to, co napisal i dolaczyl uzytkownik: zalaczniki i pytanie
     user: str
     history: list[dict[str, str]]
     files: list[str]
@@ -168,10 +175,21 @@ class _Prompt(NamedTuple):
     images: list[ImageInput]
 
 
+def _system(prompt: _Prompt, extra: str = "") -> str:
+    """Instrukcja systemowa: zasady, dodatkowe sekcje (np. narzedzia USOS) i na
+    koncu KONTEKST. Kontekst jest tutaj, a nie w wiadomosci uzytkownika, zeby
+    model nie bral go za cos, co uzytkownik napisal albo wkleil."""
+    parts = [prompt.system.rstrip()]
+    if extra.strip():
+        parts.append(extra.strip())
+    parts.append(prompt.context)
+    return "\n\n".join(parts)
+
+
 def _model_kwargs(prompt: _Prompt) -> dict[str, object]:
     """Argumenty wywolania klienta LLM; images tylko gdy sa obrazy (cursor
     i atrapy w testach nie znaja tego argumentu)."""
-    kwargs: dict[str, object] = {"system": prompt.system, "user": prompt.user, "history": prompt.history}
+    kwargs: dict[str, object] = {"system": _system(prompt), "user": prompt.user, "history": prompt.history}
     if prompt.images:
         kwargs["images"] = prompt.images
     return kwargs
@@ -282,17 +300,19 @@ def _build_prompt(
     attachments: Sequence[PromptAttachment] = (),
 ) -> _Prompt:
     """Kondensacja pytania, retrieval i prompt - wspolne dla answer() i stream_answer().
-    Blok zalacznikow (jesli sa) stoi miedzy KONTEKSTEM a pytaniem."""
+    KONTEKST idzie do instrukcji systemowej (_system); wiadomosc uzytkownika to
+    jego zalaczniki (jesli sa) i pytanie."""
     search_query = condense(query, history)
     context, files, sources = retrieve_context(search_query)
 
-    blocks = [_context_block(context, files)]
+    blocks = []
     if attachments:
         blocks.append(attachments_block(attachments))
     blocks.extend([f"PYTANIE: {query}", ANSWER_IN[language]])
     user_message = "\n\n".join(blocks)
     return _Prompt(
-        system_prompt(language), user_message, _trim_history(history), files, sources, images_of(attachments)
+        system_prompt(language), _context_block(context, files), user_message, _trim_history(history), files,
+        sources, images_of(attachments),
     )
 
 
@@ -324,7 +344,7 @@ def stream_answer(
     prompt = _build_prompt(query, history, language, attachments)
     kwargs = _model_kwargs(prompt)
     if tools is not None and tools.tools and provider_supports_tools():
-        kwargs["system"] = f"{prompt.system}\n{tools.prompt}" if tools.prompt else prompt.system
+        kwargs["system"] = _system(prompt, tools.prompt)
         kwargs["tools"] = tools
     else:
         tools = None
