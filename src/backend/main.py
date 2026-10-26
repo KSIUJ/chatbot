@@ -1,6 +1,6 @@
 """Aplikacja FastAPI: czat, historia rozmow, logowanie, oceny odpowiedzi,
-dzienne limity pytan, panel administratora, statystyki i motyw okazjonalny
-z ksi.sh.
+dzienne limity pytan, panel administratora, statystyki, motyw okazjonalny
+z ksi.sh i polaczenie konta z USOS.
 
 Za nginxem endpointy sa pod /api/* (nginx obcina prefiks), backend widzi
 sciezki bez /api.
@@ -81,6 +81,7 @@ from .history import (
 from .rag.core.context import warm_up as rag_warm_up
 from .occasion import router as occasion_router
 from .occasion.settings import get_occasion_settings
+from .usos import get_usos_settings, router as usos_router
 from .occasion.state import get_occasion_store, refresh_loop
 from .llm.generate import answer as rag_answer, stream_answer as rag_stream
 from .llm.language import REFUSAL
@@ -114,6 +115,7 @@ def configure_logging() -> None:
     package_logger.addHandler(handler)
     package_logger.setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").addFilter(skip_facade_requests)
+    logging.getLogger("uvicorn.access").addFilter(redact_usos_callback)
 
 
 def skip_facade_requests(record: logging.LogRecord) -> bool:
@@ -123,6 +125,20 @@ def skip_facade_requests(record: logging.LogRecord) -> bool:
     args = record.args
     path = args[2] if isinstance(args, tuple) and len(args) > 2 else None
     return not (isinstance(path, str) and path.startswith("/occasion/facade/"))
+
+
+_USOS_CALLBACK = "/usos/callback"
+
+
+def redact_usos_callback(record: logging.LogRecord) -> bool:
+    """Powrot z USOS zostaje w logu dostepu, ale bez zapytania: niesie
+    jednorazowy request token i verifier (oauth_token, oauth_verifier)."""
+    args = record.args
+    if isinstance(args, tuple) and len(args) > 2 and isinstance(args[2], str):
+        path = args[2]
+        if path.startswith(_USOS_CALLBACK + "?"):
+            record.args = (*args[:2], _USOS_CALLBACK + "?[redacted]", *args[3:])
+    return True
 
 
 configure_logging()
@@ -191,11 +207,12 @@ def start_occasion_task() -> asyncio.Task[None] | None:
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Brak/bledna konfiguracja OIDC, CHAT_HISTORY_*, limitow (CHAT_DAILY_LIMIT,
-    # ATTACHMENT_*) albo OCCASION_* zatrzymuje start z opisem bledu
+    # ATTACHMENT_*), OCCASION_* albo USOS_* zatrzymuje start z opisem bledu
     get_auth_settings()
     get_history_settings()
     get_default_limits()
     get_occasion_settings()
+    get_usos_settings()
     tasks = [task for task in (start_retention_task(), start_occasion_task(), start_warmup_task()) if task is not None]
     try:
         yield
@@ -243,6 +260,7 @@ app.include_router(limits_router)
 app.include_router(admin_router)
 app.include_router(attachments_router)
 app.include_router(occasion_router)
+app.include_router(usos_router)
 
 
 def _get_owned_conversation(db: Session, conversation_id: str, user: User) -> Conversation:

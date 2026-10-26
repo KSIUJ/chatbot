@@ -1,6 +1,7 @@
 """
 Sprzatanie danych, ktore nie powinny przezyc usuniecia: VACUUM wolnych stron
-bazy SQLite i log dostepu bez pobran fasady okazji (zdradzalyby harmonogram).
+bazy SQLite, log dostepu bez pobran fasady okazji (zdradzalyby harmonogram)
+i bez zapytania powrotu z USOS (jednorazowy token i verifier).
 """
 
 import logging
@@ -9,7 +10,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from src.backend.database import vacuum_free_pages
-from src.backend.main import skip_facade_requests
+from src.backend.main import redact_usos_callback, skip_facade_requests
 
 
 def _access_record(path: str) -> logging.LogRecord:
@@ -41,3 +42,15 @@ def test_facade_requests_are_left_out_of_the_access_log():
     assert not skip_facade_requests(_access_record("/occasion/facade/0123456789abcdef?scheme=dark"))
     assert skip_facade_requests(_access_record("/occasion"))
     assert skip_facade_requests(_access_record("/conversations"))
+
+
+def test_usos_callback_query_is_redacted_in_the_access_log():
+    record = _access_record("/usos/callback?oauth_token=abcdefgh12&oauth_verifier=12345678")
+
+    assert redact_usos_callback(record)
+
+    message = record.getMessage()
+    assert "abcdefgh12" not in message and "12345678" not in message
+    assert "/usos/callback?[redacted]" in message
+    other = _access_record("/usos/status")
+    assert redact_usos_callback(other) and "/usos/status" in other.getMessage()
