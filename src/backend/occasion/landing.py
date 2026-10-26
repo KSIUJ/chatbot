@@ -44,14 +44,15 @@ MAX_PALETTE_BLOCK = 4_000
 _ROOT_RULE = re.compile(r":root\s*\{([^{}]*)\}")
 _PALETTE_DECL = re.compile(r"\s*--color-([a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{6})\s*")
 # Sciezki bez kropek poza rozszerzeniem: zadnego "..", zadnego innego hosta.
-_ENTRY_IMPORT = re.compile(r"""\bimport\(\s*(["'])(/assets/[A-Za-z0-9_-]+\.js)\1\s*\)""")
+# napisy w cudzyslowach albo w backtickach (template literal bez ${...})
+_ENTRY_IMPORT = re.compile(r"""\bimport\(\s*(["'`])(/assets/[A-Za-z0-9_-]+\.js)\1\s*\)""")
 SVG_PATH = re.compile(r"/assets/[A-Za-z0-9_-]+\.svg")
 _IDENT = r"[A-Za-z_$][\w$]*"
 _FACADE_KEY = re.compile(r"\bfacade\s*:\s*")
-_STRING_VALUE = re.compile(r"""(["'])([^"'\\]*)\1""")
+_STRING_VALUE = re.compile(r"""(["'`])([^"'`\\$]*)\1""")
 _IDENT_VALUE = re.compile(_IDENT)
 _OBJECT_VALUE = re.compile(r"\{([^{}]*)\}")
-_OBJECT_PAIR = re.compile(rf"""({_IDENT})\s*:\s*(?:(["'])([^"'\\]*)\2|({_IDENT}))""")
+_OBJECT_PAIR = re.compile(rf"""({_IDENT})\s*:\s*(?:(["'`])([^"'`\\$]*)\2|({_IDENT}))""")
 LANGUAGES = ("pl", "en")
 
 
@@ -149,7 +150,7 @@ def parse_landing_page(html: str) -> LandingPage:
 
 def _constant(module: str, name: str) -> str | None:
     """Wartosc `name="..."` z modulu (pierwsza deklaracja tej nazwy)."""
-    match = re.search(rf"""(?<![\w$.]){re.escape(name)}\s*=\s*(["'])([^"'\\]*)\1""", module)
+    match = re.search(rf"""(?<![\w$.]){re.escape(name)}\s*=\s*(["'`])([^"'`\\$]*)\1""", module)
     return match.group(2) if match else None
 
 
@@ -178,7 +179,7 @@ def parse_facade_paths(module: str, occasion: str) -> FacadePaths | None:
     Modul innej okazji, nieznany zapis albo sciezka spoza /assets/*.svg daje
     None - czat pokaze wtedy kolory okazji bez fasady.
     """
-    marker = re.search(rf"""\boccasion\s*:\s*(["']){re.escape(occasion)}\1""", module)
+    marker = re.search(rf"""\boccasion\s*:\s*(["'`]){re.escape(occasion)}\1""", module)
     if marker is None:
         return None
     key = _FACADE_KEY.search(module, marker.end())
