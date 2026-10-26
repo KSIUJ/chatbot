@@ -44,7 +44,6 @@ PERSON_FIELDS = "id|first_name|last_name|titles"
 PROGRAMME_FIELDS = "id|programme|status|admission_date|stages|is_primary"
 PROFILE_FIELDS = "student_number|student_status"
 STUDENT_STATUSES = {0: "nie jest studentem", 1: "nieaktywny student", 2: "aktywny student"}
-TEST_FIELDS = "course_edition[course[id|name]|term[id]]|root[id|name]"
 NODE_FIELDS = "id|name|type|subnodes_deep[id|name|type]"
 # najwiecej sprawdzianow (drzew) w jednym wywolaniu - kazdy to 3 zapytania do USOS
 MAX_TESTS = 6
@@ -60,19 +59,31 @@ Użytkownik połączył konto USOS. Masz narzędzia do odczytu jego danych: plan
 """
 
 
-def _test_list(value: Any) -> list[Mapping[str, Any]]:
-    """Sprawdziany z participant2: lista albo slownik cykl -> lista / id -> sprawdzian."""
-    if isinstance(value, Mapping):
-        flat: list[Any] = []
-        for item in value.values():
-            flat += item if isinstance(item, list) else list(item.values()) if isinstance(item, Mapping) else []
-        value = flat
-    return [t for t in value or [] if isinstance(t, Mapping)]
+def _current_terms(terms: Any, today: date) -> list[str]:
+    """Cykle trwajace dzis (z odpowiedzi participant); poza semestrem - ostatni zakonczony."""
+    spans = []
+    for term_id, term in (terms or {}).items() if isinstance(terms, Mapping) else []:
+        try:
+            spans.append((date.fromisoformat(str(term.get("start_date"))[:10]),
+                          date.fromisoformat(str(term.get("end_date"))[:10]), str(term_id)))
+        except (AttributeError, ValueError):
+            continue
+    current = [term_id for start, end, term_id in sorted(spans) if start <= today <= end]
+    ended = [term_id for _start, end, term_id in sorted(spans, key=lambda s: s[1]) if end < today]
+    return current or ended[-1:]
 
 
-def _term(edition: Mapping[str, Any]) -> str:
-    term = edition.get("term")
-    return str(term.get("id") or "") if isinstance(term, Mapping) else str(term or "")
+def _node_names(node: Mapping[str, Any], path: tuple[str, ...] = ()) -> dict[str, str]:
+    """Wezly ponizej korzenia (id -> nazwa ze sciezka folderow, np. "Kolokwium 1 › Zadanie 2").
+    subnodes_deep przychodzi zagniezdzone - kazdy wezel ma wlasne subnodes_deep."""
+    names: dict[str, str] = {}
+    for child in node.get("subnodes_deep") or []:
+        if not isinstance(child, Mapping) or child.get("id") is None:
+            continue
+        child_path = (*path, _text(child.get("name")))
+        names[str(child["id"])] = " › ".join(part for part in child_path if part)
+        names.update(_node_names(child, child_path))
+    return names
 
 
 def _node_id(row: Any) -> str:
@@ -236,54 +247,62 @@ class _UsosTools:
         if self.scopes is not None and "crstests" not in self.scopes:
             return ToolResult("Połączenie z USOS nie obejmuje sprawdzianów - użytkownik może połączyć konto "
                               "ponownie w Ustawieniach, żeby je udostępnić.", is_error=True)
+        term_id = str(arguments.get("term_id") or "").strip()
+        if term_id and not TERM_ID.match(term_id):
+            return ToolResult("term_id ma postać np. 26/27Z, 26/27L albo 26/27.", is_error=True)
         wanted = str(arguments.get("course") or "").strip().casefold()
-        got = self._call("services/crstests/participant2", fields=TEST_FIELDS, active_terms_only=True)
+        # participant2 na USOS UJ odpowiada bledem 500 - starsza wersja dziala
+        got = self._call("services/crstests/participant")
         if isinstance(got, ToolResult):
             return got
+        by_term = got.get("tests") if isinstance(got, Mapping) else None
+        if not isinstance(by_term, Mapping):
+            return ToolResult("USOS nie zwrócił sprawdzianów.", is_error=True)
+        terms = expand_term(term_id) if term_id else _current_terms(got.get("terms"), self.today)
         tests = []
-        for test in _test_list(got):
-            edition = test.get("course_edition") if isinstance(test.get("course_edition"), Mapping) else {}
-            course = edition.get("course") if isinstance(edition.get("course"), Mapping) else {}
-            root = test.get("root") if isinstance(test.get("root"), Mapping) else {}
-            course_id, course_name = str(course.get("id") or ""), _text(course.get("name"))
-            if wanted and wanted not in course_name.casefold() and wanted not in course_id.casefold():
-                continue
-            if root.get("id") is None:
-                continue
-            tests.append((course_id, course_name, _term(edition), root))
+        for term in terms:
+            for test in (by_term.get(term) or {}).values() if isinstance(by_term.get(term), Mapping) else []:
+                if not isinstance(test, Mapping):
+                    continue
+                edition = test.get("course_edition") if isinstance(test.get("course_edition"), Mapping) else {}
+                course_id, course_name = str(edition.get("course_id") or ""), _text(edition.get("course_name"))
+                root_id = test.get("root_id") or test.get("node_id")
+                if root_id is None or (
+                    wanted and wanted not in course_name.casefold() and wanted not in course_id.casefold()
+                ):
+                    continue
+                tests.append({"term": term, "course_id": course_id, "course": course_name,
+                              "test": _text(test.get("name")), "root_id": str(root_id)})
         results = []
-        for course_id, course_name, term, root in tests[:MAX_TESTS]:
-            items = self._test_items(str(root["id"]))
-            if items is None:
-                continue
-            results.append({
-                "course_id": course_id, "course": course_name, "term": term,
-                "test": _text(root.get("name")), "items": items,
-            })
-        return ToolResult(as_data({"tests": results, "more": max(0, len(tests) - MAX_TESTS)}))
+        for test in tests[:MAX_TESTS]:
+            items = self._test_items(test.pop("root_id"))
+            if items is not None:
+                results.append({**test, "items": items})
+        return ToolResult(as_data({"terms": terms, "tests": results, "more": max(0, len(tests) - MAX_TESTS)}))
 
     def _test_items(self, root_id: str) -> list[dict[str, Any]] | None:
-        """Punkty i oceny osoby w jednym sprawdzianie (drzewo wezlow): nazwa wezla,
-        punkty, ocena - bez opisow i komentarzy prowadzacych."""
+        """Punkty i oceny osoby w jednym sprawdzianie (drzewo wezlow): nazwa wezla
+        ze sciezka folderow, punkty, ocena - bez opisow i komentarzy prowadzacych."""
         tree = self._call("services/crstests/node2", node_id=root_id, fields=NODE_FIELDS)
         if isinstance(tree, ToolResult) or not isinstance(tree, Mapping):
             return None
-        nodes = {str(tree.get("id")): tree, **{str(n.get("id")): n for n in tree.get("subnodes_deep") or [] if isinstance(n, Mapping)}}
-        ids = "|".join(nodes)
+        names = _node_names(tree)
+        ids = "|".join([str(tree.get("id")), *names])
         points = self._call("services/crstests/user_points", node_ids=ids)
         grades = self._call("services/crstests/user_grades", node_ids=ids)
         by_node: dict[str, dict[str, Any]] = {}
         for row in points if isinstance(points, list) else []:
             node_id = _node_id(row)
-            if node_id in nodes and row.get("points") is not None:
+            if node_id in names and row.get("points") is not None:
                 by_node.setdefault(node_id, {})["points"] = row.get("points")
         for row in grades if isinstance(grades, list) else []:
             node_id = _node_id(row)
             value = row.get("grade") if isinstance(row, Mapping) else None
             symbol = value.get("symbol") if isinstance(value, Mapping) else None
-            if node_id in nodes and symbol not in (None, ""):
+            if node_id in names and symbol not in (None, ""):
                 by_node.setdefault(node_id, {})["grade"] = str(symbol)
-        return [{"name": _text(nodes[nid].get("name")), **result} for nid, result in by_node.items()]
+        # kolejnosc jak w drzewie sprawdzianu
+        return [{"name": name, **by_node[nid]} for nid, name in names.items() if nid in by_node]
 
     # --- kierunki ---------------------------------------------------------------------
 
@@ -499,14 +518,15 @@ def build_usos_toolbox(
             Tool(
                 name="usos_my_course_tests",
                 description=(
-                    "Sprawdziany użytkownika z USOS (kolokwia, punkty z zadań, oceny cząstkowe) w bieżących cyklach: "
-                    "przedmiot, nazwa sprawdzianu i jego części z punktami lub oceną. Użyj, gdy pyta o punkty, "
+                    "Sprawdziany użytkownika z USOS (kolokwia, aktywność, punkty z zadań, oceny cząstkowe), domyślnie z bieżącego semestru: "
+                    "przedmiot, nazwa sprawdzianu i jego części (ze ścieżką folderów) z punktami lub oceną. Użyj, gdy pyta o punkty, "
                     "wyniki kolokwiów albo zaliczenie cząstkowe."
                 ),
                 input_schema={
                     "type": "object",
                     "properties": {
                         "course": {"type": "string", "description": "Opcjonalnie: fragment nazwy albo kod przedmiotu."},
+                        "term_id": term_schema,
                     },
                 },
                 run=tools.course_tests,
