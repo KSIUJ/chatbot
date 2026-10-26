@@ -119,7 +119,8 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
     <>
       {isAdminOpen && <AdminPanel lang={lang} onClose={closeAdmin} />}
       {/* hidden (not unmounted) behind the admin view: a streamed answer keeps going */}
-      <div className="flex h-dvh bg-page text-fg font-sans" hidden={isAdminOpen}>
+      {/* exactly one screen high: the page itself never scrolls, only the message list and the sidebar */}
+      <div className="flex h-dvh overflow-hidden bg-page text-fg font-sans" hidden={isAdminOpen}>
         <ChatSidebar
           preferences={preferences}
           user={user}

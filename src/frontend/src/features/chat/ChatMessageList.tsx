@@ -48,7 +48,6 @@ function BotAvatar() {
 export default function ChatMessageList({
   lang, messages, isWaiting, isLoading, loadError, copiedId, feedbackErrorId, onCopy, onRate, onReport, onRetry, onReload,
 }: ChatMessageListProps) {
-  const endRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   // updated on scroll, so a reader who scrolled up is not pulled down
   const isNearBottomRef = useRef(true);
@@ -63,9 +62,12 @@ export default function ChatMessageList({
     void import('./MarkdownText');
   }, []);
 
-  // a new bubble or the typing indicator: scroll to it
+  // a new bubble or the typing indicator: scroll to it. Only the message list
+  // scrolls - scrollIntoView would also scroll every ancestor (the page and
+  // overflow-hidden columns), pushing the top of the chat out of view in Safari
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const main = mainRef.current;
+    main?.scrollTo?.({ top: main.scrollHeight, behavior: 'smooth' });
   }, [messages.length, isWaiting]);
 
   // the streamed answer grows (and at the end gets its sources): follow it
@@ -224,7 +226,6 @@ export default function ChatMessageList({
         </div>
       )}
 
-      <div ref={endRef} />
 
       {reportingMessage !== undefined && (
         <ReportDialog
