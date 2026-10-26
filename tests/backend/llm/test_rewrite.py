@@ -75,14 +75,30 @@ def test_strips_quotes_and_extra_lines(monkeypatch):
     assert rewrite.condense("a jakie ma dyzury?", HISTORY) == "jakie dyzury ma Jan Kowalski"
 
 
-def test_ignores_assistant_messages_in_history(monkeypatch):
+def test_rewriter_sees_only_the_start_of_the_last_answer(monkeypatch):
+    # nazwisko bywa tylko w odpowiedzi ("opowiedz o tym prowadzacym")
+    seen = _model(monkeypatch, "kim jest Marcin Kulczycki")
+    history = [
+        {"role": "user", "content": "kto prowadzi wyklad z analizy"},
+        {"role": "assistant", "content": "STARA ODPOWIEDZ"},
+        {"role": "user", "content": "a cwiczenia?"},
+        {"role": "assistant", "content": "Wyklad prowadzi dr Marcin Kulczycki. " + "x" * 2000},
+    ]
+
+    assert rewrite.condense("opowiedz mi o tym prowadzacym", history) == "kim jest Marcin Kulczycki"
+
+    assert "OSTATNIA ODPOWIEDZ (poczatek): Wyklad prowadzi dr Marcin Kulczycki." in seen["user"]
+    assert "STARA ODPOWIEDZ" not in seen["user"]
+    assert len(seen["user"]) < 1200
+    assert "OSTATNIEJ ODPOWIEDZI" in seen["system"]
+
+
+def test_without_an_answer_the_message_has_only_questions(monkeypatch):
     seen = _model(monkeypatch, "przepisane zapytanie")
-    history = [*HISTORY, {"role": "assistant", "content": "ZMYSLONA ODPOWIEDZ MODELU"}]
 
-    rewrite.condense("a jakie ma dyzury?", history)
+    rewrite.condense("a jakie ma dyzury?", HISTORY)
 
-    assert "kim jest Jan Kowalski" in seen["user"]
-    assert "ZMYSLONA" not in seen["user"]
+    assert "kim jest Jan Kowalski" in seen["user"] and "OSTATNIA ODPOWIEDZ" not in seen["user"]
 
 
 def test_switch_off_skips_model_and_rule(monkeypatch):

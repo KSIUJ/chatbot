@@ -1,6 +1,7 @@
 """
 Kondensacja pytania przed retrievalem: dopytanie typu "a jaki ma pokoj?" jest
-zamieniane na samodzielne zapytanie na podstawie poprzednich pytan.
+zamieniane na samodzielne zapytanie na podstawie poprzednich pytan i poczatku
+ostatniej odpowiedzi (nazwisko bywa tylko w odpowiedzi: "opowiedz o tym prowadzacym").
 
 Tryby (CHAT_CONDENSE):
 - "on" (domyslnie): model wybranego dostawcy (ollama, claude, openrouter)
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_QUESTIONS = 5
 MAX_LENGTH = 200
+# tyle znakow ostatniej odpowiedzi dostaje model przepisujacy dopytanie
+LAST_ANSWER_CHARS = 800
 OFF_VALUES = {"0", "off", "false", "no", "nie"}
 HEURISTIC_VALUES = {"heuristic", "rule", "regula"}
 # limit czasu (s) przepisywania przez API (claude, openrouter)
@@ -45,7 +48,8 @@ ANAPHORA = {
 SYSTEM_PROMPT = (
     "Przepisujesz OSTATNIE PYTANIE na samodzielne zapytanie do wyszukiwarki. "
     "ZASADY:\n"
-    "1. Rozwin zaimki (jego, jej, on, ona, to, tam) na podstawie HISTORII PYTAN.\n"
+    "1. Rozwin zaimki i odwolania (jego, jej, on, ona, to, tam, ten prowadzacy, ten przedmiot) na "
+    "podstawie HISTORII PYTAN i OSTATNIEJ ODPOWIEDZI - nazwisko albo nazwa czesto jest tylko w odpowiedzi.\n"
     "2. Nazwiska i nazwy podaj w mianowniku.\n"
     "3. Gdy w historii jest kilka osob lub tematow, wez ZAWSZE ten z NAJNOWSZEGO "
     "pytania (historia jest uporzadkowana od najstarszego do najnowszego).\n"
@@ -61,8 +65,21 @@ SYSTEM_PROMPT = (
     "ostatnie: a gdzie jest jej pokoj?\n"
     "-> gdzie jest pokoj Anna Nowak\n"
     "historia: 1. kim jest Jan Kowalski | ostatnie: kiedy zaczyna sie sesja?\n"
-    "-> kiedy zaczyna sie sesja"
+    "-> kiedy zaczyna sie sesja\n"
+    "historia: 1. kto prowadzi wyklad z analizy | ostatnia odpowiedz: Wyklad prowadzi dr Marcin Kulczycki. | "
+    "ostatnie: opowiedz mi o tym prowadzacym\n"
+    "-> kim jest Marcin Kulczycki"
 )
+
+
+def _last_answer(history: list[dict[str, str]] | None) -> str:
+    """Poczatek ostatniej odpowiedzi asystenta - tam bywa nazwisko, do ktorego
+    odwoluje sie dopytanie ("opowiedz o tym prowadzacym")."""
+    for message in reversed(history or []):
+        if message.get("role") == "assistant":
+            text = " ".join((message.get("content") or "").split())
+            return text[:LAST_ANSWER_CHARS]
+    return ""
 
 
 def _previous_questions(history: list[dict[str, str]] | None, limit: int) -> list[str]:
@@ -124,10 +141,12 @@ def heuristic_rewrite(query: str, questions: list[str]) -> str:
     return f"{questions[-1].strip()} {query.strip()}"
 
 
-def _llm_user_message(query: str, questions: list[str]) -> str:
+def _llm_user_message(query: str, questions: list[str], last_answer: str = "") -> str:
     user = "HISTORIA PYTAN (od najstarszego do najnowszego):\n"
     user += "\n".join(f"{i}. {q}" for i, q in enumerate(questions, 1))
     user += f"\n\nNAJNOWSZE PYTANIE Z HISTORII: {questions[-1]}"
+    if last_answer:
+        user += f"\n\nOSTATNIA ODPOWIEDZ (poczatek): {last_answer}"
     user += f"\n\nOSTATNIE PYTANIE: {query}"
     return user
 
@@ -141,10 +160,10 @@ def _clean(rewritten: str | None) -> str | None:
     return cleaned if cleaned and len(cleaned) <= MAX_LENGTH else None
 
 
-def _llm_rewrite(provider: str, query: str, questions: list[str]) -> str | None:
+def _llm_rewrite(provider: str, query: str, questions: list[str], last_answer: str = "") -> str | None:
     """Zapytanie przepisane przez model dostawcy; None przy bledzie lub zlej odpowiedzi."""
     try:
-        reply = _REWRITERS[provider](SYSTEM_PROMPT, _llm_user_message(query, questions))
+        reply = _REWRITERS[provider](SYSTEM_PROMPT, _llm_user_message(query, questions, last_answer))
     except Exception as e:  # noqa: BLE001 - kondensacja jest opcjonalna
         logger.warning("Kondensacja zapytania nie powiodla sie, uzywam reguly: %s", e)
         return None
@@ -168,7 +187,7 @@ def condense(query: str, history: list[dict[str, str]] | None = None) -> str:
 
     provider = current_provider()
     if mode == "on" and provider in _REWRITERS:
-        rewritten = _llm_rewrite(provider, query, questions)
+        rewritten = _llm_rewrite(provider, query, questions, _last_answer(history))
         if rewritten:
             return rewritten
     return heuristic_rewrite(query, questions)

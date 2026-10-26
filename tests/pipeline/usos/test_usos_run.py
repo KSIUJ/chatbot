@@ -154,3 +154,16 @@ def test_suspicious_content_is_reported(tmp_path, collectors):
 
     assert result.written and list(result.suspicious) == ["news:9"]
     assert any("news:9" in w for w in ctx.warnings)
+
+
+def test_only_keeps_previous_records_of_dependencies(tmp_path, collectors):
+    collectors(_collector("units", [_unit("UJ.WMI"), _unit("UJ.WMI.II")]), _collector("news", [_news(1)]),
+               requires={"news": ("units",)})
+    run_module.run(context({}), tmp_path / "usos")
+    # zaleznosc tym razem zbiera mniej (np. bez adresow e-mail) - jej rekordy zostaja stare
+    collectors(_collector("units", [_unit("UJ.WMI")]), _collector("news", [_news(2)]), requires={"news": ("units",)})
+
+    result = run_module.run(context({}), tmp_path / "usos", only=["news"])
+
+    assert result.written and dict(result.counts) == {"news": 1} and result.kept == {"unit": 2}
+    assert _ids(tmp_path) == ["news:2", "unit:UJ.WMI", "unit:UJ.WMI.II"]

@@ -204,8 +204,14 @@ def run(
         logger.error("nie zapisuje zbioru - niezebrane: %s (--partial zapisze mimo to)", ", ".join(incomplete))
         return result
 
-    # rodzaje zebrane teraz zastepuja poprzednie, pozostale zostaja ze starego zbioru
-    fresh_kinds = {kind for name in succeeded for kind in KINDS[name]}
+    # rodzaje zebrane teraz zastepuja poprzednie, pozostale zostaja ze starego zbioru;
+    # przy --only tylko wybrane kolektory - zaleznosci dzialaja dla kontekstu, ale ich
+    # rekordy zostaja z poprzedniego zbioru (np. pracownicy z adresami e-mail)
+    requested = set(only) if only is not None else set(COLLECTOR_NAMES)
+    fresh_kinds = {kind for name in succeeded if name in requested for kind in KINDS[name]}
+    for record_id in [rid for rid, record in records.items() if record.kind not in fresh_kinds]:
+        result.counts[records.pop(record_id).kind] -= 1
+    result.counts += Counter()  # bez zer
     previous = _previous(out_dir)
     before = Counter(record.kind for record in previous)
     for record in previous:

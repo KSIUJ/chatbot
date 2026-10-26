@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -42,6 +43,7 @@ RETRIES_500 = 1
 # tyle kolejnych zapytan z bledem chwilowym (po ponowieniach) = USOS niedostepne
 MAX_CONSECUTIVE_FAILURES = 5
 USER_AGENT = "KSI-chatbot-scraper/1.0 (+https://chat.ksi.sh; usos)"
+_TOKEN_IN_TEXT = re.compile(r"(token\W{0,3})[A-Za-z0-9]{8,}", re.IGNORECASE)
 # najwiecej id w jednym wywolaniu metod "wiele naraz" (users/users, courses/courses, ...)
 BATCH_SIZE = 50
 
@@ -53,7 +55,13 @@ class UsosError(RuntimeError):
         self.method = method
         self.status = status
         self.body = body
-        super().__init__(f"{method}: HTTP {status}: {body[:300]}")
+        super().__init__(f"{method}: HTTP {status}: {_redacted(body[:300])}")
+
+
+def _redacted(text: str) -> str:
+    """Bez tokenow: USOS wstawia klucz tokenu do komunikatu bledu ("Invalid access
+    token: ...") - nie trafia do logow ani wyjatkow."""
+    return _TOKEN_IN_TEXT.sub(r"\1[ukryty]", text)
 
 
 class ConsumerRequired(UsosError):

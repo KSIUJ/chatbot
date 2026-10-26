@@ -192,9 +192,14 @@ def _edition_section(ctx: Context, course: dict, edition: Edition) -> str:
     for classtype, type_groups in by_type.items():
         lines = []
         for group in type_groups:
-            when = "; ".join(slot.describe() for slot in group.slots) or "termin nieustalony"
             who = ", ".join(group.lecturers) or "prowadzący nieustalony"
-            lines.append(f"- grupa {group.number}: {who}; {when}")
+            if len(group.slots) > 1:
+                # kazdy termin w osobnej linii - w jednej model mylil sale miedzy dniami
+                lines.append(f"- grupa {group.number}: {who}")
+                lines.extend(f"  - {slot.describe()}" for slot in group.slots)
+            else:
+                when = group.slots[0].describe() if group.slots else "termin nieustalony"
+                lines.append(f"- grupa {group.number}: {who}; {when}")
         parts.append(f"### {classtype}\n\n" + "\n".join(lines))
     for title, key in (("Opis zajęć", "description"), ("Literatura", "bibliography"), ("Uwagi", "notes")):
         text = pick_markdown(data.get(key), heading_offset=3)
