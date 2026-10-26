@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from src.backend.rag.sources.usos.dataset import Position, Room, StaffAttributes, StaffRecord
+from src.backend.rag.sources.usos.dataset import LecturerRecord, Position, Room, StaffAttributes, StaffRecord
 
 from ..api import fields
 from ..context import Context
@@ -30,7 +30,7 @@ USER_FIELDS = fields(
     "phone_numbers", "office_hours", "interests", "room", "employment_positions", "course_editions_conducted",
     "has_email",
 )
-# staff_status: 2 = obecny pracownik (1 = byly)
+# staff_status: 2 = nauczyciel akademicki (1 = pracownik, ale nie nauczyciel, 0 = nie pracuje)
 # link do adresu e-mail tylko na USOSweb (trafia do karty pracownika)
 USOSWEB_PREFIX = "https://www.usosweb.uj.edu.pl/"
 ACTIVE_STAFF = 2
@@ -85,7 +85,7 @@ def display_name(user: dict) -> str:
     return f"{name}, {parts[2]}" if parts[2] else name
 
 
-def staff_record(ctx: Context, user: dict) -> StaffRecord | None:
+def staff_record(ctx: Context, user: dict, kind: str = "staff") -> StaffRecord | None:
     user_id = str(user.get("id") or "")
     last_name = (user.get("last_name") or "").strip()
     if not user_id or not last_name:
@@ -94,9 +94,10 @@ def staff_record(ctx: Context, user: dict) -> StaffRecord | None:
     first_name = (user.get("first_name") or "").strip()
     email = user.get("email")
     profile = user.get("profile_url") or ctx.usosweb("katalog2/osoby/pokazOsobe", os_id=user_id)
-    return StaffRecord(
+    record_type = LecturerRecord if kind == "lecturer" else StaffRecord
+    return record_type(
         id=user_id,
-        kind="staff",
+        kind=kind,
         title=" ".join(p for p in (first_name, last_name) if p),
         url=profile,
         lang="pl",

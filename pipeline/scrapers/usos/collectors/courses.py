@@ -15,6 +15,11 @@ przedmiotow, grup i planu sa dostepne bez klucza:
 
 Jeden rekord na przedmiot: sekcje sylabusa i sekcja "Zajecia: <cykl>" na
 kazda aktywna edycje. Ustala ctx.teaching_buildings (budynki z planu).
+
+Prowadzacy grup spoza listy pracownikow wydzialu (np. fizyk uczacy fizyki
+na WMI) dostaja karte jak pracownik (rodzaj `lecturer`, users/users z kluczem
+aplikacji) - tylko aktywni nauczyciele akademiccy UJ, bez doktorantow i
+studentow (ich danych nie zbieramy).
 """
 
 from __future__ import annotations
@@ -24,12 +29,13 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from src.backend.rag.sources.usos.dataset import CourseAttributes, CourseRecord
+from src.backend.rag.sources.usos.dataset import CourseAttributes, CourseRecord, LecturerRecord
 
 import logging
 
 from ..api import UsosError, fields
 from ..context import Context, Term
+from .staff import ACTIVE_STAFF, USER_FIELDS, staff_record
 from ..text import (
     document, format_date, frequency, join_nonempty, parse_datetime, pick, pick_markdown, section, weekday,
 )
@@ -49,6 +55,12 @@ TT_FIELDS = fields(
     "building_name", "room_number", "frequency",
 )
 GROUP_FIELDS = fields("course_unit_id", "group_number", "class_type", "lecturers")
+# karta prowadzacego spoza wydzialu - pola karty pracownika i statusy studenta
+LECTURER_FIELDS = fields(
+    *(name for name in USER_FIELDS.split("|") if name != "course_editions_conducted"),
+    "student_status", "phd_student_status",
+)
+ACTIVE_STUDENT = 2
 LANGUAGES = {"PL": "polski", "EN": "angielski", "DE": "niemiecki", "FR": "francuski", "ES": "hiszpański"}
 # ile niepustych tygodni planu zbierac na edycje (zajecia co dwa tygodnie wymagaja dwoch)
 TT_WEEKS = 2
@@ -80,6 +92,7 @@ class Group:
     classtype: str = ""
     lecturers: list[str] = field(default_factory=list)
     slots: list[Slot] = field(default_factory=list)
+    lecturer_ids: list[str] = field(default_factory=list)
 
 
 def _course_ids(ctx: Context) -> list[str]:
@@ -162,7 +175,46 @@ def _add_lecturers(ctx: Context, groups: dict[tuple[str, int], Group]) -> None:
             )
             if name and name not in names:
                 names.append(name)
+            if user_id:
+                group.lecturer_ids.append(user_id)
         group.lecturers = names
+
+
+def _card_allowed(user: dict) -> bool:
+    """Aktywny nauczyciel akademicki UJ ze stanowiskiem. Doktoranci zwykle nie maja
+    stanowiska (a statusy studenta USOS z samym kluczem aplikacji zwraca jako null),
+    wiec bez stanowiska karty nie ma."""
+    if user.get("staff_status") != ACTIVE_STAFF:
+        return False
+    if ACTIVE_STUDENT in (user.get("student_status"), user.get("phd_student_status")):
+        return False
+    positions = [
+        pick((item.get("position") or {}).get("name")).casefold()
+        for item in user.get("employment_positions") or [] if isinstance(item, dict)
+    ]
+    return bool(positions) and not any("doktorant" in name for name in positions)
+
+
+def lecturer_records(ctx: Context, user_ids: set[str]) -> Iterator[LecturerRecord]:
+    """Karty prowadzacych spoza listy pracownikow wydzialu."""
+    if not user_ids:
+        return
+    try:
+        users = ctx.api.batch("services/users/users", "user_ids", sorted(user_ids), fields=LECTURER_FIELDS, user=True)
+    except UsosError as error:
+        ctx.warn(f"{NAME}: karty prowadzacych spoza wydzialu niedostepne ({error})")
+        return
+    skipped = 0
+    for user_id in sorted(user_ids):
+        user = users.get(user_id)
+        if not isinstance(user, dict) or not _card_allowed(user):
+            skipped += 1
+            continue
+        record = staff_record(ctx, user, kind="lecturer")
+        if record is not None:
+            yield record
+    if skipped:
+        logger.info("%s: %d prowadzacych spoza wydzialu bez karty (bez stanowiska, doktoranci)", NAME, skipped)
 
 
 @dataclass
@@ -280,13 +332,14 @@ def _edition(ctx: Context, course_id: str, term: Term) -> Edition:
     return Edition(term, data, groups, conductors)
 
 
-def collect(ctx: Context) -> Iterator[CourseRecord]:
+def collect(ctx: Context) -> Iterator[CourseRecord | LecturerRecord]:
     course_ids = _course_ids(ctx)
     if not course_ids:
         raise RuntimeError("brak edycji przedmiotow - kolektor staff nie zebral course_editions_conducted")
     terms = {term.id: term for term in ctx.active_terms}
     failures = 0
     skipped_other = 0
+    outside: set[str] = set()
     for course_id in course_ids:
         try:
             course = ctx.api.call("services/courses/course", course_id=course_id, fields=COURSE_FIELDS)
@@ -307,8 +360,13 @@ def collect(ctx: Context) -> Iterator[CourseRecord]:
             continue
         record = course_record(ctx, course, editions)
         if record is not None:
+            outside.update(
+                user_id for edition in editions for group in edition.groups.values()
+                for user_id in group.lecturer_ids if user_id not in ctx.staff
+            )
             yield record
     if skipped_other:
         logger.info("%s: %d przedmiotow innych wydzialow pominietych", NAME, skipped_other)
     if failures > len(course_ids) // 2:
         raise RuntimeError(f"za duzo bledow przedmiotow: {failures}/{len(course_ids)}")
+    yield from lecturer_records(ctx, outside)
