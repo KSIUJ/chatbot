@@ -1,10 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Globe, Moon, Settings, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Globe, GraduationCap, Moon, Settings, ShieldCheck } from 'lucide-react';
 import { LANGUAGE_PREFERENCES, translations } from '../preferences/languages';
 import { THEME_PREFERENCES } from '../preferences/themes';
 import type { Preferences } from '../preferences/usePreferences';
+import UsosSettings from '../usos/UsosSettings';
+import { isUsosVisible } from '../usos/usos';
+import { useUsos } from '../usos/useUsos';
 
-type SettingsView = 'closed' | 'main' | 'language' | 'theme';
+type SettingsView = 'closed' | 'main' | 'language' | 'theme' | 'usos';
 
 interface SettingsMenuProps {
   preferences: Preferences;
@@ -12,9 +15,10 @@ interface SettingsMenuProps {
   onOpenAdmin?: () => void;
 }
 
-// "Settings" button in the sidebar with a popover for language and theme
-// (and the admin panel entry for admins).
+// "Settings" button in the sidebar with a popover for language, theme and the
+// USOS link (and the admin panel entry for admins).
 export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuProps) {
+  const usos = useUsos();
   const {
     lang,
     languagePreference,
@@ -30,6 +34,10 @@ export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuP
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverId = useId();
   const isOpen = view !== 'closed';
+  // hidden while the feature is off and there is no link to remove
+  const showUsos = isUsosVisible(usos.status);
+  // after disconnecting with the feature off the submenu has nothing left - back to the main view
+  const shownView: SettingsView = view === 'usos' && !showUsos ? 'main' : view;
 
   // close on a click outside or on Escape (focus goes back to the button)
   useEffect(() => {
@@ -61,6 +69,12 @@ export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuP
     onOpenAdmin?.();
   };
 
+  // a confirmation left open earlier does not come back on its own
+  const openUsos = () => {
+    if (usos.phase === 'confirmDisconnect') usos.cancelDisconnect();
+    setView('usos');
+  };
+
   const submenuHeader = (title: string) => (
     <div className="flex items-center gap-2 px-2.5 pb-1.5 pt-0.5 mb-1 border-b border-line">
       <button
@@ -80,9 +94,13 @@ export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuP
       {isOpen && (
         <div
           id={popoverId}
-          className="absolute bottom-full left-0 mb-2 w-56 rounded-card border border-line bg-surface py-1.5 text-fg shadow-raised z-50"
+          className={`absolute bottom-full left-0 mb-2 rounded-card border border-line bg-surface py-1.5 text-fg shadow-raised z-50 ${
+            shownView === 'usos'
+              ? 'w-[min(20rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-6rem)] overflow-y-auto'
+              : 'w-56'
+          }`}
         >
-          {view === 'main' && (
+          {shownView === 'main' && (
             <>
               <button type="button" onClick={() => setView('language')} className={menuItem}>
                 <span className="flex items-center gap-3">
@@ -98,6 +116,15 @@ export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuP
                 </span>
                 <ChevronRight size={16} className="text-muted" aria-hidden="true" />
               </button>
+              {showUsos && (
+                <button type="button" onClick={openUsos} className={menuItem}>
+                  <span className="flex items-center gap-3">
+                    <GraduationCap size={16} className="text-muted" aria-hidden="true" />
+                    {lang.usos.title}
+                  </span>
+                  <ChevronRight size={16} className="text-muted" aria-hidden="true" />
+                </button>
+              )}
               {onOpenAdmin && (
                 <button type="button" onClick={openAdmin} className={`${menuItem} border-t border-line mt-1 pt-2.5`}>
                   <span className="flex items-center gap-3">
@@ -109,7 +136,25 @@ export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuP
             </>
           )}
 
-          {view === 'language' && (
+          {shownView === 'usos' && usos.status !== null && (
+            <div className="flex flex-col">
+              {submenuHeader(lang.usos.title)}
+              <UsosSettings
+                t={lang.usos}
+                cancelLabel={lang.cancel}
+                locale={lang.htmlLang}
+                status={usos.status}
+                phase={usos.phase}
+                error={usos.error}
+                onConnect={usos.connect}
+                onAskDisconnect={usos.askDisconnect}
+                onCancelDisconnect={usos.cancelDisconnect}
+                onDisconnect={usos.disconnect}
+              />
+            </div>
+          )}
+
+          {shownView === 'language' && (
             <div className="flex flex-col">
               {submenuHeader(lang.language)}
               {LANGUAGE_PREFERENCES.map((option) => (
@@ -130,7 +175,7 @@ export default function SettingsMenu({ preferences, onOpenAdmin }: SettingsMenuP
             </div>
           )}
 
-          {view === 'theme' && (
+          {shownView === 'theme' && (
             <div className="flex flex-col">
               {submenuHeader(lang.theme)}
               {THEME_PREFERENCES.map((option) => (
