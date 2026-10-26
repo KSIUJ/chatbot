@@ -211,3 +211,42 @@ def test_legacy_and_invalid_sources_are_skipped_in_responses(member):
     assert messages[1]["sources"] == [
         {"kind": "usos", "title": "Jan Kowalski", "url": "https://usosweb.uj.edu.pl/jk"}
     ]
+
+
+# --- Stop i odpowiedzi w toku ----------------------------------------------------------
+
+def test_stop_and_pending_require_login(client):
+    assert client.post("/chat/stop", json={"conversation_id": OTHER_ID}).status_code == 401
+    assert client.get("/chat/pending").status_code == 401
+
+
+def test_stop_rejects_foreign_origin_and_bad_ids(member):
+    assert member.post("/chat/stop", json={"conversation_id": OTHER_ID}, headers={"Origin": "https://evil.ksi.sh"}).status_code == 403
+    assert member.post("/chat/stop", json={"conversation_id": "nie-hex"}).status_code == 422
+
+
+def test_pending_lists_only_own_answers_and_stop_only_own(member):
+    from src.backend import chat_runs
+
+    db = member.session_factory()
+    try:
+        me = db.query(User).one().id
+    finally:
+        db.close()
+    mine = chat_runs.start(me, OTHER_ID, "Kto prowadzi ASD?")
+    mine.append("Wykład prowadzi")
+    other = chat_runs.start("ktos-inny", "f" * 32, "cudze pytanie")
+    try:
+        response = member.get("/chat/pending")
+        assert response.headers["cache-control"] == "no-store"
+        (item,) = response.json()["items"]
+        assert (item["conversation_id"], item["question"], item["text"]) == (OTHER_ID, "Kto prowadzi ASD?", "Wykład prowadzi")
+
+        assert member.post("/chat/stop", json={"conversation_id": "f" * 32}).json() == {"stopped": False}
+        assert not other.stop.is_set()
+        assert member.post("/chat/stop", json={"conversation_id": OTHER_ID}).json() == {"stopped": True}
+        assert mine.stop.is_set()
+    finally:
+        chat_runs.finish(mine)
+        chat_runs.finish(other)
+    assert member.get("/chat/pending").json() == {"items": []}

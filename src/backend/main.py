@@ -35,6 +35,7 @@ from .chat import (
     to_message_response,
     with_attachments,
 )
+from . import chat_runs
 from .chat_stream import SSE_HEADERS, chat_events
 from .config import API_DOCS, APP_NAME, FRONTEND_ORIGINS
 from .feedback import admin_router as feedback_admin_router, conversation_feedback, router as feedback_router
@@ -91,14 +92,17 @@ from .security.incidents import purge_old_incidents
 from .security.injection import detect_injection
 from .security.marker import strip_violation_marker
 from .models import Conversation, MessageRole, User
-from .request import ChatRequest
+from .request import ChatRequest, StopRequest
 from .response import (
     ChatResponse,
     ConversationList,
     ConversationResponse,
     ConversationSummary,
     HealthResponse,
+    PendingAnswer,
+    PendingAnswers,
     StatsResponse,
+    StopResponse,
 )
 
 
@@ -423,6 +427,26 @@ async def chat_stream(
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )
+
+
+@app.post("/chat/stop", response_model=StopResponse)
+def chat_stop(payload: StopRequest, user: User = Depends(require_member)) -> StopResponse:
+    """Przycisk Stop: odpowiedz w toku konczy sie po biezacym kawalku, pytanie
+    i dotychczasowy tekst zostaja zapisane. Samo zerwanie polaczenia (odswiezenie
+    strony) odpowiedzi nie przerywa - patrz chat_stream.py."""
+    return StopResponse(stopped=chat_runs.request_stop(user.id, payload.conversation_id))
+
+
+@app.get("/chat/pending", response_model=PendingAnswers)
+def chat_pending(response: Response, user: User = Depends(require_member)) -> PendingAnswers:
+    """Odpowiedzi osoby jeszcze w toku (od najnowszej): pytanie i dotychczasowy
+    tekst - frontend pokazuje je po odswiezeniu strony i czeka na zapis."""
+    response.headers["Cache-Control"] = "no-store"
+    items = []
+    for turn in chat_runs.for_user(user.id):
+        conversation_id, question, started_at, text = chat_runs.snapshot(turn)
+        items.append(PendingAnswer(conversation_id=conversation_id, question=question, text=text, started_at=started_at))
+    return PendingAnswers(items=items)
 
 
 @app.get("/stats", response_model=StatsResponse, dependencies=[Depends(require_member)])

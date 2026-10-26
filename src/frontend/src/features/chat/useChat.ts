@@ -24,7 +24,8 @@ import {
   type Rating,
   type ReportReason,
 } from './feedback';
-import { describeStop, waitForStoppedExchange, type StoppedExchange } from './stopSync';
+import { fetchPending, PENDING_POLL_MS, requestStop, updatePendingText, withPendingAnswer, type PendingAnswer } from './pending';
+import { abortableSleep, describeStop, waitForStoppedExchange, type StoppedExchange } from './stopSync';
 import {
   exhaustedUsage,
   fetchUsage,
@@ -211,7 +212,66 @@ export function useChat(language: HtmlLang) {
     stopSyncRef.current = { conversationId, done, controller };
   }, [cancelStopSync, refreshHistory, refreshUsage]);
 
+  // An answer still being written on the server (after a reload or when the
+  // conversation is opened again): show the question and the text so far,
+  // follow it until it is saved, then show the saved conversation.
+  const resumePending = useCallback(async (pending: PendingAnswer) => {
+    cancelPending();
+    cancelStopSync();
+    resetFeedback();
+    const token = ++loadTokenRef.current;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && token === loadTokenRef.current;
+    const bubbleId = localId();
+    setActiveId(pending.conversationId);
+    setLoadError(false);
+    setIsLoadingConversation(false);
+    setIsWaiting(true);
+    try {
+      // a new conversation is saved only with its first answer - nothing yet
+      const saved = await fetchConversationMessages(pending.conversationId);
+      if (!isCurrent()) return;
+      setMessages(withPendingAnswer(saved, pending, localId(), bubbleId));
+      for (;;) {
+        await abortableSleep(PENDING_POLL_MS, controller.signal);
+        if (!isCurrent()) return;
+        const current = (await fetchPending()).find((p) => p.conversationId === pending.conversationId);
+        if (!isCurrent()) return;
+        if (current === undefined) break;
+        setMessages((prev) => updatePendingText(prev, bubbleId, current.text));
+      }
+      const final = await fetchConversationMessages(pending.conversationId);
+      if (!isCurrent()) return;
+      if (final !== null) setMessages(toChatMessages(final));
+      void refreshHistory();
+      void refreshUsage();
+    } catch (error) {
+      if (isCurrent() && !isSessionLost(error)) setLoadError(true);
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setIsWaiting(false);
+      }
+    }
+  }, [cancelPending, cancelStopSync, refreshHistory, refreshUsage, resetFeedback]);
+
+  // the answer of this conversation still in progress on the server, if any
+  const pendingFor = useCallback(async (id: string): Promise<PendingAnswer | undefined> => {
+    try {
+      return (await fetchPending()).find((p) => p.conversationId === id);
+    } catch {
+      // unknown - open the saved conversation as usual
+      return undefined;
+    }
+  }, []);
+
   const openConversation = useCallback(async (id: string) => {
+    const pending = await pendingFor(id);
+    if (pending !== undefined) {
+      void resumePending(pending);
+      return;
+    }
     cancelPending();
     cancelStopSync();
     resetFeedback();
@@ -235,9 +295,10 @@ export function useChat(language: HtmlLang) {
     } finally {
       if (token === loadTokenRef.current) setIsLoadingConversation(false);
     }
-  }, [cancelPending, cancelStopSync, resetFeedback]);
+  }, [cancelPending, cancelStopSync, pendingFor, resetFeedback, resumePending]);
 
-  // first load: only the history - the page always opens on a new chat
+  // first load: the history; the page opens on a new chat, unless an answer is
+  // still being written (the page was reloaded mid-answer) - then on that one
   useEffect(() => {
     let cancelled = false;
     fetchConversations().then(
@@ -249,10 +310,17 @@ export function useChat(language: HtmlLang) {
         if (!cancelled) applyHistoryError(error);
       },
     );
+    fetchPending().then(
+      (pending) => {
+        if (!cancelled && pending.length > 0) void resumePending(pending[0]);
+      },
+      // unknown - the usual new chat
+      () => undefined,
+    );
     return () => {
       cancelled = true;
     };
-  }, [applyHistory, applyHistoryError]);
+  }, [applyHistory, applyHistoryError, resumePending]);
 
   const startNewChat = useCallback(() => {
     cancelPending();
@@ -290,10 +358,17 @@ export function useChat(language: HtmlLang) {
     const streamId = localId();
     const replaceStream = (message: ChatMessage) =>
       setMessages((prev) => [...prev.filter((m) => m.id !== streamId), message]);
+    // the question is counted when the answer starts - the hint in the sidebar
+    // updates right away, not only after the whole answer
+    let usageRefreshed = false;
     try {
       await streamMessage({ message: question, conversationId, regenerate, language, signal, attachmentIds }, {
         onDelta: (text) => {
           if (!signal.aborted && text !== '') setMessages((prev) => appendDelta(prev, streamId, text));
+          if (!usageRefreshed && !signal.aborted) {
+            usageRefreshed = true;
+            void refreshUsage();
+          }
         },
         onDone: (reply) => {
           if (signal.aborted) return;
@@ -377,6 +452,9 @@ export function useChat(language: HtmlLang) {
 
   const stop = useCallback(() => {
     if (abortRef.current === null) return;
+    // closing the connection alone does not end the answer on the server (a
+    // reload must not) - Stop asks for it explicitly
+    if (activeId !== null) void requestStop(activeId).catch(() => undefined);
     cancelPending();
     const markerId = localId();
     setMessages((prev) => stopStreaming(prev, markerId));
