@@ -229,3 +229,21 @@ def test_personal_answer_is_marked_and_not_copied_into_feedback(client, member_o
     copy = db.query(MessageFeedback).one()
     assert copy.answer == PERSONAL_DATA_PLACEHOLDER and copy.question == "Jakie mam oceny?"
     db.close()
+
+
+def test_programmes_of_the_user(session_factory, cipher, user_id):
+    box, client = _toolbox(session_factory, user_id, cipher, {"services/progs/student": [
+        {"id": "1", "programme": {"id": "WMI-0189-1SO", "description": {"pl": "Sztuczna inteligencja, stacjonarne pierwszego stopnia"}},
+         "status": "active", "admission_date": "2025-10-01", "is_primary": True,
+         "stages": [{"id": "9", "code": "1R", "description": {"pl": "pierwszy rok"}}]},
+        {"id": "2", "programme": {"id": "WMI-0037-1SO", "description": {"pl": "Informatyka"}}, "status": "cancelled"},
+    ]})
+
+    data = json.loads(box.execute("usos_my_programmes", {}).content)
+
+    assert data["programmes"][0] == {
+        "programme_id": "WMI-0189-1SO", "name": "Sztuczna inteligencja, stacjonarne pierwszego stopnia",
+        "status": "aktywny", "admission_date": "2025-10-01", "primary": True, "stages": ["pierwszy rok"],
+    }
+    assert data["programmes"][1]["status"] == "skreślony"
+    assert client.calls[0][1] == "services/progs/student"
