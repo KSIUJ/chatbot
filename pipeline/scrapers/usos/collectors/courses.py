@@ -26,11 +26,15 @@ from datetime import date, timedelta
 
 from src.backend.rag.sources.usos.dataset import CourseAttributes, CourseRecord
 
+import logging
+
 from ..api import UsosError, fields
 from ..context import Context, Term
 from ..text import (
     document, format_date, frequency, join_nonempty, parse_datetime, pick, pick_markdown, section, weekday,
 )
+
+logger = logging.getLogger("usos")
 
 NAME = "courses"
 NEEDS_CONSUMER = False
@@ -282,6 +286,7 @@ def collect(ctx: Context) -> Iterator[CourseRecord]:
         raise RuntimeError("brak edycji przedmiotow - kolektor staff nie zebral course_editions_conducted")
     terms = {term.id: term for term in ctx.active_terms}
     failures = 0
+    skipped_other = 0
     for course_id in course_ids:
         try:
             course = ctx.api.call("services/courses/course", course_id=course_id, fields=COURSE_FIELDS)
@@ -294,8 +299,16 @@ def collect(ctx: Context) -> Iterator[CourseRecord]:
             failures += 1
             ctx.warn(f"{NAME}: {course_id} pominiety ({error})")
             continue
+        fac_id = str(course.get("fac_id") or "")
+        if fac_id and not ctx.in_faculty(fac_id):
+            # przedmiot innego wydzialu prowadzony przez nasza osobe (np. matematyka na
+            # chemii) - nie dla studentow WMI, a w wyszukiwaniu zaglusza wlasciwe przedmioty
+            skipped_other += 1
+            continue
         record = course_record(ctx, course, editions)
         if record is not None:
             yield record
+    if skipped_other:
+        logger.info("%s: %d przedmiotow innych wydzialow pominietych", NAME, skipped_other)
     if failures > len(course_ids) // 2:
         raise RuntimeError(f"za duzo bledow przedmiotow: {failures}/{len(course_ids)}")
