@@ -140,7 +140,9 @@ def load_history(db: Session, turn: ChatTurn) -> list[dict[str, str]]:
     return build_history(get_messages(db, conversation.id), turn.regenerate)
 
 
-def save_exchange(db: Session, turn: ChatTurn, answer_text: str, sources: Sequence[Citation]) -> Message:
+def save_exchange(
+    db: Session, turn: ChatTurn, answer_text: str, sources: Sequence[Citation], personal_data: bool = False
+) -> Message:
     """Zapisuje pytanie i odpowiedz; zwraca wiadomosc asystenta.
 
     Nowa rozmowa: zrobienie miejsca (limit na konto), zalozenie rozmowy,
@@ -165,16 +167,17 @@ def save_exchange(db: Session, turn: ChatTurn, answer_text: str, sources: Sequen
         question_id = add_message(db, conversation.id, MessageRole.USER, turn.question).id
     if question_id is not None:
         link_attachments(db, turn.user_id, turn.conversation_id, question_id, turn.attachment_ids)
-    return add_message(db, turn.conversation_id, MessageRole.ASSISTANT, answer_text, sources)
+    return add_message(db, turn.conversation_id, MessageRole.ASSISTANT, answer_text, sources, personal_data)
 
 
 def save_answer(
-    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Citation]
+    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Citation],
+    personal_data: bool = False,
 ) -> MessageResponse:
     """save_exchange we wlasnej sesji (strumien nie ma sesji zapytania)."""
     db = session_factory()
     try:
-        return to_message_response(save_exchange(db, turn, answer_text, sources))
+        return to_message_response(save_exchange(db, turn, answer_text, sources, personal_data))
     except Exception:
         db.rollback()
         raise
@@ -232,11 +235,12 @@ def record_turn_incident(
 
 
 def save_partial_answer(
-    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Citation]
+    session_factory: SessionFactory, turn: ChatTurn, answer_text: str, sources: Sequence[Citation],
+    personal_data: bool = False,
 ) -> MessageResponse | None:
     """Zapis przerwanej odpowiedzi (Stop, zamkniecie karty) tak samo jak
     pelnej. Bez zadnego tekstu nic nie zapisuje i zwraca None."""
     text = answer_text.strip()
     if not text:
         return None
-    return save_answer(session_factory, turn, text, sources)
+    return save_answer(session_factory, turn, text, sources, personal_data)

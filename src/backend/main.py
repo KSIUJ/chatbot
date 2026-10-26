@@ -83,6 +83,12 @@ from .rag.core.context import warm_up as rag_warm_up
 from .occasion import router as occasion_router
 from .occasion.settings import get_occasion_settings
 from .usos import get_usos_settings, router as usos_router
+from .usos.client import UsosClient
+from .usos.crypto import UsosTokenCipher
+from .usos.dependencies import get_usos_client, get_usos_token_cipher
+from .usos.settings import UsosSettings
+from .usos.tools import build_usos_toolbox
+from .llm.dates import warsaw_now
 from .occasion.state import get_occasion_store, refresh_loop
 from .llm.generate import answer as rag_answer, stream_answer as rag_stream
 from .llm.language import REFUSAL
@@ -434,14 +440,24 @@ async def chat_stream(
     history_settings: HistorySettings = Depends(get_history_settings),
     session_factory: sessionmaker[Session] = Depends(get_session_factory),
     clock: Clock = Depends(get_clock),
+    usos_settings: UsosSettings = Depends(get_usos_settings),
+    usos_client: UsosClient = Depends(get_usos_client),
+    usos_cipher: UsosTokenCipher = Depends(get_usos_token_cipher),
 ) -> StreamingResponse:
     """Pytanie do czatu, odpowiedz strumieniowana (SSE, patrz chat_stream.py).
+    Osoba z polaczonym kontem USOS daje modelowi narzedzia z jej danymi
+    (usos/tools.py) - plan, przedmioty, oceny.
     Bledy logowania, originu, walidacji, 503 (czat wylaczony), 403 (blokada), 404 i 429 (dzienny limit) wracaja
     jako zwykle odpowiedzi HTTP, zanim zacznie sie strumien."""
     turn, reservation = await run_in_threadpool(_prepare_stream_turn, db, payload, user, history_settings, clock)
     refund = partial(refund_in_new_session, session_factory, reservation)
+    tools = await run_in_threadpool(
+        build_usos_toolbox, session_factory, turn.user_id, usos_settings, usos_client, usos_cipher,
+        warsaw_now(clock()).date(),
+    )
+    stream_fn = partial(rag_stream, tools=tools) if tools is not None else rag_stream
     return StreamingResponse(
-        chat_events(request, session_factory, turn, rag_stream, refund=refund),
+        chat_events(request, session_factory, turn, stream_fn, refund=refund),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )

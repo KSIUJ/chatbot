@@ -18,6 +18,8 @@ from ..response import FeedbackState, parse_sources
 from .schemas import AdminFeedbackItem, FeedbackKind, FeedbackRequest, ReportStatus
 
 EMPTY_STATE = FeedbackState(rating=None, reported=False)
+# kopia odpowiedzi opartej na danych osoby z USOS (narzedzia modelu) - tresci nie kopiujemy
+PERSONAL_DATA_PLACEHOLDER = "[Odpowiedź oparta na danych użytkownika z USOS - treści nie skopiowano.]"
 
 # Oceny i zgloszenia (z kopia pytania i odpowiedzi) bez zmian dluzej niz tyle
 # dni kasuje zadanie w tle - zbior ewaluacyjny nie rosnie bez konca.
@@ -96,7 +98,8 @@ def _submit_once(db: Session, user_id: str, message_id: str, request: FeedbackRe
             user_id=user_id,
             message_id=message_id,
             question=_question_before(db, answer),
-            answer=answer.content,
+            # odpowiedz z danymi osoby z USOS (plan, oceny) nie trafia do kopii dla zarzadu
+            answer=PERSONAL_DATA_PLACEHOLDER if answer.personal_data else answer.content,
             sources=list(answer.sources or []),
         )
     _apply(row, request)

@@ -217,3 +217,27 @@ def test_usos_links_migration_up_and_down(alembic_config):
 
     command.upgrade(config, "head")
     assert "usos_links" in _tables(url)
+
+
+PERSONAL_DATA_REVISION = "e5c2a9d4f1b8"
+
+
+def _message_columns(url: str) -> set[str]:
+    engine = create_engine(url)
+    try:
+        return {c["name"] for c in inspect(engine).get_columns("messages")}
+    finally:
+        engine.dispose()
+
+
+def test_message_personal_data_migration_up_and_down(alembic_config):
+    config, url = alembic_config
+
+    command.upgrade(config, PERSONAL_DATA_REVISION)
+    assert "personal_data" in _message_columns(url)
+
+    command.downgrade(config, USOS_REVISION)
+    assert "personal_data" not in _message_columns(url)
+
+    command.upgrade(config, "head")
+    assert "personal_data" in _message_columns(url)
