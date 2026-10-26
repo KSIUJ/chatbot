@@ -1,6 +1,6 @@
 """Blok ZALACZNIKI UZYTKOWNIKA w wiadomosci do modelu.
 
-Stoi po bloku KONTEKST, a przed pytaniem. Kazdy plik ma naglowek (numer,
+Stoi w wiadomosci uzytkownika przed pytaniem (KONTEKST jest w instrukcji systemowej). Kazdy plik ma naglowek (numer,
 "wczesniej w rozmowie" dla plikow z poprzednich pytan, nazwa, rodzaj,
 znacznik OCR), potem wyciagniety tekst. Wspolny budzet znakow
 TOTAL_TEXT_BUDGET: pliki biezacego pytania dziela go sprawiedliwie (krotkie

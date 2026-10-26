@@ -179,31 +179,30 @@ def _capture_chat(monkeypatch, rag: RagContext) -> dict:
     return seen
 
 
-def test_user_message_wraps_context_in_labelled_block(monkeypatch):
+def test_context_is_a_labelled_block_at_the_end_of_the_system_instruction(monkeypatch):
     context = f"{STAFF_HEADER}\n\n[usos: Jan Kowalski]\nPokoj: 1234"
     seen = _capture_chat(monkeypatch, RagContext(context, ["mordor/analiza/skan.png"], []))
 
     generate.answer("gdzie siedzi Jan Kowalski?")
 
-    user = seen["user"]
-    assert user.startswith("KONTEKST:\n")
-    assert "PRACOWNIK" in user
-    assert user.index("KONTEKST:") < user.index("KONIEC KONTEKSTU") < user.index("PYTANIE: gdzie siedzi")
-    assert "- skan.png (folder: analiza)" in user
-    assert user.index("skan.png") < user.index("KONIEC KONTEKSTU")
-    assert user.endswith("Odpowiedz po polsku.")
-    assert "KONTEKST TEKSTOWY" not in user
-    assert "PASUJACE PLIKI" not in user
+    system, user = seen["system"], seen["user"]
+    # uzytkownik widzi i pisze tylko pytanie - kontekst dolacza system
+    assert user == "PYTANIE: gdzie siedzi Jan Kowalski?\n\nOdpowiedz po polsku."
+    block = system[system.index(generate.CONTEXT_HEADER):]
+    assert "użytkownik go nie widzi" in generate.CONTEXT_HEADER
+    assert "PRACOWNIK" in block and block.rstrip().endswith("KONIEC KONTEKSTU")
+    assert "- skan.png (folder: analiza)" in block
+    assert "KONTEKST TEKSTOWY" not in system and "PASUJACE PLIKI" not in system
     assert "Dzisiaj jest 2 października 2026 (piątek)" in seen["system"]
 
 
-def test_user_message_says_when_context_is_empty(monkeypatch):
+def test_empty_context_is_said_in_the_system_instruction(monkeypatch):
     seen = _capture_chat(monkeypatch, RagContext("", [], []))
 
     generate.answer("co to jest?", language="en")
 
-    assert seen["user"].startswith("KONTEKST:\n(Brak pasujacych materialow w bazie.)\nKONIEC KONTEKSTU")
-    assert seen["user"].endswith("Answer in English.")
+    assert seen["system"].endswith(f"{generate.CONTEXT_HEADER}\n(Brak pasujacych materialow w bazie.)\nKONIEC KONTEKSTU")
+    assert seen["user"] == "PYTANIE: co to jest?\n\nAnswer in English."
 
 
 def test_basic_information_section_sits_between_scope_and_context():
