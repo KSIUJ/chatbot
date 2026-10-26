@@ -4,11 +4,13 @@ i generatora zdarzen SSE bez warstwy HTTP.
 """
 
 import json
+import time
 import threading
 
 import anyio
 import pytest
 
+from src.backend import chat_runs
 from src.backend.chat import ChatTurn, save_partial_answer
 from src.backend.chat_stream import chat_events
 from src.backend.database import add_message, create_conversation, get_messages
@@ -175,26 +177,36 @@ def test_events_end_with_done_and_full_answer(session_factory, user_id):
     assert not conversation_lock(CID).locked()
 
 
-def test_disconnect_saves_partial_answer_and_closes_upstream(session_factory, user_id):
+def _wait_for_turn_end(timeout: float = 5.0) -> None:
+    """Odpowiedz konczy sie w watku - czekamy na zwolnienie blokady rozmowy."""
+    deadline = time.monotonic() + timeout
+    while conversation_lock(CID).locked():
+        assert time.monotonic() < deadline, "odpowiedz nie skonczyla sie w czasie"
+        time.sleep(0.01)
+
+
+def test_disconnect_does_not_stop_the_answer(session_factory, user_id):
     tracked = TrackedChunks(["Dzie", "kanat", " czynny"])
 
     async def run():
-        # 1. sprawdzenie przed wywolaniem modelu, 2. po pierwszym kawalku
+        # 1. sprawdzenie przed wywolaniem modelu, 2. po pierwszym kawalku - odswiezenie strony
         return [_decode(e) async for e in chat_events(FakeProbe(after=2), session_factory, _turn(user_id),
                                                        _stream_fn(tracked))]
 
     events = anyio.run(run)
+    _wait_for_turn_end()
 
     assert [name for name, _ in events] == ["delta"]
     assert tracked.closed
+    # model pisal dalej - w bazie cala odpowiedz
     assert _messages(session_factory) == [
         (MessageRole.USER, "pytanie", []),
-        (MessageRole.ASSISTANT, "Dzie", SOURCES),
+        (MessageRole.ASSISTANT, "Dziekanat czynny", SOURCES),
     ]
-    assert not conversation_lock(CID).locked()
+    assert chat_runs.for_user(user_id) == []
 
 
-def test_closed_event_stream_saves_partial_answer(session_factory, user_id):
+def test_closed_event_stream_keeps_the_answer_going(session_factory, user_id):
     tracked = TrackedChunks(["Dzie", "kanat"])
 
     async def run():
@@ -204,14 +216,13 @@ def test_closed_event_stream_saves_partial_answer(session_factory, user_id):
         return first
 
     first = anyio.run(run)
+    _wait_for_turn_end()
 
     assert _decode(first) == ("delta", {"text": "Dzie"})
-    assert tracked.closed
-    assert [m[1] for m in _messages(session_factory)] == ["pytanie", "Dzie"]
-    assert not conversation_lock(CID).locked()
+    assert [m[1] for m in _messages(session_factory)] == ["pytanie", "Dziekanat"]
 
 
-def test_cancelled_stream_saves_partial_answer(session_factory, user_id):
+def test_cancelled_stream_keeps_the_answer_going(session_factory, user_id):
     gate = threading.Event()
     tracked = TrackedChunks(["Dzie", "kanat"], gate=gate)
     received = []
@@ -220,16 +231,43 @@ def test_cancelled_stream_saves_partial_answer(session_factory, user_id):
         with anyio.CancelScope() as scope:
             async for event in chat_events(FakeProbe(), session_factory, _turn(user_id), _stream_fn(tracked)):
                 received.append(_decode(event))
-                # Stop w przegladarce: anulowanie, gdy model liczy dalej
+                # zamkniecie karty: anulowanie, gdy model liczy dalej
                 scope.cancel()
                 gate.set()
 
     anyio.run(run)
+    _wait_for_turn_end()
 
     assert received == [("delta", {"text": "Dzie"})]
     assert tracked.closed
-    assert [m[1] for m in _messages(session_factory)] == ["pytanie", "Dzie"]
-    assert not conversation_lock(CID).locked()
+    assert [m[1] for m in _messages(session_factory)] == ["pytanie", "Dziekanat"]
+
+
+def test_stop_request_ends_the_answer_and_saves_partial_text(session_factory, user_id):
+    gate = threading.Event()
+    tracked = TrackedChunks(["Dzie", "kanat", " czynny"], gate=gate)
+    received = []
+
+    async def run():
+        async for event in chat_events(FakeProbe(), session_factory, _turn(user_id), _stream_fn(tracked)):
+            received.append(_decode(event))
+            if len(received) == 1:
+                # w trakcie: odpowiedz widoczna jako w toku, potem Stop
+                (pending,) = chat_runs.for_user(user_id)
+                assert chat_runs.snapshot(pending)[1:2] == ("pytanie",) and pending.text == "Dzie"
+                assert not chat_runs.request_stop("ktos-inny", CID)
+                assert chat_runs.request_stop(user_id, CID)
+                gate.set()
+
+    anyio.run(run)
+    _wait_for_turn_end()
+
+    # najwyzej jeden kawalek po Stop
+    assert [name for name, _ in received] in (["delta"], ["delta", "delta"])
+    assert tracked.closed
+    saved = [m[1] for m in _messages(session_factory)]
+    assert saved[0] == "pytanie" and saved[1] in ("Dzie", "Dziekanat")
+    assert chat_runs.for_user(user_id) == []
 
 
 def test_client_gone_before_generation_saves_nothing(session_factory, user_id):
@@ -324,19 +362,21 @@ class _Boom(BaseException):
 def test_lock_released_even_when_finish_raises(session_factory, user_id, monkeypatch):
     from src.backend import chat_stream
 
-    async def broken_finish(*args):
+    def broken_finish(self):
         raise _Boom()
 
-    monkeypatch.setattr(chat_stream, "_finish", broken_finish)
+    monkeypatch.setattr(chat_stream._Producer, "_finish", broken_finish)
+    # wyjatek konczy watek odpowiedzi - bez wypisywania go w testach
+    monkeypatch.setattr(threading, "excepthook", lambda args: None)
     tracked = TrackedChunks(["Dzie"])
 
     async def run():
         async for _ in chat_events(FakeProbe(), session_factory, _turn(user_id), _stream_fn(tracked)):
             pass
 
-    with pytest.raises(_Boom):
-        anyio.run(run)
-    assert not conversation_lock(CID).locked()
+    anyio.run(run)
+    _wait_for_turn_end()
+    assert chat_runs.for_user(user_id) == []
 
 
 # --- zwrot pytania do dziennego limitu (refund) ----------------------------------------
@@ -366,10 +406,11 @@ def test_saved_answer_is_not_refunded(session_factory, user_id):
     assert refund.calls == 0
 
 
-def test_stopped_stream_with_saved_partial_answer_counts(session_factory, user_id):
+def test_disconnected_stream_counts(session_factory, user_id):
     refund = RefundCounter()
 
     _run_events(session_factory, user_id, _stream_fn(TrackedChunks(["Dzie", "kanat"])), FakeProbe(after=2), refund)
+    _wait_for_turn_end()
 
     assert refund.calls == 0
     assert len(_messages(session_factory)) == 2
@@ -420,11 +461,12 @@ def test_disconnect_before_first_token_is_counted(session_factory, user_id):
                 pass
 
     anyio.run(run)
+    _wait_for_turn_end()
 
+    # model dokonczyl odpowiedz po rozlaczeniu - zapisana, pytanie policzone
     assert calls == ["llm"]
-    assert _messages(session_factory) == []
+    assert [m[1] for m in _messages(session_factory)] == ["pytanie", "Dzie"]
     assert refund.calls == 0
-    assert not conversation_lock(CID).locked()
 
 
 def test_empty_answer_is_refunded(session_factory, user_id):

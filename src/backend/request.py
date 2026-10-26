@@ -31,3 +31,8 @@ class ChatRequest(BaseModel):
     attachment_ids: list[Annotated[str, Field(pattern=ATTACHMENT_ID_PATTERN)]] = Field(
         default_factory=list, max_length=MAX_ATTACHMENT_IDS
     )
+
+
+class StopRequest(BaseModel):
+    """POST /chat/stop: przerwanie odpowiedzi w toku (przycisk Stop)."""
+    conversation_id: str = Field(..., pattern=CONVERSATION_ID_PATTERN)
