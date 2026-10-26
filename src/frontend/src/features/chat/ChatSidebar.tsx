@@ -57,7 +57,9 @@ export default function ChatSidebar({
 
   return (
     // mobile: fixed drawer, slid out and invisible (hidden from focus and
-    // screen readers) while closed; md+: the static column as before
+    // screen readers) while closed; md+: the column as before, one layer above
+    // the chat (translate makes it a layer of its own, and the chat with the
+    // occasion facade comes later, so it would cover the open settings menu)
     <div
       id={drawerId}
       role={isDrawerOpen ? 'dialog' : undefined}
@@ -66,7 +68,7 @@ export default function ChatSidebar({
       className={`fixed inset-y-0 left-0 z-40 w-64 max-w-[85vw] flex flex-col bg-surface border-r border-line
         transition-[translate,visibility] duration-200 motion-reduce:transition-none
         ${isDrawerOpen ? 'translate-x-0 visible shadow-raised' : '-translate-x-full invisible'}
-        md:static md:z-auto md:max-w-none md:translate-x-0 md:visible md:transition-none md:shadow-none`}
+        md:relative md:z-10 md:max-w-none md:translate-x-0 md:visible md:transition-none md:shadow-none`}
     >
       {/* logo + new chat */}
       <div className="p-4 space-y-4">
