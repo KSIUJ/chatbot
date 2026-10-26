@@ -156,10 +156,14 @@ def test_course_record_with_groups_and_timetable():
             "(12,2)": {"lecturers": [{"id": "9", "first_name": "Anna", "last_name": "Nowak"}],
                        "class_type": {"pl": "Ćwiczenia"}},
         },
+        # prowadzaca spoza listy pracownikow wydzialu
+        "services/users/users": {"9": {"id": "9", "first_name": "Anna", "last_name": "Nowak", "staff_status": 2,
+                                       "employment_positions": [{"position": {"name": {"pl": "adiunkt"}},
+                                                                 "faculty": {"name": {"pl": "Wydział Fizyki"}}}]}},
     }, active_terms=[TERM], course_editions={("WMI.IM-AM1", "26/27Z"): {"1"}}, staff={"1": "dr hab. Jan Kowalski"},
         unit_names={"UJ.WMI.IM": "Instytut Matematyki"})
 
-    (record,) = _valid(courses.collect(ctx))
+    record, lecturer = _valid(courses.collect(ctx))
 
     content = record.content
     assert record.id == "course:WMI.IM-AM1" and record.title == "Analiza matematyczna 1 (WMI.IM-AM1)"
@@ -176,6 +180,10 @@ def test_course_record_with_groups_and_timetable():
     assert content.count("wtorek 10:00–12:00") == 1
     assert record.attributes.lecturers == ["Anna Nowak", "dr hab. Jan Kowalski"]
     assert ctx.teaching_buildings == {"Loj6"}
+    assert (lecturer.kind, lecturer.id, lecturer.title) == ("lecturer", "9", "Anna Nowak")
+    assert lecturer.attributes.positions[0].unit == "Wydział Fizyki"
+    ((_, params),) = [(m, p) for m, p in ctx.api.calls if m == "services/users/users"]
+    assert params["user_ids"] == ["9"] and "phd_student_status" in params["fields"]
     # okno planu od poniedzialku biezacego tygodnia (dzis 25.10.2026, niedziela)
     starts = [p["start"] for m, p in ctx.api.calls if m == "services/tt/course_edition"]
     assert starts == ["2026-10-19", "2026-10-26"]
@@ -330,3 +338,43 @@ def test_group_with_several_slots_lists_each_on_its_own_line():
     assert ("- grupa 7: dr Ewa Cygan, prof. UJ\n"
             "  - poniedziałek 10:00–12:00, co tydzień, sala 1008, budynek WMI\n"
             "  - wtorek 08:00–10:00, co tydzień, sala 0116, budynek WMI") in text
+
+
+def test_lecturers_outside_faculty_without_doctoral_students():
+    group_lecturers = [{"id": str(i), "first_name": "X", "last_name": f"L{i}"} for i in range(2, 8)]
+    adjunct = [{"position": {"name": {"pl": "adiunkt"}}, "faculty": {"name": {"pl": "Wydział Fizyki"}}}]
+    users = {
+        # pracownik innego wydzialu - karta
+        "2": {"id": "2", "last_name": "L2", "staff_status": 2, "employment_positions": adjunct},
+        # doktorant (stanowisko, status doktoranta albo studenta, brak stanowiska) - bez karty
+        "3": {"id": "3", "last_name": "L3", "staff_status": 2,
+              "employment_positions": [{"position": {"name": {"pl": "doktorant"}}}]},
+        "4": {"id": "4", "last_name": "L4", "staff_status": 2, "phd_student_status": 2, "employment_positions": adjunct},
+        "5": {"id": "5", "last_name": "L5", "staff_status": 2, "student_status": 2, "employment_positions": adjunct},
+        "7": {"id": "7", "last_name": "L7", "staff_status": 2, "employment_positions": []},
+        # nie jest nauczycielem akademickim
+        "6": {"id": "6", "last_name": "L6", "staff_status": 0, "employment_positions": adjunct},
+    }
+    ctx = context({
+        "services/courses/course": {**COURSE, "terms": [{"id": "26/27Z"}]},
+        "services/courses/course_edition2": {},
+        "services/tt/course_edition": _tt,
+        "services/groups/groups": {"(11,1)": {"lecturers": group_lecturers}, "(12,2)": {"lecturers": []}},
+        "services/users/users": users,
+    }, active_terms=[TERM], course_editions={("WMI.IM-AM1", "26/27Z"): set()}, staff={})
+
+    records = _valid(courses.collect(ctx))
+
+    assert [(r.kind, r.id) for r in records] == [("course", "course:WMI.IM-AM1"), ("lecturer", "2")]
+
+
+def test_lecturers_of_skipped_courses_get_no_card():
+    ctx = context({
+        "services/courses/course": {**COURSE, "fac_id": "UJ.WCh", "terms": [{"id": "26/27Z"}]},
+        "services/courses/course_edition2": {},
+        "services/tt/course_edition": _tt,
+        "services/groups/groups": {"(11,1)": {"lecturers": [{"id": "2", "last_name": "L2"}]}},
+    }, active_terms=[TERM], course_editions={("WMI.IM-AM1", "26/27Z"): set()}, staff={})
+
+    assert _valid(courses.collect(ctx)) == []
+    assert "services/users/users" not in ctx.api.methods()

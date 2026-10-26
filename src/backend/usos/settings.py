@@ -5,7 +5,7 @@ USOS_CONNECT          on/off - wlacznik funkcji (domyslnie off). Klucz aplikacji
                       sam klucz w .env nie moze jej wlaczac.
 USOS_CONSUMER_KEY     klucz aplikacji USOS API; pusty = funkcja niedostepna
 USOS_CONSUMER_SECRET  sekret aplikacji (wymagany razem z kluczem)
-USOS_SCOPES           uprawnienia rozdzielone "|" (studies|grades|student_exams|offline_access)
+USOS_SCOPES           uprawnienia rozdzielone "|" (studies|grades|crstests|student_exams|offline_access)
 USOS_CALLBACK_URL     adres powrotu z USOS (domyslnie z OIDC_REDIRECT_URI:
                       .../api/auth/callback -> .../api/usos/callback)
 USOS_HTTP_TIMEOUT     timeout zapytan do USOS API w sekundach (10)
@@ -24,7 +24,7 @@ from urllib.parse import urlsplit, urlunsplit
 from ..auth.settings import AuthSettings, get_auth_settings
 
 BASE_URL = "https://apps.usos.uj.edu.pl/"
-DEFAULT_SCOPES = "studies|grades|student_exams|offline_access"
+DEFAULT_SCOPES = "studies|grades|crstests|student_exams|offline_access"
 DEFAULT_HTTP_TIMEOUT = 10.0
 # Czas na zgode w USOS (ciasteczko z request tokenem); request token USOS i tak
 # wygasa po kilku minutach.

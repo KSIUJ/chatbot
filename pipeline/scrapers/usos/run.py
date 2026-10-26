@@ -49,7 +49,7 @@ KINDS: dict[str, tuple[str, ...]] = {
     "calendar": ("calendar",),
     "units": ("unit",),
     "staff": ("staff",),
-    "courses": ("course",),
+    "courses": ("course", "lecturer"),
     "programmes": ("programme",),
     "registrations": ("registration",),
     "news": ("news",),

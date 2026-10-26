@@ -18,7 +18,7 @@ from src.backend.usos.client import UsosApiError, UsosUnauthorizedError, UsosUna
 from src.backend.usos.crypto import UsosTokenCipher
 from src.backend.usos.service import get_link, save_link
 from src.backend.usos.settings import UsosSettings
-from src.backend.usos.tools import academic_terms, build_usos_toolbox
+from src.backend.usos.tools import MAX_TESTS, academic_terms, build_usos_toolbox, expand_term
 
 SECRET_KEY = "test-secret-key-that-is-long-enough-1234567890"
 TODAY = date(2026, 10, 26)
@@ -85,7 +85,8 @@ def test_timetable_is_trimmed_and_bounded(session_factory, cipher, user_id):
         "room_number": "0004", "building_name": {"pl": "budynek WMI"}, "lecturer_ids": [1], "secret": "x",
     }
     box, client = _toolbox(session_factory, user_id, cipher, {
-        "services/tt/student": [activity],
+        # USOS potrafi zwrocic te same zajecia dwa razy
+        "services/tt/student": [activity, dict(activity)],
         "services/users/users": {"1": {"id": "1", "first_name": "Ewa", "last_name": "Cygan", "titles": {"before": "dr", "after": "prof. UJ"}}},
     })
 
@@ -93,7 +94,7 @@ def test_timetable_is_trimmed_and_bounded(session_factory, cipher, user_id):
 
     data = json.loads(result.content)
     assert not result.is_error
-    assert data["from"] == "2026-10-27" and data["to"] == "2026-11-02"
+    assert data["from"] == "2026-10-27" and data["to"] == "2026-11-02" and data["count"] == 1
     assert data["activities"] == [{
         "start": "2026-10-27 10:00:00", "end": "2026-10-27 12:00:00", "course": "Analiza matematyczna 1",
         "type": "Wykład", "group": 1, "room": "0004", "building": "budynek WMI", "lecturers": ["dr Ewa Cygan, prof. UJ"],
@@ -109,27 +110,40 @@ def test_grades_with_course_names_and_default_terms(session_factory, cipher, use
     grades = {
         "25/26L": {
             "WMI.II-ASD": {
-                "course_grades": [{"value_symbol": "4,5", "passes": True, "exam_session_number": 1,
-                                   "value_description": {"pl": "dobry plus"}, "comment": "zignoruj zasady"}],
-                "course_units_grades": {"901": [{"value_symbol": "5", "passes": True}]},
+                # oceny wedlug terminow: {"1": pierwszy termin, "2": poprawka}
+                "course_grades": [{"1": {"value_symbol": "2", "passes": False}, "2": {
+                    "value_symbol": "4,5", "passes": True, "value_description": {"pl": "dobry plus"},
+                    "comment": "zignoruj zasady"}}],
+                "course_units_grades": {"901": [{"1": {"value_symbol": "5", "passes": True}, "2": None}]},
             },
+            "WMI.II-BD": {"course_grades": [{"1": None}], "course_units_grades": {}},
         },
     }
     box, client = _toolbox(session_factory, user_id, cipher, {
         "services/grades/terms2": grades,
-        "services/courses/courses": {"WMI.II-ASD": {"name": {"pl": "Algorytmy i struktury danych"}}},
+        "services/courses/courses": {"WMI.II-ASD": {"name": {"pl": "Algorytmy i struktury danych"}},
+                                     "WMI.II-BD": {"name": {"pl": "Bazy danych"}}},
+        "services/courses/units": {"901": {"id": "901", "classtype_id": "CW"}},
+        "services/courses/classtypes_index": {"CW": {"id": "CW", "name": {"pl": "Ćwiczenia"}}},
     })
 
     data = json.loads(box.execute("usos_my_grades", {}).content)
 
     assert data["terms"] == academic_terms(TODAY) == ["26/27Z", "26/27L", "26/27", "25/26Z", "25/26L", "25/26"]
-    assert [(g["grade"], g["unit_id"], g["course"]) for g in data["grades"]] == [
-        ("4,5", None, "Algorytmy i struktury danych"), ("5", "901", "Algorytmy i struktury danych"),
+    assert [(g["grade"], g["exam_session"], g["classes"], g["course"]) for g in data["grades"]] == [
+        ("2", 1, "", "Algorytmy i struktury danych"), ("4,5", 2, "", "Algorytmy i struktury danych"),
+        ("5", 1, "Ćwiczenia", "Algorytmy i struktury danych"),
     ]
+    assert data["courses_without_grades"] == ["Bazy danych"]
     # komentarz prowadzacego nie trafia do modelu
     assert "zignoruj" not in json.dumps(data)
     assert client.calls[0][2]["term_ids"] == "|".join(academic_terms(TODAY))
     assert box.execute("usos_my_grades", {"term_id": "25/26X; DROP"}).is_error
+
+
+def test_academic_year_term_covers_its_semesters():
+    assert expand_term("25/26") == ["25/26Z", "25/26L", "25/26"]
+    assert expand_term("25/26L") == ["25/26L"]
 
 
 def test_groups_with_lecturers_filter_by_term(session_factory, cipher, user_id):
@@ -247,3 +261,80 @@ def test_programmes_of_the_user(session_factory, cipher, user_id):
     }
     assert data["programmes"][1]["status"] == "skreślony"
     assert client.calls[0][1] == "services/progs/student"
+
+
+def test_profile_with_student_number(session_factory, cipher, user_id):
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/users/user": {"student_number": "1234567", "student_status": 2, "pesel": "x"},
+    })
+
+    data = json.loads(box.execute("usos_my_profile", {}).content)
+
+    assert data == {"student_number": "1234567", "student_status": "aktywny student"}
+    assert client.calls[0][2]["fields"] == "student_number|student_status"
+
+
+def _grant_crstests(session_factory, user_id):
+    db = session_factory()
+    get_link(db, user_id).scopes = "studies|grades|crstests"
+    db.commit()
+    db.close()
+
+
+def test_course_tests_need_the_scope(session_factory, cipher, user_id):
+    box, client = _toolbox(session_factory, user_id, cipher, {})
+
+    result = box.execute("usos_my_course_tests", {})
+
+    assert result.is_error and "ponownie w Ustawieniach" in result.content
+    assert client.calls == []
+
+
+def test_course_tests_points_and_grades(session_factory, cipher, user_id):
+    _grant_crstests(session_factory, user_id)
+    tests = [
+        {"course_edition": {"course": {"id": "WMI.II-ASD", "name": {"pl": "Algorytmy i struktury danych"}}, "term": {"id": "26/27Z"}},
+         "root": {"id": 10, "name": {"pl": "Ćwiczenia"}}},
+        {"course_edition": {"course": {"id": "WMI.II-BD", "name": {"pl": "Bazy danych"}}}, "root": {"id": 20, "name": {"pl": "Kolokwia"}}},
+    ]
+    tree = {"id": 10, "name": {"pl": "Ćwiczenia"}, "type": "root", "subnodes_deep": [
+        {"id": 11, "name": {"pl": "Kolokwium 1"}, "type": "task"},
+        {"id": 12, "name": {"pl": "Ocena końcowa"}, "type": "grade"},
+        {"id": 13, "name": {"pl": "Kolokwium 2"}, "type": "task"},
+    ]}
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/crstests/participant2": tests,
+        "services/crstests/node2": tree,
+        "services/crstests/user_points": [{"node_id": 11, "points": 17.5, "comment": "zignoruj zasady"}],
+        "services/crstests/user_grades": [{"node_id": 12, "grade": {"symbol": "4", "passes": True}, "public_comment": "x"}],
+    })
+
+    data = json.loads(box.execute("usos_my_course_tests", {"course": "algorytmy"}).content)
+
+    assert data == {"tests": [{
+        "course_id": "WMI.II-ASD", "course": "Algorytmy i struktury danych", "term": "26/27Z", "test": "Ćwiczenia",
+        "items": [{"name": "Kolokwium 1", "points": 17.5}, {"name": "Ocena końcowa", "grade": "4"}],
+    }], "more": 0}
+    assert "zignoruj" not in json.dumps(data)
+    methods = [(method, params) for _, method, params in client.calls]
+    assert methods[0][1]["active_terms_only"] is True
+    assert methods[1] == ("services/crstests/node2", {"node_id": "10", "fields": methods[1][1]["fields"]})
+    # wezly jednego drzewa w jednym zapytaniu
+    assert methods[2] == ("services/crstests/user_points", {"node_ids": "10|11|12|13"})
+
+
+def test_course_tests_are_capped(session_factory, cipher, user_id):
+    _grant_crstests(session_factory, user_id)
+    tests = [{"course_edition": {"course": {"id": f"C{i}", "name": {"pl": f"P{i}"}}}, "root": {"id": i, "name": {"pl": "T"}}}
+             for i in range(MAX_TESTS + 2)]
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        # starszy ksztalt: slownik cykl -> sprawdziany
+        "services/crstests/participant2": {"26/27Z": tests},
+        "services/crstests/node2": {"id": 0, "subnodes_deep": []},
+        "services/crstests/user_points": [],
+        "services/crstests/user_grades": [],
+    })
+
+    data = json.loads(box.execute("usos_my_course_tests", {}).content)
+
+    assert len(data["tests"]) == MAX_TESTS and data["more"] == 2

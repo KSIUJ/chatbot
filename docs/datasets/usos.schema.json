@@ -421,6 +421,79 @@
       "title": "DormitoryRecord",
       "type": "object"
     },
+    "LecturerRecord": {
+      "additionalProperties": false,
+      "description": "Prowadzacy zajecia wydzialu spoza listy jego pracownikow (nauczyciel\nakademicki innej jednostki UJ) - karta jak pracownika. Osobny rodzaj, bo\nzbiera go kolektor przedmiotow, a przebieg scrapera podmienia rekordy\nrodzajami.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "lecturer",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lang"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "content": {
+          "default": "",
+          "title": "Content",
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/$defs/StaffAttributes"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "attributes"
+      ],
+      "title": "LecturerRecord",
+      "type": "object"
+    },
     "NewsAttributes": {
       "additionalProperties": false,
       "properties": {
@@ -1163,6 +1236,7 @@
       "calendar": "#/$defs/CalendarRecord",
       "course": "#/$defs/CourseRecord",
       "dormitory": "#/$defs/DormitoryRecord",
+      "lecturer": "#/$defs/LecturerRecord",
       "news": "#/$defs/NewsRecord",
       "page": "#/$defs/PageRecord",
       "programme": "#/$defs/ProgrammeRecord",
@@ -1175,6 +1249,9 @@
   "oneOf": [
     {
       "$ref": "#/$defs/StaffRecord"
+    },
+    {
+      "$ref": "#/$defs/LecturerRecord"
     },
     {
       "$ref": "#/$defs/NewsRecord"

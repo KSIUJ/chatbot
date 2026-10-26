@@ -165,7 +165,7 @@ def test_connect_and_callback_happy_path(client, keycloak, usos):
     assert authorize_url.startswith("https://apps.usos.uj.edu.pl/services/oauth/authorize?oauth_token=")
     [pending] = usos.request_tokens.values()
     assert pending.callback == "https://chat.test/api/usos/callback"
-    assert pending.scopes == "studies|grades|student_exams|offline_access"
+    assert pending.scopes == "studies|grades|crstests|student_exams|offline_access"
     cookie = r.headers["set-cookie"]
     assert cookie.startswith(f"{USOS_COOKIE}=")
     for flag in ("HttpOnly", "Secure", "SameSite=lax", "Path=/", "Max-Age=600"):
@@ -184,7 +184,7 @@ def test_connect_and_callback_happy_path(client, keycloak, usos):
     assert link.user_id == _user_id(client, "alice")
     assert link.usos_user_id == "123"
     assert link.usos_name == "Jan Kowalski"
-    assert link.scopes == "studies|grades|student_exams|offline_access"
+    assert link.scopes == "studies|grades|crstests|student_exams|offline_access"
     assert access_token not in link.token_enc and access_secret not in link.token_enc
     assert usos.calls[-1] == "services/users/user"
 
@@ -194,7 +194,7 @@ def test_connect_and_callback_happy_path(client, keycloak, usos):
     assert body["available"] is True and body["connected"] is True and body["needs_reconnect"] is False
     assert body["name"] == "Jan Kowalski"
     assert body["connected_at"] is not None
-    assert body["scopes"] == ["studies", "grades", "student_exams", "offline_access"]
+    assert body["scopes"] == ["studies", "grades", "crstests", "student_exams", "offline_access"]
     for secret in (access_token, access_secret, link.token_enc):
         assert secret not in status.text
 

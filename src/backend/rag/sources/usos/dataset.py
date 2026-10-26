@@ -1,7 +1,7 @@
 """Format zbioru USOS (data/usos/) - rekordy kilku rodzajow rozroznianych po `kind`.
 
-Pracownik (`staff`) ma wszystko w `attributes` i karte budowana przez RAG
-(documents.py). Pozostale rodzaje maja tresc w Markdownie (`content`, z
+Pracownik (`staff`, a prowadzacy spoza listy pracownikow wydzialu - `lecturer`)
+ma wszystko w `attributes` i karte budowana przez RAG (documents.py). Pozostale rodzaje maja tresc w Markdownie (`content`, z
 naglowkami - dziela ja na fragmenty) i w `attributes` tylko pola do
 metadanych i zrodel odpowiedzi.
 """
@@ -58,6 +58,15 @@ class StaffRecord(Record):
 
     kind: Literal["staff"]
     attributes: StaffAttributes
+
+
+class LecturerRecord(StaffRecord):
+    """Prowadzacy zajecia wydzialu spoza listy jego pracownikow (nauczyciel
+    akademicki innej jednostki UJ) - karta jak pracownika. Osobny rodzaj, bo
+    zbiera go kolektor przedmiotow, a przebieg scrapera podmienia rekordy
+    rodzajami."""
+
+    kind: Literal["lecturer"]  # type: ignore[assignment]
 
 
 # --- rekordy z trescia -----------------------------------------------------------------
@@ -218,6 +227,7 @@ class DormitoryRecord(_ContentRecord):
 UsosRecord = Annotated[
     Union[
         StaffRecord,
+        LecturerRecord,
         NewsRecord,
         PageRecord,
         UnitRecord,
