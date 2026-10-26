@@ -423,7 +423,7 @@
     },
     "LecturerRecord": {
       "additionalProperties": false,
-      "description": "Prowadzacy zajecia wydzialu spoza listy jego pracownikow (nauczyciel\nakademicki innej jednostki UJ) - karta jak pracownika. Osobny rodzaj, bo\nzbiera go kolektor przedmiotow, a przebieg scrapera podmienia rekordy\nrodzajami.",
+      "description": "Prowadzacy zajecia wydzialu spoza listy jego pracownikow (pracownik innej\njednostki UJ albo na umowie cywilnoprawnej) - karta jak pracownika. Osobny rodzaj, bo\nzbiera go kolektor przedmiotow, a przebieg scrapera podmienia rekordy\nrodzajami.",
       "properties": {
         "id": {
           "minLength": 1,
