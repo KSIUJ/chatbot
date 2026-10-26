@@ -3,6 +3,8 @@ Klient Claude API (Anthropic), uzywany gdy LLM_PROVIDER=claude. Ten sam
 interfejs chat(system, user, history=None) -> str i stream_chat(...) ->
 kawalki tekstu co ollama_client.py.
 
+Obsluguje narzedzia (llm/tools.py) w stream_chat - petla tool_use -> tool_result.
+
 Domyslnie Claude Haiku 5.5: mysli adaptacyjnie (bloki thinking sa pomijane -
 oddajemy tylko tekst), glebokosc ustawia CLAUDE_EFFORT (output_config.effort),
 a temperature/top_p sa niedozwolone (400), wiec ich nie wysylamy.
@@ -13,6 +15,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING
 
 from .images import ImageInput
+from .tools import MAX_ROUNDS, ToolBox, ToolResult
 from .provider import env_setting
 
 if TYPE_CHECKING:
@@ -136,23 +139,57 @@ def stream_chat(
     timeout: int = 300,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     images: Sequence[ImageInput] | None = None,
+    tools: ToolBox | None = None,
 ) -> Iterator[str]:
     """Jak chat(), ale oddaje kawalki tekstu na biezaco (messages.stream).
-    Zamkniecie generatora zamyka strumien i polaczenie."""
+    Zamkniecie generatora zamyka strumien i polaczenie.
+
+    `tools` - narzedzia dla modelu (llm/tools.py). Gdy model je wywola
+    (stop_reason "tool_use"), wyniki wracaja do niego jako tool_result i model
+    pisze dalej - najwyzej MAX_ROUNDS rund, w ostatniej narzedzia sa wylaczone
+    (tool_choice none), wiec odpowiedz zawsze konczy sie tekstem."""
     anthropic, client = _client(timeout)
     try:
         request = _request(system, user, history, model, max_tokens, images)
-        with client.messages.stream(**request) as stream:
-            produced = False
-            for text in stream.text_stream:
-                produced = produced or bool(text)
-                yield text
-            if not produced:
+        if tools is not None and tools.tools:
+            request["tools"] = tools.definitions()
+        messages = request["messages"]
+        produced = False
+        for round_number in range(MAX_ROUNDS + 1):
+            if "tools" in request and round_number == MAX_ROUNDS:
+                request["tool_choice"] = {"type": "none"}
+            round_text = False
+            with client.messages.stream(**request) as stream:
+                for text in stream.text_stream:
+                    if text and not round_text and produced:
+                        # tekst przed wywolaniem narzedzia i po nim - osobne akapity
+                        yield "\n\n"
+                    round_text = round_text or bool(text)
+                    produced = produced or bool(text)
+                    yield text
                 final = stream.get_final_message()
-                if final.stop_reason == "refusal":
-                    raise _refused(final.stop_reason, getattr(final, "stop_details", None))
+            if tools is None or final.stop_reason != "tool_use":
+                break
+            # bloki odpowiedzi (z thinking i tool_use) wracaja do modelu bez zmian
+            messages.append({"role": "assistant", "content": final.content})
+            messages.append({"role": "user", "content": [
+                _tool_result(block, tools.execute(block.name, block.input))
+                for block in final.content
+                if getattr(block, "type", None) == "tool_use"
+            ]})
+        if not produced and final.stop_reason == "refusal":
+            raise _refused(final.stop_reason, getattr(final, "stop_details", None))
     except Exception as e:
         translated = _translate_error(anthropic, e)
         if translated is None:
             raise
         raise translated from e
+
+
+def _tool_result(block: object, result: ToolResult) -> dict[str, object]:
+    return {
+        "type": "tool_result",
+        "tool_use_id": getattr(block, "id", ""),
+        "content": result.content,
+        "is_error": result.is_error,
+    }

@@ -172,3 +172,26 @@ def test_vision_capability_per_provider(monkeypatch, provider, expected):
     monkeypatch.setenv("LLM_PROVIDER", provider)
 
     assert provider_supports_images() is expected
+
+
+@pytest.mark.parametrize(("provider", "with_tools"), [("claude", True), ("openrouter", False), ("ollama", False)])
+def test_tools_only_for_providers_that_run_them(monkeypatch, provider, with_tools):
+    from src.backend.llm.tools import Tool, ToolBox, ToolResult
+
+    _fake_rag(monkeypatch)
+    monkeypatch.setenv("LLM_PROVIDER", provider)
+    seen = {}
+
+    def fake_stream(**kwargs):
+        seen.update(kwargs)
+        yield "ok"
+
+    monkeypatch.setattr(generate, "_resolve_stream_fn", lambda: fake_stream)
+    box = ToolBox(tools=[Tool("t", "x", {"type": "object"}, lambda a: ToolResult(""))], prompt="\nDANE UŻYTKOWNIKA Z USOS\n...")
+
+    stream = generate.stream_answer("mój plan?", tools=box)
+    list(stream.chunks)
+
+    assert ("tools" in seen) == with_tools
+    assert ("DANE UŻYTKOWNIKA Z USOS" in seen["system"]) == with_tools
+    assert (stream.tools is box) == with_tools
