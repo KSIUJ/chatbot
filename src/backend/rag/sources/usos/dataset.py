@@ -61,8 +61,8 @@ class StaffRecord(Record):
 
 
 class LecturerRecord(StaffRecord):
-    """Prowadzacy zajecia wydzialu spoza listy jego pracownikow (nauczyciel
-    akademicki innej jednostki UJ) - karta jak pracownika. Osobny rodzaj, bo
+    """Prowadzacy zajecia wydzialu spoza listy jego pracownikow (pracownik innej
+    jednostki UJ albo na umowie cywilnoprawnej) - karta jak pracownika. Osobny rodzaj, bo
     zbiera go kolektor przedmiotow, a przebieg scrapera podmienia rekordy
     rodzajami."""
 

@@ -341,7 +341,7 @@ def test_group_with_several_slots_lists_each_on_its_own_line():
 
 
 def test_lecturers_outside_faculty_without_doctoral_students():
-    group_lecturers = [{"id": str(i), "first_name": "X", "last_name": f"L{i}"} for i in range(2, 8)]
+    group_lecturers = [{"id": str(i), "first_name": "X", "last_name": f"L{i}"} for i in range(2, 9)]
     adjunct = [{"position": {"name": {"pl": "adiunkt"}}, "faculty": {"name": {"pl": "Wydział Fizyki"}}}]
     users = {
         # pracownik innego wydzialu - karta
@@ -352,7 +352,10 @@ def test_lecturers_outside_faculty_without_doctoral_students():
         "4": {"id": "4", "last_name": "L4", "staff_status": 2, "phd_student_status": 2, "employment_positions": adjunct},
         "5": {"id": "5", "last_name": "L5", "staff_status": 2, "student_status": 2, "employment_positions": adjunct},
         "7": {"id": "7", "last_name": "L7", "staff_status": 2, "employment_positions": []},
-        # nie jest nauczycielem akademickim
+        # wspolpracownik na umowie cywilnoprawnej (staff_status 1) - karta
+        "8": {"id": "8", "last_name": "L8", "staff_status": 1, "employment_positions": [
+            {"position": {"name": {"pl": "współpracownik"}}, "faculty": {"name": {"pl": "Umowy cywilnoprawne (ogólne)"}}}]},
+        # nie pracuje na UJ
         "6": {"id": "6", "last_name": "L6", "staff_status": 0, "employment_positions": adjunct},
     }
     ctx = context({
@@ -365,7 +368,7 @@ def test_lecturers_outside_faculty_without_doctoral_students():
 
     records = _valid(courses.collect(ctx))
 
-    assert [(r.kind, r.id) for r in records] == [("course", "course:WMI.IM-AM1"), ("lecturer", "2")]
+    assert [(r.kind, r.id) for r in records] == [("course", "course:WMI.IM-AM1"), ("lecturer", "2"), ("lecturer", "8")]
 
 
 def test_lecturers_of_skipped_courses_get_no_card():

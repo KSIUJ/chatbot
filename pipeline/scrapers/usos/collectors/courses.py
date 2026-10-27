@@ -18,8 +18,8 @@ kazda aktywna edycje. Ustala ctx.teaching_buildings (budynki z planu).
 
 Prowadzacy grup spoza listy pracownikow wydzialu (np. fizyk uczacy fizyki
 na WMI) dostaja karte jak pracownik (rodzaj `lecturer`, users/users z kluczem
-aplikacji) - tylko aktywni nauczyciele akademiccy UJ, bez doktorantow i
-studentow (ich danych nie zbieramy).
+aplikacji) - tylko obecni pracownicy UJ ze stanowiskiem (tez na umowe
+cywilnoprawna), bez doktorantow i studentow (ich danych nie zbieramy).
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ import logging
 
 from ..api import UsosError, fields
 from ..context import Context, Term
-from .staff import ACTIVE_STAFF, USER_FIELDS, staff_record
+from .staff import USER_FIELDS, staff_record
 from ..text import (
     document, format_date, frequency, join_nonempty, parse_datetime, pick, pick_markdown, section, weekday,
 )
@@ -61,6 +61,8 @@ LECTURER_FIELDS = fields(
     "student_status", "phd_student_status",
 )
 ACTIVE_STUDENT = 2
+# staff_status: 1 = pracownik (np. umowa cywilnoprawna), 2 = nauczyciel akademicki
+EMPLOYED = (1, 2)
 LANGUAGES = {"PL": "polski", "EN": "angielski", "DE": "niemiecki", "FR": "francuski", "ES": "hiszpański"}
 # ile niepustych tygodni planu zbierac na edycje (zajecia co dwa tygodnie wymagaja dwoch)
 TT_WEEKS = 2
@@ -181,10 +183,11 @@ def _add_lecturers(ctx: Context, groups: dict[tuple[str, int], Group]) -> None:
 
 
 def _card_allowed(user: dict) -> bool:
-    """Aktywny nauczyciel akademicki UJ ze stanowiskiem. Doktoranci zwykle nie maja
+    """Obecny pracownik UJ ze stanowiskiem - nauczyciel akademicki albo np. wspolpracownik
+    na umowie cywilnoprawnej (czesc zajec wydzialu prowadza tacy). Doktoranci zwykle nie maja
     stanowiska (a statusy studenta USOS z samym kluczem aplikacji zwraca jako null),
     wiec bez stanowiska karty nie ma."""
-    if user.get("staff_status") != ACTIVE_STAFF:
+    if user.get("staff_status") not in EMPLOYED:
         return False
     if ACTIVE_STUDENT in (user.get("student_status"), user.get("phd_student_status")):
         return False
