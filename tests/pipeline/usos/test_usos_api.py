@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 import requests
 
-from pipeline.scrapers.usos.api import BATCH_SIZE, ConsumerRequired, Credentials, UsosApi, UsosError
+from pipeline.scrapers.usos.api import BATCH_SIZE, RETRIES, ConsumerRequired, Credentials, UsosApi, UsosError
 
 
 class Response:
@@ -131,8 +131,16 @@ def test_pages_follow_next_page():
     assert [p["data"]["start"] for p in session.posts] == ["0", "2"]
 
 
-def test_non_json_200_is_a_usos_error():
-    api, _, _ = _api([Response(200, None, text="<html>przerwa techniczna</html>")])
+def test_non_json_200_is_retried_like_a_transient_error():
+    html = Response(200, None, text="<html>przerwa techniczna</html>")
+    api, session, sleeps = _api([html, html, Response(200, {"ok": True})])
+
+    assert api.call("services/a") == {"ok": True}
+    assert len(session.posts) == 3 and len(sleeps) == 2
+
+
+def test_non_json_200_after_retries_is_a_usos_error():
+    api, _, _ = _api([Response(200, None, text="<html>przerwa techniczna</html>")] * (RETRIES + 1))
 
     with pytest.raises(UsosError) as error:
         api.call("services/a")

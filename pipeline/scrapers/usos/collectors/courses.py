@@ -353,7 +353,8 @@ def collect(ctx: Context) -> Iterator[CourseRecord | LecturerRecord]:
             ]
         except UsosError as error:
             failures += 1
-            ctx.warn(f"{NAME}: {course_id} pominiety ({error})")
+            ctx.warn(f"{NAME}: {course_id} niepobrany - zostaje z poprzedniego zbioru ({error})")
+            ctx.unrefreshed.add(f"course:{course_id}")
             continue
         fac_id = str(course.get("fac_id") or "")
         if fac_id and not ctx.in_faculty(fac_id):

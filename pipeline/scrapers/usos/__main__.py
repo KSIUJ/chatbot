@@ -33,6 +33,7 @@ def _scrape(args: argparse.Namespace) -> int:
         "written": result.written,
         "records": dict(result.counts),
         "kept": dict(result.kept),
+        "carried": dict(result.carried),
         "failed": result.failed,
         "skipped": result.skipped,
         "shrunk": {kind: list(counts) for kind, counts in result.shrunk.items()},
