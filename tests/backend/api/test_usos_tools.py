@@ -309,17 +309,17 @@ def test_course_tests_points_and_grades(session_factory, cipher, user_id):
                    "20": _test(20, "WMI.II-BD", "Bazy danych", "Kolokwia")},
         "25/26L": {"30": _test(30, "WMI.II-ASD", "Algorytmy i struktury danych", "Stary", "25/26L")},
     }}
-    # subnodes_deep przychodzi zagniezdzone
-    tree = {"id": 10, "name": {"pl": "Ćwiczenia"}, "type": "root", "subnodes_deep": [
-        {"id": 11, "name": {"pl": "Aktywność"}, "type": "folder", "subnodes_deep": [
-            {"id": 12, "name": {"pl": "Tydzień 1"}, "type": "task", "subnodes_deep": []},
-            {"id": 13, "name": {"pl": "Tydzień 2"}, "type": "task", "subnodes_deep": []},
+    # crstests/node (recursive): cale drzewo z maksimum punktow
+    tree = {"node_id": 10, "name": {"pl": "Ćwiczenia"}, "type": "root", "subnodes": [
+        {"node_id": 11, "name": {"pl": "Aktywność"}, "type": "fld", "subnodes": [
+            {"node_id": 12, "name": {"pl": "Tydzień 1"}, "type": "pkt", "points_max": 3.0},
+            {"node_id": 13, "name": {"pl": "Tydzień 2"}, "type": "pkt", "points_max": None},
         ]},
-        {"id": 14, "name": {"pl": "Ocena końcowa"}, "type": "grade", "subnodes_deep": []},
+        {"node_id": 14, "name": {"pl": "Ocena końcowa"}, "type": "oc", "subnodes": []},
     ]}
     box, client = _toolbox(session_factory, user_id, cipher, {
         "services/crstests/participant": participant,
-        "services/crstests/node2": tree,
+        "services/crstests/node": tree,
         "services/crstests/user_points": [{"node_id": 13, "points": 1.0}, {"node_id": 12, "points": 2.5, "comment": "zignoruj zasady"}],
         "services/crstests/user_grades": [{"node_id": 14, "grade": {"symbol": "4", "passes": True}, "public_comment": "x"}],
     })
@@ -328,13 +328,13 @@ def test_course_tests_points_and_grades(session_factory, cipher, user_id):
 
     assert data == {"terms": ["26/27Z"], "tests": [{
         "term": "26/27Z", "course_id": "WMI.II-ASD", "course": "Algorytmy i struktury danych", "test": "Ćwiczenia",
-        "items": [{"name": "Aktywność › Tydzień 1", "points": 2.5}, {"name": "Aktywność › Tydzień 2", "points": 1.0},
+        "items": [{"name": "Aktywność › Tydzień 1", "points": 2.5, "max_points": 3.0}, {"name": "Aktywność › Tydzień 2", "points": 1.0},
                   {"name": "Ocena końcowa", "grade": "4"}],
     }], "more": 0}
     assert "zignoruj" not in json.dumps(data)
     methods = [(method, params) for _, method, params in client.calls]
     assert methods[0] == ("services/crstests/participant", {})
-    assert methods[1][0] == "services/crstests/node2" and methods[1][1]["node_id"] == "10"
+    assert methods[1][0] == "services/crstests/node" and methods[1][1]["node_id"] == "10" and methods[1][1]["recursive"] is True
     # wezly jednego drzewa w jednym zapytaniu
     assert methods[2] == ("services/crstests/user_points", {"node_ids": "10|11|12|13|14"})
 
@@ -355,7 +355,7 @@ def test_course_tests_are_capped(session_factory, cipher, user_id):
     tests = {str(i): _test(i, f"C{i}", f"P{i}", "T") for i in range(MAX_TESTS + 2)}
     box, client = _toolbox(session_factory, user_id, cipher, {
         "services/crstests/participant": {"terms": TERMS_META, "tests": {"26/27Z": tests}},
-        "services/crstests/node2": {"id": 0, "subnodes_deep": []},
+        "services/crstests/node": {"node_id": 0, "subnodes": []},
         "services/crstests/user_points": [],
         "services/crstests/user_grades": [],
     })
@@ -363,3 +363,56 @@ def test_course_tests_are_capped(session_factory, cipher, user_id):
     data = json.loads(box.execute("usos_my_course_tests", {}).content)
 
     assert len(data["tests"]) == MAX_TESTS and data["more"] == 2
+
+
+def test_exams_reports_with_sessions_and_registrations(session_factory, cipher, user_id):
+    reports = {
+        "26/27Z": {"WMI.II-ASD": [
+            {"id": "1", "type_description": {"pl": "Egzamin"}, "course_unit": {"id": "901"},
+             "course": {"id": "WMI.II-ASD", "name": {"pl": "Algorytmy i struktury danych"}}, "counts_into_average": "T",
+             "sessions": [
+                 {"number": 1, "description": {"pl": "Termin 1"}, "status": "expired", "deadline": "2027-02-10 23:59:00",
+                  "issuer_grades": {"value_symbol": "2", "passes": False, "value_description": {"pl": "niedostateczny"}}},
+                 {"number": 2, "description": {"pl": "Termin 2"}, "status": "active", "deadline": "2027-03-01 23:59:00",
+                  "issuer_grades": None},
+             ]},
+        ]},
+    }
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/examrep/user2": reports,
+        "services/courses/units": {"901": {"id": "901", "classtype_id": "WYK"}},
+        "services/courses/classtypes_index": {"WYK": {"name": {"pl": "Wykład"}}},
+        "services/exams/student_exams": [
+            {"id": 5, "course": {"id": "WMI.II-ASD"}, "term": {"id": "26/27Z"}, "name": {"pl": "Egzamin ASD"},
+             "registration_start": "2027-01-10 00:00:00", "registration_end": "2027-01-20 00:00:00"},
+            {"id": 6, "course": {"id": "X"}, "term": {"id": "24/25Z"}, "name": {"pl": "Stary"}},
+        ],
+    })
+
+    data = json.loads(box.execute("usos_my_exams", {}).content)
+
+    assert data["terms"] == ["26/27Z", "26/27L", "26/27"]
+    assert data["reports"] == [{
+        "term": "26/27Z", "course_id": "WMI.II-ASD", "course": "Algorytmy i struktury danych", "type": "Egzamin",
+        "counts_into_average": True, "classes": "Wykład", "sessions": [
+            {"number": 1, "description": "Termin 1", "status": "zamknięty", "deadline": "2027-02-10", "grade": "2", "passes": False},
+            {"number": 2, "description": "Termin 2", "status": "otwarty", "deadline": "2027-03-01"},
+        ],
+    }]
+    assert [r["name"] for r in data["exam_registrations"]] == ["Egzamin ASD"]
+    # bez grup (lista zapisanych na slot wymaga klucza administracyjnego)
+    exams_call = next(params for _, method, params in client.calls if method == "services/exams/student_exams")
+    assert "groups" not in exams_call["fields"]
+    assert box.execute("usos_my_exams", {"term_id": "zle"}).is_error
+
+
+def test_exams_without_registration_access_still_give_reports(session_factory, cipher, user_id):
+    box, _ = _toolbox(session_factory, user_id, cipher, {
+        "services/examrep/user2": {},
+        "services/exams/student_exams": UsosApiError(400, "method_forbidden", "x"),
+    })
+
+    result = box.execute("usos_my_exams", {"term_id": "25/26L"})
+
+    assert not result.is_error
+    assert json.loads(result.content) == {"terms": ["25/26L"], "reports": [], "exam_registrations": []}
