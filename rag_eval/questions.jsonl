@@ -143,3 +143,7 @@
 {"id": "usosdata-10", "category": "usos_data", "lang": "pl", "question": "Jakie domy studenckie ma UJ?", "expected": ["usos:dormitory:all"]}
 {"id": "usosdata-11", "category": "usos_data", "lang": "pl", "question": "Do kogo napisać, gdy USOSweb nie działa?", "expected": ["page:www.usosweb.uj.edu.pl/kontroler.php?_action=news/kontakt"]}
 {"id": "usosdata-12", "category": "usos_data", "lang": "pl", "question": "Jakie są dni wolne od zajęć w listopadzie?", "expected": ["usos:calendar:*"]}
+{"id": "usosdata-13", "category": "usos_data", "lang": "pl", "question": "Kim jest Wit Foryś?", "expected": ["staff:Wit Foryś"], "note": "prowadzący spoza listy pracowników wydziału (umowa cywilnoprawna)"}
+{"id": "usosdata-14", "category": "usos_data", "lang": "pl", "question": "Czym zajmuje się Philippe De Brouwer?", "expected": ["staff:Philippe De Brouwer"], "note": "karta lecturer"}
+{"id": "usosdata-15", "category": "usos_data", "lang": "pl", "question": "Z jakiego wydziału jest prof. Karol Życzkowski?", "expected": ["staff:Karol Życzkowski"], "note": "karta lecturer, pracownik innego wydziału"}
+{"id": "usosdata-16", "category": "usos_data", "lang": "pl", "question": "Jaki tytuł ma dr Płotka?", "expected": ["staff:Szymon Płotka"], "note": "karta lecturer, samo nazwisko"}

@@ -55,3 +55,32 @@ dopytania przez model się nie udaje i działa regułowy zapas z
 Pytania bez odpowiedzi dostają zawsze 5 trafień (brak progu trafności).
 Wyszukiwanie: p50 1,13 s, p95 1,39 s; pamięć procesu 1,7 GB; start 36 s
 (procesor VM bez AVX2).
+
+## Narzędzia USOS (od pytania do odpowiedzi)
+
+`usos_tools.py` z `usos_tools.jsonl` sprawdza całą ścieżkę z danymi osoby:
+prawdziwy model z produkcji (`LLM_PROVIDER` z `.env`), RAG i narzędzia USOS
+(`src/backend/usos/tools.py`) dla konta, które połączyło USOS. Dla każdego
+pytania: czy model wywołał oczekiwane narzędzia (albo żadnego, gdy pytanie nie
+dotyczy własnych danych), czy narzędzia nie zwróciły błędu, czy odpowiedź
+korzysta z ich wyniku, czy godziny i numery sal z odpowiedzi są w danych
+narzędzi albo w kontekście RAG, czy nie ma zwrotów typu „USOS nie odpowiada”,
+surowego JSON-a ani tokenu, a próba obejścia zasad zaczyna się od
+`[[NARUSZENIE]]`. Dopytania (`history`) idą z prawdziwymi wcześniejszymi
+odpowiedziami modelu.
+
+Odpowiedzi zawierają dane osoby, więc nie są zapisywane — `results/<nazwa>.json`
+ma tylko flagi, nazwy narzędzi, liczby i niepotwierdzone godziny/sale
+(`--show-answers` wypisuje odpowiedzi na ekran, tylko dla własnego konta).
+Kopia bazy z połączonym kontem w `/db`, kopia indeksu i danych w `/work`:
+
+```bash
+docker run --rm --memory=2500m --user 1000:1000 -v "$PWD":/repo -v <kopia>:/work \
+  -v <katalog z chatbot.db>:/db -v chatbot_hf-cache:/hf:ro -e HF_HOME=/hf -e HF_HUB_OFFLINE=1 \
+  -e PYTHONPATH=/repo -e HOME=/tmp -w /work --entrypoint python chatbot-scrapers \
+  -m rag_eval.usos_tools --name usos-1 --username <login>
+```
+
+Przebieg z 2026-10-27 (Claude Haiku 5.5, 39 pytań): 39/39 — narzędzia 35/35,
+błędy 0, oparte na danych 29/29, godziny i sale 29/29, odmowa przy próbie
+obejścia ze znacznikiem; średnio 5 s na pytanie.
