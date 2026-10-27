@@ -63,6 +63,9 @@ class Context:
     web: object | None = None
     # ostrzezenia przebiegu (pominiete czesci, bledy pojedynczych obiektow)
     warnings: list[str] = field(default_factory=list)
+    # id rekordow, ktorych nie udalo sie teraz pobrac (np. przedmiot przy chwilowej
+    # awarii USOS) - zostaja z poprzedniego zbioru zamiast zniknac z indeksu
+    unrefreshed: set[str] = field(default_factory=set)
 
     def warn(self, message: str) -> None:
         logger.warning(message)

@@ -167,3 +167,21 @@ def test_only_keeps_previous_records_of_dependencies(tmp_path, collectors):
 
     assert result.written and dict(result.counts) == {"news": 1} and result.kept == {"unit": 2}
     assert _ids(tmp_path) == ["news:2", "unit:UJ.WMI", "unit:UJ.WMI.II"]
+
+
+def test_records_that_could_not_be_fetched_stay_from_previous_dataset(tmp_path, collectors):
+    collectors(_collector("news", [_news(1), _news(2), _news(3)]), kinds={"news": ("news",)})
+    run_module.run(context({}), tmp_path / "usos")
+
+    def flaky(ctx):
+        # news:2 chwilowo niedostepny, news:3 zniknal naprawde
+        ctx.unrefreshed.add("news:2")
+        return [_news(1)]
+
+    collectors(SimpleNamespace(NAME="news", NEEDS_CONSUMER=False, collect=flaky), kinds={"news": ("news",)})
+    ctx = context({})
+    result = run_module.run(ctx, tmp_path / "usos")
+
+    assert result.written and result.counts == {"news": 2} and result.carried == {"news": 1}
+    assert _ids(tmp_path) == ["news:1", "news:2"]
+    assert any("z poprzedniego zbioru" in w for w in ctx.warnings)

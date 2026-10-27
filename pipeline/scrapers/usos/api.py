@@ -179,13 +179,17 @@ class UsosApi:
                 continue
             status = response.status_code
             if status == 200:
-                self._failures_in_row = 0
                 try:
-                    return response.json()
+                    body = response.json()
                 except ValueError as error:
-                    # np. strona HTML przerwy technicznej
-                    self.errors += 1
-                    raise UsosError(method, status, response.text) from error
+                    # strona HTML zamiast JSON-a (przerwa techniczna, chwilowa awaria) -
+                    # blad chwilowy jak 503: ponowienia i licznik kolejnych bledow
+                    if attempt < RETRIES:
+                        self._backoff(method, attempt, None, "HTTP 200 bez JSON-a")
+                        continue
+                    raise self._transient_failure(UsosError(method, status, response.text)) from error
+                self._failures_in_row = 0
+                return body
             retries = RETRIES_500 if status == 500 else RETRIES if status in RETRY_STATUSES else 0
             if attempt < retries:
                 self._backoff(method, attempt, response.headers.get("Retry-After"), f"HTTP {status}")

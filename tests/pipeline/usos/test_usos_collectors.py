@@ -204,6 +204,8 @@ def test_course_failure_is_skipped_with_warning():
 
     assert [r.id for r in records] == ["course:OK1", "course:OK2"]
     assert any("BAD" in w for w in ctx.warnings)
+    # zostanie z poprzedniego zbioru
+    assert ctx.unrefreshed == {"course:BAD"}
 
 
 # --- aktualnosci -----------------------------------------------------------------------

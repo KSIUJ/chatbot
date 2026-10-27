@@ -10,6 +10,8 @@ indeksu usunalby z niego wszystko, czego nie udalo sie pobrac:
   zostaja z poprzedniego zbioru,
 - --only zbiera wybrane kolektory (z ich zaleznosciami) i podmienia tylko ich
   rodzaje rekordow - reszta zostaje z poprzedniego zbioru,
+- rekord, ktorego kolektor nie zdolal teraz pobrac (ctx.unrefreshed, np. przedmiot
+  przy chwilowej awarii USOS), zostaje z poprzedniego zbioru,
 - rodzaj rekordow, ktorych jest nagle o ponad polowe mniej niz poprzednio
   (np. pusta odpowiedz API), wstrzymuje zapis bez --force.
 """
@@ -78,6 +80,8 @@ class RunResult:
     skipped: list[str] = field(default_factory=list)
     # rodzaje rekordow wziete z poprzedniego zbioru (nie zbierane w tym przebiegu)
     kept: Counter = field(default_factory=Counter)
+    # rekordy niepobrane teraz, wziete z poprzedniego zbioru (ctx.unrefreshed): rodzaj -> liczba
+    carried: Counter = field(default_factory=Counter)
     # rodzaje z podejrzanym spadkiem liczby rekordow: rodzaj -> (bylo, jest)
     shrunk: dict[str, tuple[int, int]] = field(default_factory=dict)
     # rekordy z tekstem pasujacym do heurystyki prob obejscia promptu: id -> reguly
@@ -215,9 +219,18 @@ def run(
     previous = _previous(out_dir)
     before = Counter(record.kind for record in previous)
     for record in previous:
-        if record.kind not in fresh_kinds and record.id not in records:
+        if record.id in records:
+            continue
+        if record.kind not in fresh_kinds:
             records[record.id] = record
             result.kept[record.kind] += 1
+        elif record.id in ctx.unrefreshed:
+            records[record.id] = record
+            result.counts[record.kind] += 1
+            result.carried[record.kind] += 1
+    if result.carried:
+        ctx.warn("niepobrane teraz, z poprzedniego zbioru: " + ", ".join(
+            f"{kind} {count}" for kind, count in sorted(result.carried.items())))
     for kind in fresh_kinds:
         old, new = before.get(kind, 0), result.counts.get(kind, 0)
         if old >= MIN_COUNT_FOR_GUARD and new < old * MIN_KEPT_RATIO:
