@@ -311,3 +311,90 @@ def test_model_without_vision_surfaces_api_error(transport):
 
     with pytest.raises(RuntimeError, match="OpenRouter"):
         openrouter_client.chat(system="s", user="u", images=[ImageInput("image/png", b"x")])
+
+
+# --- narzedzia (tool calls) ------------------------------------------------------
+
+
+class ScriptedTransport:
+    """Kolejne odpowiedzi strumienia na kolejne zapytania; kopia kazdego payloadu
+    (lista wiadomosci rosnie miedzy rundami)."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.payloads = []
+
+    def __call__(self, method, url, **kwargs):
+        self.payloads.append(json.loads(json.dumps(kwargs["json"])))
+        return self.responses.pop(0)
+
+
+def _tool_call_round(*deltas):
+    return FakeStreamResponse([_sse({"choices": [{"delta": {"tool_calls": [d]}}]}) for d in deltas]
+                              + [_sse({"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}), b"data: [DONE]"])
+
+
+def _scripted(monkeypatch, *responses):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    fake = ScriptedTransport(responses)
+    monkeypatch.setattr(requests, "request", fake)
+    return fake
+
+
+def _box(calls, result=None):
+    from src.backend.llm.tools import Tool, ToolBox, ToolResult
+
+    def timetable(arguments):
+        calls.append(dict(arguments))
+        return result or ToolResult('{"activities":[]}')
+
+    return ToolBox(tools=[Tool("usos_my_timetable", "plan", {"type": "object", "properties": {}}, timetable)])
+
+
+def test_stream_chat_runs_tool_calls_and_continues(monkeypatch):
+    fake = _scripted(
+        monkeypatch,
+        # argumenty przychodza w kawalkach, laczy je index
+        _tool_call_round({"index": 0, "id": "call_1", "type": "function", "function": {"name": "usos_my_timetable", "arguments": '{"da'}},
+                         {"index": 0, "function": {"arguments": 'ys": 1}'}}),
+        FakeStreamResponse([_sse(_delta("Jutro nie masz zajęć.")), b"data: [DONE]"]),
+    )
+    calls = []
+    box = _box(calls)
+
+    text = "".join(openrouter_client.stream_chat("system", "Co mam jutro?", tools=box))
+
+    assert text == "Jutro nie masz zajęć."
+    assert calls == [{"days": 1}]
+    first, second = fake.payloads
+    assert first["tools"] == [{"type": "function", "function": {
+        "name": "usos_my_timetable", "description": "plan", "parameters": {"type": "object", "properties": {}}}}]
+    assert "tool_choice" not in first
+    assistant, result = second["messages"][-2:]
+    assert assistant == {"role": "assistant", "content": None, "tool_calls": [
+        {"id": "call_1", "type": "function", "function": {"name": "usos_my_timetable", "arguments": '{"days": 1}'}}]}
+    assert result == {"role": "tool", "tool_call_id": "call_1", "content": '{"activities":[]}'}
+    assert box.used == ["usos_my_timetable"]
+
+
+def test_stream_chat_marks_tool_errors_and_disables_tools_in_last_round(monkeypatch):
+    from src.backend.llm.tools import MAX_ROUNDS, ToolResult
+
+    rounds = [_tool_call_round({"index": 0, "id": f"c{i}", "function": {"name": "usos_my_timetable", "arguments": "{}"}})
+              for i in range(MAX_ROUNDS)]
+    fake = _scripted(monkeypatch, *rounds, FakeStreamResponse([_sse(_delta("Nie udało się.")), b"data: [DONE]"]))
+
+    text = "".join(openrouter_client.stream_chat("s", "plan?", tools=_box([], ToolResult("USOS nie odpowiada.", is_error=True))))
+
+    assert text == "Nie udało się."
+    assert len(fake.payloads) == MAX_ROUNDS + 1
+    assert fake.payloads[-1]["tool_choice"] == "none"
+    assert all("tool_choice" not in p for p in fake.payloads[:-1])
+    assert fake.payloads[1]["messages"][-1]["content"] == "BŁĄD: USOS nie odpowiada."
+
+
+def test_stream_chat_without_tools_sends_no_tool_definitions(monkeypatch):
+    fake = _scripted(monkeypatch, FakeStreamResponse([_sse(_delta("Cześć")), b"data: [DONE]"]))
+
+    assert "".join(openrouter_client.stream_chat("s", "hej")) == "Cześć"
+    assert "tools" not in fake.payloads[0]

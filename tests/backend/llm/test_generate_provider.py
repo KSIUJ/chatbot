@@ -174,7 +174,7 @@ def test_vision_capability_per_provider(monkeypatch, provider, expected):
     assert provider_supports_images() is expected
 
 
-@pytest.mark.parametrize(("provider", "with_tools"), [("claude", True), ("openrouter", False), ("ollama", False)])
+@pytest.mark.parametrize(("provider", "with_tools"), [("claude", True), ("openrouter", True), ("ollama", False)])
 def test_tools_only_for_providers_that_run_them(monkeypatch, provider, with_tools):
     from src.backend.llm.tools import Tool, ToolBox, ToolResult
 
