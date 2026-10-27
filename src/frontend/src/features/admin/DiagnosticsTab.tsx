@@ -119,9 +119,19 @@ function DiagnosticsCards({ lang, data }: { lang: Translation; data: Diagnostics
             <p className={`${HINT} pt-2 pb-1`}>{text.sourceCounts}</p>
             {rag.sources.map((source) => (
               <Row key={source.name} label={source.name}>
-                {`${source.documents === null ? EMPTY : count(source.documents)} / ${
-                  source.lexical === null ? EMPTY : count(source.lexical)
-                }`}
+                <span className="flex flex-col items-end">
+                  <span>
+                    {`${source.documents === null ? EMPTY : count(source.documents)} / ${
+                      source.lexical === null ? EMPTY : count(source.lexical)
+                    }`}
+                  </span>
+                  {(source.collectedAt !== null || source.stale) && (
+                    <span className={`text-xs font-normal ${source.stale ? 'text-danger-text' : 'text-muted'}`}>
+                      {source.collectedAt !== null && text.collectedAt(date(source.collectedAt))}
+                      {source.stale && ` · ${text.stale}`}
+                    </span>
+                  )}
+                </span>
               </Row>
             ))}
           </>

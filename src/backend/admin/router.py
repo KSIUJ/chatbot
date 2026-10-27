@@ -10,6 +10,7 @@ incydentow ma wlasne endpointy (/admin/feedback*, /admin/incidents*).
     DELETE /admin/users/{id}/limit   -> powrot do limitu globalnego
     GET    /admin/diagnostics        -> stan modelu, uzycie, RAG, baza i dysk
                                         (cache ~15 s, ?refresh=1 liczy od nowa)
+    GET    /admin/alerts             -> ostrzezenia nad zakladkami (np. nieodswiezane dane USOS)
 """
 
 from __future__ import annotations
@@ -37,12 +38,14 @@ from ..models import User
 from .diagnostics import (
     DiagnosticsCache,
     DiagnosticsConfig,
+    alerts,
     collect_diagnostics,
     get_diagnostics_cache,
     get_diagnostics_config,
 )
 from .schemas import (
     MAX_QUERY_LENGTH,
+    AdminAlerts,
     AdminSettingsResponse,
     AdminSettingsUpdate,
     AdminUserItem,
@@ -199,3 +202,14 @@ def admin_diagnostics(
         return collect_diagnostics(db, config, now, usage_day(now))
 
     return cache.get(compute, refresh=refresh)
+
+
+@router.get("/alerts", response_model=AdminAlerts)
+def admin_alerts(
+    clock: Clock = Depends(get_clock),
+    config: DiagnosticsConfig = Depends(get_diagnostics_config),
+    _admin: User = Depends(require_admin),
+) -> AdminAlerts:
+    """Ostrzezenia nad zakladkami panelu: dane zrodel odswiezanych automatycznie
+    (USOS), ktore sa za stare - znak, ze odswiezanie z crona nie dziala."""
+    return alerts(config, clock())

@@ -235,6 +235,21 @@ class RagSourceDiagnostics(BaseModel):
     # wpisy w indeksie BM25 (liczone na zywo)
     lexical: int | None
     collected_at: datetime | None
+    # dane zrodla odswiezanego automatycznie sa starsze niz pozwala MAX_DATA_AGE
+    stale: bool = False
+
+
+class StaleSource(BaseModel):
+    name: str
+    # kiedy zebrano dane w biezacym indeksie; None = zrodla nie ma w indeksie
+    collected_at: datetime | None
+    max_age_hours: int
+
+
+class AdminAlerts(BaseModel):
+    """Ostrzezenia pokazywane nad zakladkami panelu (GET /admin/alerts)."""
+
+    stale_sources: list[StaleSource]
 
 
 class RagDiagnostics(BaseModel):

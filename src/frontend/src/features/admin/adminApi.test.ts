@@ -3,6 +3,7 @@ import {
   diagnosticsPath,
   feedbackExportUrl,
   parseAdminSettings,
+  parseAlerts,
   parseDiagnostics,
   parseBlockList,
   parseIncidentPage,
@@ -321,5 +322,41 @@ describe('parseBlockList', () => {
   it('rejects a list without the limit or an entry without a person', () => {
     expect(() => parseBlockList({ items: [] })).toThrow();
     expect(() => parseBlockList({ warning_limit: 3, items: [{ warnings: 1 }] })).toThrow();
+  });
+});
+
+describe('parseAlerts', () => {
+  it('reads stale sources, also one missing from the index', () => {
+    expect(parseAlerts({
+      stale_sources: [
+        { name: 'usos', collected_at: '2026-10-24T03:40:00Z', max_age_hours: 48 },
+        { name: 'x', collected_at: null, max_age_hours: 48 },
+      ],
+    })).toEqual({
+      staleSources: [
+        { name: 'usos', collectedAt: '2026-10-24T03:40:00Z', maxAgeHours: 48 },
+        { name: 'x', collectedAt: null, maxAgeHours: 48 },
+      ],
+    });
+  });
+
+  it('marks stale sources in the diagnostics', () => {
+    const rag = parseDiagnostics({
+      generated_at: 'x',
+      llm: {
+        provider: 'claude', model: 'm', started_at: 'x', uptime_seconds: 1, total_calls: 0, total_errors: 0,
+        recent_calls: 0, recent_errors: 0, avg_latency_ms: null, p95_latency_ms: null, last_error: null, last_error_at: null,
+      },
+      usage: { questions_today: 0, questions_7d: 0, active_users_today: 0, active_users_7d: 0 },
+      totals: { users: 0, conversations: 0, messages: 0, open_reports: 0, open_incidents: 0 },
+      rag: {
+        vector_count: 1, vector_error: null, lexical_count: 1, lexical_size_bytes: 1, lexical_error: null,
+        last_ingest_at: null, last_ingest_error: null,
+        sources: [{ name: 'usos', documents: 1, lexical: 1, collected_at: null, stale: true }],
+      },
+      storage: { database_size_bytes: 1, database_error: null, disk_free_bytes: 1, disk_total_bytes: 2, disk_error: null },
+    }).rag;
+
+    expect(rag.sources[0].stale).toBe(true);
   });
 });

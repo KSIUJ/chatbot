@@ -7,6 +7,8 @@ import IncidentsTab from './IncidentsTab';
 import LimitsTab from './LimitsTab';
 import ReportsTab from './ReportsTab';
 import { ADMIN_TABS, tabForKey, type AdminTab } from './tabs';
+import { fetchAlerts, type StaleSource } from './adminApi';
+import { formatDateTime } from './format';
 
 interface AdminPanelProps {
   lang: Translation;
@@ -28,6 +30,26 @@ function TabContent({ tab, lang }: { tab: AdminTab; lang: Translation }) {
   }
 }
 
+// Above the tabs, whatever tab is open: data that the nightly refresh should
+// have renewed is too old. A failed alerts request just shows nothing.
+export function StaleDataBanner({ lang, sources }: { lang: Translation; sources: StaleSource[] }) {
+  if (sources.length === 0) return null;
+  const text = lang.admin;
+  return (
+    <div role="status" className="px-3 sm:px-4 py-2.5 border-b border-danger/40 bg-danger/10 text-sm text-fg">
+      {sources.map((source) => (
+        <p key={source.name} className="font-semibold">
+          {text.staleData(
+            source.name === 'usos' ? 'USOS' : source.name,
+            source.collectedAt === null ? null : formatDateTime(source.collectedAt, lang.htmlLang),
+          )}
+        </p>
+      ))}
+      <p className="text-xs text-muted">{text.staleHint}</p>
+    </div>
+  );
+}
+
 // Full-screen admin view over the chat (the chat stays mounted underneath, so
 // an answer being streamed is not lost). Tabs follow the WAI-ARIA tabs pattern;
 // the server checks the admin group on every request anyway.
@@ -39,6 +61,19 @@ export default function AdminPanel({ lang, onClose }: AdminPanelProps) {
   const baseId = useId();
   const tabId = (value: AdminTab) => `${baseId}-tab-${value}`;
   const panelId = `${baseId}-panel`;
+  const [staleSources, setStaleSources] = useState<StaleSource[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchAlerts()
+      .then((alerts) => {
+        if (active) setStaleSources(alerts.staleSources);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // the view replaces the whole screen: start reading from its title
   useEffect(() => {
@@ -64,6 +99,8 @@ export default function AdminPanel({ lang, onClose }: AdminPanelProps) {
           {text.title}
         </h1>
       </header>
+
+      <StaleDataBanner lang={lang} sources={staleSources} />
 
       <div role="tablist" aria-label={text.sections} className="flex gap-1 px-3 sm:px-4 border-b border-line bg-surface overflow-x-auto overflow-y-hidden [scrollbar-width:thin]">
         {ADMIN_TABS.map((value) => {
