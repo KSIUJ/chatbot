@@ -1,0 +1,12 @@
+# Obraz do uruchamiania scraperow na serwerze (refresh-usos.sh): obraz backendu
+# z deployu + biblioteki scraperow z requirements-dev.txt (bs4, lxml, OAuth1).
+# Kod jest montowany z repozytorium, wiec obraz nie zawiera pipeline/scrapers.
+#
+#   docker build -f Dockerfile.scrapers -t chatbot-scrapers .
+ARG BASE=chatbot-backend
+FROM ${BASE}
+USER root
+COPY requirements.txt requirements-dev.txt /tmp/requirements/
+RUN pip install --no-cache-dir -r /tmp/requirements/requirements-dev.txt && rm -rf /tmp/requirements
+USER app
+ENTRYPOINT []
