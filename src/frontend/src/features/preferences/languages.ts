@@ -141,6 +141,12 @@ export interface AdminTranslation {
   indexOk: string;
   indexMismatch: string;
   sourceCounts: string;
+  // data of one source in the index, e.g. "data from 27.10.2026, 04:40"
+  collectedAt: (date: string) => string;
+  stale: string;
+  // banner above the tabs: date null = no data of that source in the index
+  staleData: (source: string, date: string | null) => string;
+  staleHint: string;
   storage: string;
   databaseSize: string;
   diskFree: string;

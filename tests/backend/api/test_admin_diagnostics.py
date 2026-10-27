@@ -322,6 +322,41 @@ def test_legacy_layout_has_no_index_name_but_counts_sources(admin, config):
     rag = admin.get("/admin/diagnostics").json()["rag"]
 
     assert rag["index_name"] is None and rag["embedding_model"] is None
-    assert rag["sources"] == [{"name": "strony", "documents": None, "lexical": 2, "collected_at": None}]
+    assert rag["sources"] == [{"name": "strony", "documents": None, "lexical": 2, "collected_at": None, "stale": False}]
     assert rag["index_mismatch"] is False
     assert rag["index_warnings"]
+
+
+# --- ostrzezenia nad zakladkami (GET /admin/alerts) -------------------------------------------
+
+def _set_usos_collected_at(result, when):
+    import json
+
+    meta_path = result.directory / "meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["sources"]["usos"]["dataset"] = {"collected_at": when.isoformat()} if when else None
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("collected", "stale"),
+    [(NOW - timedelta(hours=30), False), (NOW - timedelta(days=3), True), (None, True)],
+)
+def test_alerts_flag_usos_data_that_is_not_refreshed(admin, config, collected, stale):
+    _set_usos_collected_at(_build_index(config.dataset_dir), collected)
+
+    body = admin.get("/admin/alerts").json()
+    rag = admin.get("/admin/diagnostics").json()["rag"]
+
+    expected = [{"name": "usos", "collected_at": collected.isoformat().replace("+00:00", "Z") if collected else None,
+                 "max_age_hours": 48}] if stale else []
+    assert [{**s, "collected_at": s["collected_at"] and s["collected_at"].replace("+00:00", "Z")}
+            for s in body["stale_sources"]] == expected
+    assert {s["name"]: s["stale"] for s in rag["sources"]} == {"mordor": False, "usos": stale}
+
+
+def test_alerts_without_index_and_for_members(admin, client):
+    assert admin.get("/admin/alerts").json() == {"stale_sources": []}
+
+    login(client, client.keycloak, "member", groups=[MEMBER_GROUP])
+    assert client.get("/admin/alerts").status_code == 403

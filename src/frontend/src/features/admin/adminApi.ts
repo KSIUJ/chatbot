@@ -142,6 +142,20 @@ export interface RagSourceCounts {
   documents: number | null;
   lexical: number | null;
   collectedAt: string | null;
+  // data of an automatically refreshed source is older than allowed
+  stale: boolean;
+}
+
+// A source refreshed automatically (cron) whose data is too old - the refresh
+// is probably broken. collectedAt null = the source is missing from the index.
+export interface StaleSource {
+  name: string;
+  collectedAt: string | null;
+  maxAgeHours: number;
+}
+
+export interface AdminAlerts {
+  staleSources: StaleSource[];
 }
 
 // One diagnostics value: null with the error text when that part is unavailable.
@@ -369,8 +383,23 @@ function parseRagSources(rag: JsonRecord): RagSourceCounts[] {
       documents: optNum(source, 'documents'),
       lexical: optNum(source, 'lexical'),
       collectedAt: optStr(source, 'collected_at'),
+      stale: source.stale === undefined ? false : bool(source, 'stale'),
     };
   });
+}
+
+export function parseAlerts(value: unknown): AdminAlerts {
+  const body = record(value, 'alerts');
+  return {
+    staleSources: list(body, 'stale_sources').map((item) => {
+      const source = record(item, 'stale_sources');
+      return {
+        name: str(source, 'name'),
+        collectedAt: optStr(source, 'collected_at'),
+        maxAgeHours: num(source, 'max_age_hours'),
+      };
+    }),
+  };
 }
 
 export function parseDiagnostics(value: unknown): Diagnostics {
@@ -539,6 +568,10 @@ export async function unblockPerson(userId: string): Promise<WarnedPerson> {
 // The server keeps a snapshot for ~15 s; `refresh` asks for a new one.
 export function diagnosticsPath(refresh: boolean): string {
   return refresh ? '/admin/diagnostics?refresh=1' : '/admin/diagnostics';
+}
+
+export async function fetchAlerts(): Promise<AdminAlerts> {
+  return parseAlerts(await apiJson<unknown>('/admin/alerts'));
 }
 
 export async function fetchDiagnostics(refresh = false): Promise<Diagnostics> {

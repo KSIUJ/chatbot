@@ -39,10 +39,12 @@ from ..rag.core.encoder import configured_settings
 from ..rag.core.lexical import TABLE as LEXICAL_TABLE
 from ..rag.core.vectorstore import COLLECTION_NAME
 from .schemas import (
+    AdminAlerts,
     DiagnosticsResponse,
     LlmDiagnostics,
     RagDiagnostics,
     RagSourceDiagnostics,
+    StaleSource,
     StorageDiagnostics,
     TotalsDiagnostics,
     UsageDiagnostics,
@@ -223,6 +225,34 @@ def _timestamp(value: object) -> datetime | None:
         return None
 
 
+# zrodla odswiezane automatycznie (refresh-usos.sh z crona co noc) - dane starsze
+# niz tyle znacza, ze odswiezanie nie dziala; panel pokazuje wtedy ostrzezenie
+MAX_DATA_AGE: dict[str, timedelta] = {"usos": timedelta(days=2)}
+
+
+def _collected_at(meta: dict | None, name: str) -> datetime | None:
+    return _timestamp(((((meta or {}).get("sources") or {}).get(name) or {}).get("dataset") or {}).get("collected_at"))
+
+
+def stale_sources(meta: dict | None, now: datetime) -> list[StaleSource]:
+    """Zrodla z MAX_DATA_AGE, ktorych dane w indeksie sa za stare albo ich nie ma.
+    Bez indeksu (meta None) - nic: to inny problem, widoczny w diagnostyce."""
+    if meta is None:
+        return []
+    stale = []
+    for name, max_age in sorted(MAX_DATA_AGE.items()):
+        collected = _collected_at(meta, name)
+        if collected is None or now - collected > max_age:
+            stale.append(StaleSource(name=name, collected_at=collected, max_age_hours=int(max_age.total_seconds() // 3600)))
+    return stale
+
+
+def alerts(config: DiagnosticsConfig, now: datetime) -> AdminAlerts:
+    """Tani odczyt samego meta.json biezacego indeksu - panel pyta przy kazdym otwarciu."""
+    meta, _error = _attempt(lambda: index_store.resolve(config.dataset_dir).meta())
+    return AdminAlerts(stale_sources=stale_sources(meta, now))
+
+
 def _built_at(meta: dict) -> datetime:
     built = _timestamp(meta.get("created_at"))
     if built is None:
@@ -253,7 +283,7 @@ def _index_warnings(
     return problems
 
 
-def rag_section(config: DiagnosticsConfig) -> RagDiagnostics:
+def rag_section(config: DiagnosticsConfig, now: datetime) -> RagDiagnostics:
     location = index_store.resolve(config.dataset_dir)
     meta = location.meta()
     pointer_broken = location.directory is None and (config.dataset_dir / index_store.POINTER_FILE).exists()
@@ -267,12 +297,14 @@ def rag_section(config: DiagnosticsConfig) -> RagDiagnostics:
         last_ingest, ingest_error = _attempt(lambda: _last_modified(config.dataset_dir))
 
     meta_sources = (meta or {}).get("sources") or {}
+    stale = {source.name for source in stale_sources(meta, now)}
     sources = [
         RagSourceDiagnostics(
             name=name,
             documents=(meta_sources.get(name) or {}).get("documents") if meta is not None else None,
             lexical=lexical.get(name, 0) if lexical is not None else None,
-            collected_at=_timestamp(((meta_sources.get(name) or {}).get("dataset") or {}).get("collected_at")),
+            collected_at=_collected_at(meta, name),
+            stale=name in stale,
         )
         for name in sorted(set(meta_sources) | set(lexical or {}))
     ]
@@ -344,7 +376,7 @@ def collect_diagnostics(db: Session, config: DiagnosticsConfig, now: datetime, t
         llm=llm_section(),
         usage=usage_section(db, today),
         totals=totals_section(db),
-        rag=rag_section(config),
+        rag=rag_section(config, now),
         storage=storage_section(config),
     )
 
