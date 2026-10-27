@@ -32,8 +32,8 @@ def provider_supports_images(provider: str | None = None) -> bool:
 
 
 # Dostawcy, ktorym dajemy narzedzia (llm/tools.py) - petla tool use jest
-# zaimplementowana tylko w claude_client.py.
-TOOL_PROVIDERS = frozenset({"claude"})
+# w claude_client.py i openrouter_client.py.
+TOOL_PROVIDERS = frozenset({"claude", "openrouter"})
 
 
 def provider_supports_tools(provider: str | None = None) -> bool:

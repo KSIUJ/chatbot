@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 MAX_CALLS = 6
 MAX_ROUNDS = 3
 # wynik narzedzia jest przycinany - nie zalewamy kontekstu modelu
-MAX_RESULT_CHARS = 8000
+MAX_RESULT_CHARS = 12000
 
 
 @dataclass(frozen=True)

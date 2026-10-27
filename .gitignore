@@ -29,6 +29,7 @@ coverage/
 
 # logs, editors, OS
 *.log
+logs/
 .vscode/
 .idea/
 .DS_Store
