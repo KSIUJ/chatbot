@@ -24,10 +24,24 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+# skad wiadomo, ze przedmiot liczy sie do kierunku - model ma to powiedziec wprost,
+# nie przypisywac USOS-owi decyzji, ktora podjal na prosbe osoby
+# (w wyniku krotki kod przy kazdym przedmiocie i raz ta legenda - wynik ma limit dlugosci)
+ASSIGNED_BY = {
+    "link": "powiązanie z rejestracji w USOS",
+    "only_programme": "jedyny kierunek z punktami w tym roku akademickim",
+    "user_request": "dodany na prośbę użytkownika (USOS nie podaje kierunku)",
+    "none": "bez kierunku - liczony tylko do średniej ogólnej i rocznej",
+}
+_CODES = {"link": "link", "only": "only_programme", "include": "user_request"}
+# bez filtra kierunku i roku lista przedmiotow tylko do tylu (kilka lat studiow przekroczylyby limit wyniku)
+MAX_LISTED_COURSES = 30
+
 METHOD = (
     "Średnia z ocen, które USOS oznacza jako wliczane do średniej, ze wszystkich terminów (także niedostatecznych "
     "i poprawkowych), bez ocen opisowych; ważona: każda ocena z wagą punktów ECTS przedmiotu. To szacunek - "
-    "oficjalna średnia jest w USOSweb. Przedmioty bez pewnego kierunku są w unassigned_courses."
+    "oficjalna średnia jest w USOSweb. Przedmioty bez pewnego kierunku są w unassigned_courses. USOS nie podaje "
+    "przypisania przedmiotów do kierunków z wcześniejszych cykli - counted_courses mówi, skąd wiadomo o każdym."
 )
 
 
@@ -159,7 +173,7 @@ def compute_averages(
     by_programme: dict[str, Stats] = {p.id: Stats() for p in programmes}
     programme_years: dict[tuple[str, int], Stats] = {}
     unassigned: dict[tuple[str, str], list[str]] = {}
-    used_courses: set[tuple[str, str]] = set()
+    counted: dict[tuple[str, str], dict[str, Any]] = {}
 
     for entry in grades:
         start = academic_year(entry.term)
@@ -180,7 +194,13 @@ def compute_averages(
         weight = ects.get((entry.term, entry.course_id))
         overall.add(entry.value, weight)
         by_year.setdefault(start, Stats()).add(entry.value, weight)
-        used_courses.add((entry.term, entry.course_id))
+        row = counted.setdefault((entry.term, entry.course_id), {
+            "term": entry.term, "course_id": entry.course_id, "course": names.get(entry.course_id, ""),
+            "grades": [], "ects": weight,
+            "programmes": [o.name for o in owners] if certain else [],
+            "assigned_by": _CODES.get(how, "none"),
+        })
+        row["grades"].append(_number(entry.value))
         if not certain:
             if owners:
                 unassigned[(entry.term, entry.course_id)] = [o.name for o in owners]
@@ -190,6 +210,7 @@ def compute_averages(
             programme_years.setdefault((owner.id, start), Stats()).add(entry.value, weight)
 
     shown = selected if wanted else programmes
+    listed = bool(wanted or year is not None) or len(counted) <= MAX_LISTED_COURSES
     return {
         "method": METHOD,
         "filters": {"programme": programme or None, "academic_year": year_label(year) if year else None,
@@ -214,7 +235,11 @@ def compute_averages(
             {"term": term, "course_id": cid, "course": names.get(cid, ""), "possible_programmes": owners}
             for (term, cid), owners in sorted(unassigned.items())
         ],
-        "courses_counted": len(used_courses),
+        # kazdy policzony przedmiot z ocenami i zrodlem przypisania do kierunku
+        "counted_courses": [counted[key] for key in sorted(counted)] if listed else [],
+        "counted_courses_total": len(counted),
+        **({} if listed else {"counted_courses_hint": "Lista przedmiotów po podaniu programme albo academic_year."}),
+        "assigned_by_legend": ASSIGNED_BY,
     }
 
 

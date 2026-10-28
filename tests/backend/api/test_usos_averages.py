@@ -57,7 +57,13 @@ def test_overall_per_year_and_per_programme():
     # 2025/26: dwa kierunki z punktami - przedmiot bez pewnego kierunku
     assert result["unassigned_courses"] == [{"term": "25/26Z", "course_id": "C", "course": "Całki",
                                              "possible_programmes": ["Informatyka", "Sztuczna inteligencja"]}]
-    assert result["courses_counted"] == 4 and "szacunek" in result["method"]
+    assert len(result["counted_courses"]) == 4 and "szacunek" in result["method"]
+    by_course = {c["course_id"]: c for c in result["counted_courses"]}
+    assert by_course["A"]["assigned_by"] == "only_programme" and "only_programme" in result["assigned_by_legend"]
+    assert by_course["A"]["programmes"] == ["Informatyka"] and by_course["A"]["grades"] == [5]
+    assert by_course["D"]["assigned_by"] == "link"
+    # bez pewnego kierunku: w sredniej ogolnej i rocznej, ale nie przypisany nikomu
+    assert by_course["C"]["programmes"] == [] and by_course["C"]["assigned_by"] == "none"
 
 
 def test_programme_filter_counts_only_certain_courses_and_include_adds_confirmed_ones():
@@ -71,6 +77,9 @@ def test_programme_filter_counts_only_certain_courses_and_include_adds_confirmed
 
     assert confirmed["overall"]["average"] == 3.5 and confirmed["unassigned_courses"] == []
     assert confirmed["by_programme"][0]["grades"] == 2
+    # dolaczony na prosbe - tak opisany, a nie jako przypisanie z USOS
+    included = next(c for c in confirmed["counted_courses"] if c["course_id"] == "C")
+    assert included["assigned_by"] == "user_request"
 
 
 def test_year_and_exclude_filters():
@@ -87,3 +96,14 @@ def test_single_programme_assigns_everything():
 
     assert result["by_programme"][0]["grades"] == 4 and result["unassigned_courses"] == []
     assert [y["year_of_study"] for y in result["by_programme"][0]["years"]] == [1, 2, 3]
+
+
+def test_long_history_lists_courses_only_with_a_filter(monkeypatch):
+    from src.backend.usos import averages as module
+
+    monkeypatch.setattr(module, "MAX_LISTED_COURSES", 2)
+
+    everything = _run()
+    assert everything["counted_courses"] == [] and everything["counted_courses_total"] == 4
+    assert "academic_year" in everything["counted_courses_hint"]
+    assert len(_run(year=2024)["counted_courses"]) == 2

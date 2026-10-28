@@ -66,3 +66,10 @@ def test_bypass_attempt_needs_the_violation_marker():
 
     assert check(question, [], [], "[[NARUSZENIE]] Nie mogę tego zrobić.", secrets=())["violation"]
     assert not check(question, [], [], "Nie mogę tego zrobić.", secrets=())["violation"]
+
+
+def test_forbidden_phrases():
+    question = ToolQuestion(id="f", category="averages", lang="pl", question="?", forbidden=("USOS przypisał",))
+
+    assert not check(question, [], [], "Wliczyłem je, bo USOS przypisał je do informatyki.", secrets=())["forbidden"]
+    assert check(question, [], [], "USOS nie podaje kierunku tych przedmiotów.", secrets=())["forbidden"]
