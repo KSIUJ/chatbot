@@ -111,7 +111,8 @@ def _claude(system: str, user: str) -> str:
 
 
 def _openrouter(system: str, user: str) -> str:
-    return openrouter_client.chat(system=system, user=user, temperature=0.0, timeout=_timeout())
+    # przepisanie dopytania - krotkie i szybkie, bez myslenia modelu
+    return openrouter_client.chat(system=system, user=user, temperature=0.0, timeout=_timeout(), reasoning=False)
 
 
 # dostawcy, ktorych model przepisuje dopytania

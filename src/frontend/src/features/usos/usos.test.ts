@@ -116,6 +116,7 @@ describe('USOS strings', () => {
     for (const key of LANGUAGES) {
       const notes = translations[key].usos.consentNotes.join(' ');
       expect(notes).toContain('Anthropic');
+      expect(notes).toContain('OpenRouter');
       expect(notes).toContain('apps.usos.uj.edu.pl');
     }
   });

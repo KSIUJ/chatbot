@@ -131,7 +131,7 @@ export const en: Translation = {
     consentNotes: [
       'The data is fetched live and the chatbot does not store it. It keeps only your USOS ID, your name from USOS and an encrypted access token.',
       'Questions and answers (which may contain this data) stay in your chat history, like any other answer.',
-      'To prepare an answer, the data is sent to the language model provider (Anthropic).',
+      'To prepare an answer, the data is sent to the language model provider (Anthropic, via the OpenRouter intermediary).',
       'The access stays valid until you disconnect, even after you log out of USOS. You can revoke it here or in USOS (apps.usos.uj.edu.pl).',
     ],
     connect: 'Connect to USOS',

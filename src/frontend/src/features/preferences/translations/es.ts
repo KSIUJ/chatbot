@@ -137,7 +137,7 @@ export const es: Translation = {
     consentNotes: [
       'Los datos se obtienen en el momento y el chatbot no los guarda. Solo conserva tu ID de USOS, tu nombre de USOS y un token de acceso cifrado.',
       'Las preguntas y respuestas (que pueden contener estos datos) quedan en el historial de chats, como cualquier otra respuesta.',
-      'Para preparar la respuesta, los datos se envían al proveedor del modelo de lenguaje (Anthropic).',
+      'Para preparar la respuesta, los datos se envían al proveedor del modelo de lenguaje (Anthropic, a través del intermediario OpenRouter).',
       'El acceso es válido hasta que te desconectes, incluso después de cerrar sesión en USOS. Puedes revocarlo aquí o en USOS (apps.usos.uj.edu.pl).',
     ],
     connect: 'Conectar con USOS',

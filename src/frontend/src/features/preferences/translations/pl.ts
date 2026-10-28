@@ -140,7 +140,7 @@ export const pl: Translation = {
     consentNotes: [
       'Dane są pobierane na bieżąco i chatbot ich nie zapisuje. Przechowuje tylko Twój identyfikator, imię i nazwisko z USOS oraz zaszyfrowany token dostępu.',
       'Pytania i odpowiedzi (które mogą zawierać te dane) zostają w historii rozmów, tak jak inne odpowiedzi.',
-      'Aby przygotować odpowiedź, dane są przesyłane do dostawcy modelu językowego (Anthropic).',
+      'Aby przygotować odpowiedź, dane są przesyłane do dostawcy modelu językowego (Anthropic, przez pośrednika OpenRouter).',
       'Dostęp jest ważny do rozłączenia, także po wylogowaniu z USOS. Możesz go cofnąć tutaj albo w USOS (apps.usos.uj.edu.pl).',
     ],
     connect: 'Połącz z USOS',

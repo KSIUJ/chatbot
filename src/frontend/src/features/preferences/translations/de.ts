@@ -137,7 +137,7 @@ export const de: Translation = {
     consentNotes: [
       'Die Daten werden live abgerufen und vom Chatbot nicht gespeichert. Er speichert nur deine USOS-ID, deinen Namen aus USOS und ein verschlüsseltes Zugriffstoken.',
       'Fragen und Antworten (die diese Daten enthalten können) bleiben wie alle anderen Antworten im Chatverlauf.',
-      'Um eine Antwort zu erstellen, werden die Daten an den Anbieter des Sprachmodells (Anthropic) gesendet.',
+      'Um eine Antwort zu erstellen, werden die Daten an den Anbieter des Sprachmodells (Anthropic, über den Vermittler OpenRouter) gesendet.',
       'Der Zugriff gilt bis zum Trennen, auch nach dem Abmelden von USOS. Du kannst ihn hier oder in USOS (apps.usos.uj.edu.pl) widerrufen.',
     ],
     connect: 'Mit USOS verbinden',
