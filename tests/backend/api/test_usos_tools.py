@@ -586,10 +586,16 @@ def test_payments_surveys_cards_notifications_documents(session_factory, cipher,
             "did_i_fill_out": False, "group": {"course_name": {"pl": "Analiza 1"}, "class_type": {"pl": "Wykład"}},
             "lecturer": {"first_name": "Ewa", "last_name": "Cygan"},
         }],
-        "services/cards/user_cards": [{"type": "student", "status": "valid", "expiration_date": "2027-03-31",
-                                       "chip_uid": "ABCDEF", "barcode_number": "123", "mcard": {"status": "active", "id": "x"}}],
-        "services/events2/latest_notifications": [{"type": "crstests_points", "title": {"pl": "Nowe punkty"},
-                                                   "created": "2026-10-27 12:00:00", "secret": "x"}],
+        # USOS podaje numery i identyfikatory czipu mimo selektora pol
+        "services/cards/user": [{"type": "student", "date_of_issue": "2024-10-01", "expiration_date": "2027-03-31",
+                                 "contact_chip_uid": "ABCDEF", "barcode_number": "123", "id": "9"}],
+        "services/cards/mcard2": {"why_cannot_order": {"pl": "Masz ważną mLegitymację."}, "expected_expiration_date": "2027-03-31",
+                                  "latest_order": {"order_date": "2025-10-02", "status": "active", "token": "SECRET",
+                                                   "distribution_pass": "PASS", "student_number": "123456",
+                                                   "expiration_date": "2026-03-31"}},
+        "services/events2/latest_notifications": [{"event_type": "crstests/user_point", "message": {"pl": "Nowe punkty"},
+                                                   "event_type_dict": {"name": {"pl": "Sprawdziany"}},
+                                                   "sent_date": "2026-10-27 12:00:00", "message_id": "x", "data": None}],
         "services/adm_documents/user_documents": [{"name": {"pl": "Decyzja stypendialna"}, "type_name": {"pl": "decyzja"},
                                                    "status": {"pl": "doręczony"}, "published_date": "2026-10-20 10:00:00"}],
         "services/plctests/user": {"1": {"test": {"name": {"pl": "Test z angielskiego"}}, "value": "B2"}},
@@ -607,12 +613,16 @@ def test_payments_surveys_cards_notifications_documents(session_factory, cipher,
     assert surveys[0]["course"] == "Analiza 1" and surveys[0]["lecturer"] == "Ewa Cygan" and surveys[0]["filled_out"] is False
 
     cards = json.loads(box.execute("usos_my_student_cards", {}).content)
-    # bez numerow i identyfikatorow czipu
-    assert cards == {"cards": [{"type": "student", "status": "valid", "expiration_date": "2027-03-31",
-                                "mcard": {"status": "active"}}]}
+    # bez numerow, identyfikatorow czipu, tokenu i hasla odbioru mLegitymacji
+    assert cards == {"cards": [{"type": "student", "date_of_issue": "2024-10-01", "expiration_date": "2027-03-31"}],
+                     "mlegitymacja": {"latest_order": {"order_date": "2025-10-02", "status": "active",
+                                                       "expiration_date": "2026-03-31"},
+                                      "why_cannot_order": "Masz ważną mLegitymację.",
+                                      "expiration_if_ordered_now": "2027-03-31"}}
+    assert "SECRET" not in json.dumps(cards) and "PASS" not in json.dumps(cards) and "123456" not in json.dumps(cards)
 
     notes = json.loads(box.execute("usos_my_notifications", {}).content)
-    assert notes["notifications"] == [{"type": "crstests_points", "title": "Nowe punkty", "created": "2026-10-27 12:00:00"}]
+    assert notes["notifications"] == [{"type": "Sprawdziany", "message": "Nowe punkty", "sent": "2026-10-27 12:00:00"}]
 
     documents = json.loads(box.execute("usos_my_documents", {}).content)["documents"]
     assert documents == [{"name": "Decyzja stypendialna", "type": "decyzja", "status": "doręczony",
