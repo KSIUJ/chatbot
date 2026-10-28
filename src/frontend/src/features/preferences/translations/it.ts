@@ -133,7 +133,7 @@ export const it: Translation = {
     needsReconnect: 'USOS ha rifiutato l’accesso (è stato revocato o è scaduto). Collega di nuovo il tuo account.',
     switchedOff: 'Il collegamento con USOS è disattivato per ora. Puoi rimuovere il collegamento esistente.',
     consentIntro: 'Dopo il collegamento, il chatbot potrà recuperare da USOS, quando lo chiedi:',
-    consentData: ['il tuo orario', 'corsi e gruppi', 'i tuoi corsi di studio e il numero di matricola', 'voti', 'verifiche e punti', 'esami'],
+    consentData: ['il tuo orario', 'corsi, gruppi e iscrizioni', 'i tuoi corsi di studio, il numero di matricola, i gruppi e la tesi', 'voti e crediti ECTS', 'verifiche e punti', 'esami e test di livello linguistico', 'questionari da compilare e appuntamenti (es. segreteria)', 'pagamenti e tessera studente', 'notifiche e documenti amministrativi (es. decisioni)'],
     consentNotes: [
       'I dati vengono recuperati al momento e il chatbot non li salva. Conserva solo il tuo ID USOS, il tuo nome in USOS e un token di accesso cifrato.',
       'Le domande e le risposte (che possono contenere questi dati) restano nella cronologia delle chat, come le altre risposte.',

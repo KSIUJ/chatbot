@@ -106,7 +106,7 @@ describe('USOS strings', () => {
     for (const key of LANGUAGES) {
       const { results, consentData, consentNotes } = translations[key].usos;
       for (const code of ['connected', ...USOS_ERROR_CODES] as const) expect(results[code]).toBeTruthy();
-      expect(consentData).toHaveLength(6);
+      expect(consentData).toHaveLength(9);
       expect(consentNotes).toHaveLength(4);
     }
   });

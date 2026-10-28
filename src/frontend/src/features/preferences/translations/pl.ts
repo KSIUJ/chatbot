@@ -136,7 +136,7 @@ export const pl: Translation = {
     needsReconnect: 'USOS odrzucił dostęp (został cofnięty albo wygasł). Połącz konto ponownie.',
     switchedOff: 'Łączenie z USOS jest teraz wyłączone. Możesz usunąć istniejące połączenie.',
     consentIntro: 'Po połączeniu chatbot będzie mógł, gdy o to zapytasz, pobierać z USOS:',
-    consentData: ['plan zajęć', 'przedmioty i grupy zajęciowe', 'kierunki studiów i numer indeksu', 'oceny', 'sprawdziany i punkty', 'egzaminy'],
+    consentData: ['plan zajęć', 'przedmioty, grupy i rejestracje', 'kierunki, numer indeksu, grupy dziekańskie i pracę dyplomową', 'oceny i punkty ECTS', 'sprawdziany i punkty', 'egzaminy i testy językowe', 'ankiety do wypełnienia i spotkania (np. w sprawach studenckich)', 'płatności i legitymację', 'powiadomienia i dokumenty administracyjne (np. decyzje)'],
     consentNotes: [
       'Dane są pobierane na bieżąco i chatbot ich nie zapisuje. Przechowuje tylko Twój identyfikator, imię i nazwisko z USOS oraz zaszyfrowany token dostępu.',
       'Pytania i odpowiedzi (które mogą zawierać te dane) zostają w historii rozmów, tak jak inne odpowiedzi.',
