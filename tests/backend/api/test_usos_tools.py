@@ -125,9 +125,13 @@ def test_grades_with_course_names_and_default_terms(session_factory, cipher, use
                                      "WMI.II-BD": {"name": {"pl": "Bazy danych"}}},
         "services/courses/units": {"901": {"id": "901", "classtype_id": "CW"}},
         "services/courses/classtypes_index": {"CW": {"id": "CW", "name": {"pl": "Ćwiczenia"}}},
+        # ECTS z innych cykli i przedmiotow nie trafiaja do wyniku
+        "services/courses/user_ects_points": {"25/26L": {"WMI.II-ASD": "6", "WMI.II-BD": None}, "24/25Z": {"X": "5"}},
     })
 
     data = json.loads(box.execute("usos_my_grades", {}).content)
+
+    assert data["ects"] == {"WMI.II-ASD": 6, "WMI.II-BD": None}
 
     assert data["terms"] == academic_terms(TODAY) == ["26/27Z", "26/27L", "26/27", "25/26Z", "25/26L", "25/26"]
     assert [(g["grade"], g["exam_session"], g["classes"], g["course"]) for g in data["grades"]] == [
@@ -416,3 +420,49 @@ def test_exams_without_registration_access_still_give_reports(session_factory, c
 
     assert not result.is_error
     assert json.loads(result.content) == {"terms": ["25/26L"], "reports": [], "exam_registrations": []}
+
+
+def test_ects_per_course_term_totals_and_programmes(session_factory, cipher, user_id):
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/courses/user_ects_points": {
+            "25/26L": {"WMI.II-IO": "5", "WMI.II-MN": "6.5", "WF": None},
+            "25/26Z": {"WMI.II-ASD": "6"},
+        },
+        "services/courses/courses": {
+            "WMI.II-IO": {"name": {"pl": "Inżynieria oprogramowania"}}, "WMI.II-MN": {"name": {"pl": "Metody numeryczne"}},
+            "WF": {"name": {"pl": "Wychowanie fizyczne"}}, "WMI.II-ASD": {"name": {"pl": "Algorytmy"}},
+        },
+        "services/progs/student": [{"id": "77", "programme": {"description": {"pl": "Informatyka"}}, "status": "active"}],
+        "services/credits/used_sum": 123.5,
+    })
+
+    data = json.loads(box.execute("usos_my_ects", {}).content)
+
+    assert data["courses"] == [
+        {"term": "25/26L", "course_id": "WF", "course": "Wychowanie fizyczne", "ects": None},
+        {"term": "25/26L", "course_id": "WMI.II-IO", "course": "Inżynieria oprogramowania", "ects": 5},
+        {"term": "25/26L", "course_id": "WMI.II-MN", "course": "Metody numeryczne", "ects": 6.5},
+        {"term": "25/26Z", "course_id": "WMI.II-ASD", "course": "Algorytmy", "ects": 6},
+    ]
+    assert data["term_totals"] == {"25/26L": 11.5, "25/26Z": 6}
+    assert data["programmes"] == [{"programme": "Informatyka", "status": "aktywny", "ects_used": 123.5}]
+    used = next(params for _, method, params in client.calls if method == "services/credits/used_sum")
+    assert used == {"students_programme_id": "77"}
+
+    year = json.loads(box.execute("usos_my_ects", {"term_id": "25/26"}).content)
+    assert year["terms"] == ["25/26L", "25/26Z"]
+    summer = json.loads(box.execute("usos_my_ects", {"term_id": "25/26Z"}).content)
+    assert [c["course_id"] for c in summer["courses"]] == ["WMI.II-ASD"]
+    assert box.execute("usos_my_ects", {"term_id": "zle"}).is_error
+
+
+def test_ects_tool_survives_missing_programme_sums(session_factory, cipher, user_id):
+    box, _ = _toolbox(session_factory, user_id, cipher, {
+        "services/courses/user_ects_points": {"26/27Z": {"A": "3"}},
+        "services/courses/courses": {"A": {"name": {"pl": "A"}}},
+        "services/progs/student": UsosApiError(403, "method_forbidden", "x"),
+    })
+
+    data = json.loads(box.execute("usos_my_ects", {}).content)
+
+    assert data["courses"][0]["ects"] == 3 and data["programmes"] == []

@@ -133,7 +133,7 @@ export const es: Translation = {
     needsReconnect: 'USOS rechazó el acceso (se revocó o caducó). Vuelve a conectar tu cuenta.',
     switchedOff: 'La conexión con USOS está desactivada por ahora. Puedes eliminar la conexión existente.',
     consentIntro: 'Una vez conectado, el chatbot podrá obtener de USOS cuando lo pidas:',
-    consentData: ['tu horario', 'asignaturas y grupos', 'tus estudios y número de estudiante', 'notas', 'pruebas y puntos', 'exámenes'],
+    consentData: ['tu horario', 'asignaturas y grupos', 'tus estudios y número de estudiante', 'notas y créditos ECTS', 'pruebas y puntos', 'exámenes'],
     consentNotes: [
       'Los datos se obtienen en el momento y el chatbot no los guarda. Solo conserva tu ID de USOS, tu nombre de USOS y un token de acceso cifrado.',
       'Las preguntas y respuestas (que pueden contener estos datos) quedan en el historial de chats, como cualquier otra respuesta.',

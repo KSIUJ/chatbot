@@ -133,7 +133,7 @@ export const fr: Translation = {
     needsReconnect: 'USOS a refusé l’accès (il a été révoqué ou a expiré). Connecte ton compte à nouveau.',
     switchedOff: 'La connexion à USOS est désactivée pour le moment. Tu peux supprimer la connexion existante.',
     consentIntro: 'Une fois connecté, le chatbot pourra récupérer depuis USOS, quand tu le demandes :',
-    consentData: ['ton emploi du temps', 'les cours et groupes', 'tes programmes d’études et ton numéro d’étudiant', 'les notes', 'les contrôles et les points', 'les examens'],
+    consentData: ['ton emploi du temps', 'les cours et groupes', 'tes programmes d’études et ton numéro d’étudiant', 'les notes et crédits ECTS', 'les contrôles et les points', 'les examens'],
     consentNotes: [
       'Les données sont récupérées en direct et le chatbot ne les enregistre pas. Il ne conserve que ton identifiant USOS, ton nom dans USOS et un jeton d’accès chiffré.',
       'Les questions et réponses (qui peuvent contenir ces données) restent dans l’historique des conversations, comme les autres réponses.',
