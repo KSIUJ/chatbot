@@ -80,6 +80,8 @@ PAYMENT_FIELDS = (
     "has_bonus|bonus_amount|bonus_deadline|interest"
 )
 DOCUMENT_FIELDS = "id|name|type|type_name|status|published_date|delivered_date"
+CARD_FIELDS = "type|date_of_issue|expiration_date"
+MCARD_FIELDS = "why_cannot_order|expected_expiration_date|latest_order"
 MAX_NOTIFICATIONS = 20
 PRIMARY_GROUP_FIELDS = "id|name"
 EXAM_REPORT_FIELDS = "id|type_description|course_unit|course|term_id|counts_into_average|sessions[number|description|status|deadline|issuer_grades]"
@@ -564,11 +566,15 @@ class _UsosTools:
         missing = self._missing_scope("cards", "legitymacji")
         if missing:
             return missing
-        got = self._call("services/cards/user_cards")
+        # cards/user (nie user_cards - tam nawet data waznosci wymaga klucza administracyjnego)
+        got = self._call("services/cards/user", fields=CARD_FIELDS)
         if isinstance(got, ToolResult):
             return got
-        items = got if isinstance(got, list) else list(got.values()) if isinstance(got, Mapping) else []
-        return ToolResult(as_data({"cards": [_card(c) for c in items if isinstance(c, Mapping)]}))
+        mcard = self._call("services/cards/mcard2", fields=MCARD_FIELDS)
+        return ToolResult(as_data({
+            "cards": [_card(c) for c in got or [] if isinstance(c, Mapping)],
+            "mlegitymacja": _mcard(mcard) if isinstance(mcard, Mapping) else None,
+        }))
 
     # --- powiadomienia ----------------------------------------------------------------
 
@@ -904,34 +910,37 @@ def _payment(item: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in row.items() if value not in ("", None)}
 
 
-# pola legitymacji, ktore trafiaja do modelu - bez numerow i identyfikatorow czipu
-_CARD_KEYS = ("type", "card_type", "status", "state", "is_active", "date_of_issue", "issue_date", "expiration_date",
-              "expiry_date", "valid_until", "validity_date", "mcard")
+# pola legitymacji, ktore trafiaja do modelu - bez numerow kodu kreskowego i czipu
+# (USOS podaje je mimo selektora pol)
+_CARD_KEYS = ("type", "date_of_issue", "expiration_date")
+# zamowienie mLegitymacji - bez tokenu, hasla odbioru i numeru indeksu
+_MCARD_ORDER_KEYS = ("order_date", "status", "expiration_date")
 
 
 def _card(card: Mapping[str, Any]) -> dict[str, Any]:
-    found: dict[str, Any] = {}
-    for key in _CARD_KEYS:
-        value = card.get(key)
-        if isinstance(value, Mapping) and key == "mcard":
-            found[key] = {k: _text(v) if isinstance(v, Mapping) else v for k, v in value.items()
-                          if any(word in k for word in ("status", "state", "date", "expir", "valid", "active"))}
-        elif isinstance(value, Mapping):
-            found[key] = _text(value)
-        elif value not in (None, ""):
-            found[key] = value
-    return found
+    return {key: str(card[key]) for key in _CARD_KEYS if card.get(key) not in (None, "")}
+
+
+def _mcard(mcard: Mapping[str, Any]) -> dict[str, Any]:
+    latest = mcard.get("latest_order") if isinstance(mcard.get("latest_order"), Mapping) else None
+    row = {
+        "latest_order": {key: str(latest[key]) for key in _MCARD_ORDER_KEYS if latest.get(key)} if latest else None,
+        # dlaczego nie mozna zamowic nowej (np. juz jest wazna)
+        "why_cannot_order": _text(mcard.get("why_cannot_order")),
+        "expiration_if_ordered_now": str(mcard.get("expected_expiration_date") or ""),
+    }
+    return {key: value for key, value in row.items() if value not in ("", None)}
 
 
 def _notification(item: Mapping[str, Any]) -> dict[str, Any]:
-    row: dict[str, Any] = {}
-    for key in ("type", "event_type", "title", "subject", "message", "content", "text", "created", "date", "time",
-                "timestamp", "url"):
-        value = item.get(key)
-        text = _text(value) if isinstance(value, (Mapping, str)) else value
-        if text not in (None, ""):
-            row[key] = text if not isinstance(text, str) else text[:300]
-    return row
+    """Powiadomienie events2: rodzaj (nazwa), tresc i data wyslania."""
+    kind = item.get("event_type_dict") if isinstance(item.get("event_type_dict"), Mapping) else {}
+    row = {
+        "type": _text(kind.get("name")) or str(item.get("event_type") or ""),
+        "message": _text(item.get("message"))[:300],
+        "sent": str(item.get("sent_date") or ""),
+    }
+    return {key: value for key, value in row.items() if value}
 
 
 def _codes(value: Any) -> list[str]:
@@ -1134,6 +1143,8 @@ def build_usos_toolbox(
                 description=(
                     "Spotkania dostępne dla użytkownika w USOS (np. sprawy studenckie w sekretariacie, spotkania "
                     "z zespołem USOS): najbliższe terminy z wolnymi miejscami i okresem zapisów oraz jego zapisy. "
+                    "Użyj, gdy pyta, kiedy może się umówić (np. w sekretariacie albo dziekanacie) albo na co jest "
+                    "zapisany - godziny otwarcia ze stron to co innego niż wolne terminy spotkań. "
                     "Tylko odczyt - zapisać się trzeba w USOSweb."
                 ),
                 input_schema={"type": "object", "properties": {
