@@ -5,6 +5,7 @@ import { PendingChips } from './AttachmentChips';
 import { acceptList, type AttachmentMeta } from './attachments';
 import { describeAttachmentProblem } from './attachmentText';
 import { MAX_MESSAGE_LENGTH } from './conversations';
+import { inputHeight } from './inputHeight';
 import type { AttachmentsController } from './useAttachments';
 
 const MAX_INPUT_HEIGHT_PX = 200;
@@ -41,7 +42,7 @@ export default function ChatInput({
     const input = inputRef.current;
     if (!input) return;
     input.style.height = '0px';
-    input.style.height = text === '' ? 'auto' : `${input.scrollHeight}px`;
+    input.style.height = `${inputHeight(input.scrollHeight, input.offsetHeight - input.clientHeight)}px`;
   }, [text]);
 
   // give focus back once the answer arrived
