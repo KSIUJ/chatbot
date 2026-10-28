@@ -186,6 +186,10 @@ Czat zmienia wygląd razem ze stroną główną KSI, która ma motywy okazjonaln
 - **API** — `GET /api/occasion` (publiczne, także dla ekranu logowania): `{active, dark, theme_color, palette, facade: {pl, en}}`, bez nazwy i terminów okazji; `503 occasion_unknown` tylko tuż po starcie. `GET /api/occasion/facade/{wersja}?scheme=light|dark` podaje fasadę bieżącej okazji: SVG jest przed podaniem sprawdzany (tylko elementy grafiki z listy, bez skryptów, zdarzeń, linków i zewnętrznych zasobów) i ma własne CSP bez skryptów — dlatego w `nginx.conf` ma osobny `location`.
 - **Wygląd** — motyw z `data-color` (ksi.sh przełącza się wtedy na ciemny) wymusza ciemny motyw czatu niezależnie od ustawienia „jasny/systemowy”; jego paleta podmienia ciemne kolory (tekst i przyciski tylko przy kontraście WCAG AA). Fasada jest na ekranie logowania i na dole nowej, pustej rozmowy. Użytkownik może wyłączyć motywy w Ustawienia → Motyw → „Motywy okazjonalne”. Ostatni stan jest w `localStorage` (`chatOccasion`, ważny 12 h), żeby po przeładowaniu nie było mignięcia (`public/theme-init.js`).
 
+## Plany rozbudowy
+
+Kolejne gałęzie (Mordor, strony UJ, Microsoft Teams, Pegaz) z oceną wykonalności i przebiegiem implementacji: [`docs/plan-rozbudowy.md`](docs/plan-rozbudowy.md).
+
 ## Autorzy
 
 Mentor: Oliwier Polak ([@Kangurur](https://github.com/Kangurur))
