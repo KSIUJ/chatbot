@@ -14,7 +14,9 @@ def test_question_set_covers_every_tool_and_negatives():
     tools = {tool for q in questions for tool in q.tools}
     assert tools >= {
         "usos_my_timetable", "usos_my_courses", "usos_my_programmes", "usos_my_profile",
-        "usos_my_grades", "usos_my_exams", "usos_my_course_tests",
+        "usos_my_grades", "usos_my_exams", "usos_my_course_tests", "usos_my_ects", "usos_my_registrations",
+        "usos_my_thesis", "usos_my_meetings", "usos_my_surveys", "usos_my_payments", "usos_my_student_cards",
+        "usos_my_notifications", "usos_my_documents",
     }
     assert any(q.no_tools for q in questions) and any(q.refuse for q in questions)
     assert all(q.history for q in questions if q.category == "followup")

@@ -127,7 +127,7 @@ export const en: Translation = {
     needsReconnect: 'USOS rejected the access (it was revoked or has expired). Connect your account again.',
     switchedOff: 'Connecting to USOS is switched off for now. You can remove the existing connection.',
     consentIntro: 'Once connected, the chatbot can fetch from USOS when you ask:',
-    consentData: ['your timetable', 'courses and class groups', 'your programmes and student number', 'grades and ECTS credits', 'course tests and points', 'exams'],
+    consentData: ['your timetable', 'courses, class groups and registrations', 'your programmes, student number, dean\'s groups and thesis', 'grades and ECTS credits', 'course tests and points', 'exams and language placement tests', 'surveys to fill in and meetings (e.g. student office)', 'payments and student ID', 'notifications and administrative documents (e.g. decisions)'],
     consentNotes: [
       'The data is fetched live and the chatbot does not store it. It keeps only your USOS ID, your name from USOS and an encrypted access token.',
       'Questions and answers (which may contain this data) stay in your chat history, like any other answer.',

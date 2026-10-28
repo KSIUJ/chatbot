@@ -133,7 +133,7 @@ export const de: Translation = {
     needsReconnect: 'USOS hat den Zugriff abgelehnt (er wurde widerrufen oder ist abgelaufen). Verbinde dein Konto erneut.',
     switchedOff: 'Das Verbinden mit USOS ist derzeit deaktiviert. Du kannst die bestehende Verbindung entfernen.',
     consentIntro: 'Nach dem Verbinden kann der Chatbot auf deine Frage hin aus USOS abrufen:',
-    consentData: ['deinen Stundenplan', 'Lehrveranstaltungen und Gruppen', 'deine Studiengänge und Matrikelnummer', 'Noten und ECTS-Punkte', 'Tests und Punkte', 'Prüfungen'],
+    consentData: ['deinen Stundenplan', 'Lehrveranstaltungen, Gruppen und Anmeldungen', 'deine Studiengänge, Matrikelnummer, Studiengruppen und Abschlussarbeit', 'Noten und ECTS-Punkte', 'Tests und Punkte', 'Prüfungen und Sprach-Einstufungstests', 'auszufüllende Umfragen und Termine (z. B. Studienbüro)', 'Zahlungen und Studierendenausweis', 'Benachrichtigungen und Verwaltungsdokumente (z. B. Bescheide)'],
     consentNotes: [
       'Die Daten werden live abgerufen und vom Chatbot nicht gespeichert. Er speichert nur deine USOS-ID, deinen Namen aus USOS und ein verschlüsseltes Zugriffstoken.',
       'Fragen und Antworten (die diese Daten enthalten können) bleiben wie alle anderen Antworten im Chatverlauf.',

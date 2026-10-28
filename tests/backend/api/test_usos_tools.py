@@ -270,11 +270,15 @@ def test_programmes_of_the_user(session_factory, cipher, user_id):
 def test_profile_with_student_number(session_factory, cipher, user_id):
     box, client = _toolbox(session_factory, user_id, cipher, {
         "services/users/user": {"student_number": "1234567", "student_status": 2, "pesel": "x"},
+        "services/prgroups/user": [{"id": "1", "name": {"pl": "Informatyka, 3 rok"}}],
     })
 
     data = json.loads(box.execute("usos_my_profile", {}).content)
 
-    assert data == {"student_number": "1234567", "student_status": "aktywny student"}
+    # bez uprawnienia placement_tests - bez testow jezykowych (i bez zapytania o nie)
+    assert data == {"student_number": "1234567", "student_status": "aktywny student",
+                    "primary_groups": ["Informatyka, 3 rok"]}
+    assert "services/plctests/user" not in [method for _, method, _ in client.calls]
     assert client.calls[0][2]["fields"] == "student_number|student_status"
 
 
@@ -466,3 +470,152 @@ def test_ects_tool_survives_missing_programme_sums(session_factory, cipher, user
     data = json.loads(box.execute("usos_my_ects", {}).content)
 
     assert data["courses"][0]["ects"] == 3 and data["programmes"] == []
+
+
+ALL_SCOPES = "studies|grades|crstests|student_exams|surveys_filling|payments|cards|events|adm_documents|placement_tests"
+
+
+def _grant_all(session_factory, user_id):
+    db = session_factory()
+    get_link(db, user_id).scopes = ALL_SCOPES
+    db.commit()
+    db.close()
+
+
+@pytest.mark.parametrize(("tool", "fragment"), [
+    ("usos_my_surveys", "ankiet"), ("usos_my_payments", "płatności"), ("usos_my_student_cards", "legitymacji"),
+    ("usos_my_notifications", "powiadomień"), ("usos_my_documents", "dokumentów"),
+])
+def test_tools_with_new_scopes_ask_to_reconnect(session_factory, cipher, user_id, tool, fragment):
+    box, client = _toolbox(session_factory, user_id, cipher, {})
+
+    result = box.execute(tool, {})
+
+    assert result.is_error and fragment in result.content and "ponownie w Ustawieniach" in result.content
+    assert client.calls == []
+
+
+def test_registrations_with_rounds_tokens_and_cart(session_factory, cipher, user_id):
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/registrations/user_registrations": [{
+            "id": "R1", "description": {"pl": "Rejestracja na zajęcia WMI"}, "status": "active",
+            "message": {"pl": ""}, "rounds": [{"id": 1, "name": {"pl": "Tura 1"}, "status": "active",
+                                                "start_date": "2026-09-20 10:00:00", "end_date": "2026-10-05 23:59:00"}],
+        }],
+        "services/registrations/user_token_registrations": [{"id": "T1", "description": {"pl": "Lektoraty"}, "status": "finished",
+                                                             "rounds": [{"name": {"pl": "Tura"}, "start_date": "2026-09-01"}]}],
+        "services/registrations/courses_cart": [
+            {"course": {"id": "WMI.II-ML", "name": {"pl": "Nauczanie maszynowe"}}, "term": {"id": "26/27Z"},
+             "user_registration_status": "ask"},
+        ],
+    })
+
+    data = json.loads(box.execute("usos_my_registrations", {}).content)
+
+    assert data["registrations"] == [{"name": "Rejestracja na zajęcia WMI", "status": "aktywna", "message": "",
+                                      "rounds": [{"name": "Tura 1", "status": "trwa", "start": "2026-09-20 10:00:00",
+                                                  "end": "2026-10-05 23:59:00"}]}]
+    token = data["token_registrations"][0]
+    assert token["status"] == "zakończona" and token["rounds"] == [{"name": "Tura", "start": "2026-09-01"}]
+    assert data["courses_cart"] == [{"course_id": "WMI.II-ML", "course": "Nauczanie maszynowe", "term": "26/27Z",
+                                     "status": "zgłoszony, czeka"}]
+    assert client.calls[0][2]["active_only"] is True
+
+
+def test_thesis_with_supervisors(session_factory, cipher, user_id):
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/users/user": {"id": "777"},
+        "services/theses/user": {"authored_theses": [{
+            "type": "licencjacka", "title": "Grafy", "language": {"pl": "polski"},
+            "supervisors": [{"first_name": "Jan", "last_name": "Kowalski", "titles": {"before": "dr"}}],
+            "faculty": {"name": {"pl": "Wydział Matematyki i Informatyki"}},
+        }]},
+    })
+
+    data = json.loads(box.execute("usos_my_thesis", {}).content)
+
+    assert data == {"theses": [{"type": "licencjacka", "title": "Grafy", "language": "polski",
+                                "supervisors": ["dr Jan Kowalski"], "faculty": "Wydział Matematyki i Informatyki"}]}
+    assert client.calls[1][2]["user_id"] == "777"
+
+
+def test_meetings_upcoming_dates_and_bookings(session_factory, cipher, user_id):
+    dates = [
+        {"start_time": "2026-10-20 10:00:00", "end_time": "2026-10-20 12:00:00"},  # przeszly
+        {"start_time": "2026-10-29 10:00:00", "end_time": "2026-10-29 12:00:00", "seats_limit": 5,
+         "accepted_participants_count": 2, "can_i_sign_up": True, "room": {"number": "1094"},
+         "registration_start_time": "2026-10-22 08:00:00", "registration_end_time": "2026-10-28 23:59:00"},
+    ]
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/meetings/available_meetings": [
+            {"id": "1", "name": {"pl": "Sprawy studenckie - mgr X"}, "open": True},
+            {"id": "2", "name": {"pl": "Szkolenie"}, "open": True},
+        ],
+        "services/meetings/search_meeting_dates": dates,
+        "services/meetings/cart": [{"meeting_date": {"start_time": "2026-10-29 10:00:00", "end_time": "2026-10-29 10:15:00",
+                                                     "meeting": {"name": {"pl": "Sprawy studenckie - mgr X"}}},
+                                    "status": "accepted", "is_reserve": False}],
+    })
+
+    data = json.loads(box.execute("usos_my_meetings", {"name": "sprawy"}).content)
+
+    assert [m["name"] for m in data["meetings"]] == ["Sprawy studenckie - mgr X"]
+    assert data["meetings"][0]["dates"] == [{
+        "start": "2026-10-29 10:00:00", "end": "2026-10-29 12:00:00", "registration_start": "2026-10-22 08:00:00",
+        "registration_end": "2026-10-28 23:59:00", "seats": 5, "taken": 2, "can_sign_up": True, "my_status": "",
+        "room": "1094",
+    }]
+    assert data["my_bookings"] == [{"meeting": "Sprawy studenckie - mgr X", "start": "2026-10-29 10:00:00",
+                                    "end": "2026-10-29 10:15:00", "status": "accepted", "reserve": False, "queue": None}]
+    # terminy pobierane tylko dla pasujacych spotkan
+    assert [p["meeting_id"] for _, m, p in client.calls if m == "services/meetings/search_meeting_dates"] == ["1"]
+
+
+def test_payments_surveys_cards_notifications_documents(session_factory, cipher, user_id):
+    _grant_all(session_factory, user_id)
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/payments/user_payments": [{
+            "description": {"pl": "Opłata za legitymację"}, "type": {"pl": "opłata"}, "state": "unpaid",
+            "total_amount": 22.0, "saldo_amount": 22.0, "currency": "PLN", "payment_deadline": "2026-11-15",
+            "account_number": "PL00 1234", "has_bonus": False,
+        }],
+        "services/payments/user_accounts": [{"name": {"pl": "Opłaty WMI"}, "account_number": "PL11", "account_owner": "UJ"}],
+        "services/surveys/surveys_to_fill2": [{
+            "name": {"pl": "Ocena zajęć"}, "survey_type": "group", "start_date": "2027-01-20", "end_date": "2027-02-10",
+            "did_i_fill_out": False, "group": {"course_name": {"pl": "Analiza 1"}, "class_type": {"pl": "Wykład"}},
+            "lecturer": {"first_name": "Ewa", "last_name": "Cygan"},
+        }],
+        "services/cards/user_cards": [{"type": "student", "status": "valid", "expiration_date": "2027-03-31",
+                                       "chip_uid": "ABCDEF", "barcode_number": "123", "mcard": {"status": "active", "id": "x"}}],
+        "services/events2/latest_notifications": [{"type": "crstests_points", "title": {"pl": "Nowe punkty"},
+                                                   "created": "2026-10-27 12:00:00", "secret": "x"}],
+        "services/adm_documents/user_documents": [{"name": {"pl": "Decyzja stypendialna"}, "type_name": {"pl": "decyzja"},
+                                                   "status": {"pl": "doręczony"}, "published_date": "2026-10-20 10:00:00"}],
+        "services/plctests/user": {"1": {"test": {"name": {"pl": "Test z angielskiego"}}, "value": "B2"}},
+        "services/users/user": {"student_number": "1", "student_status": 2},
+        "services/prgroups/user": [],
+    })
+
+    payments = json.loads(box.execute("usos_my_payments", {}).content)
+    assert payments["payments"] == [{"description": "Opłata za legitymację", "type": "opłata", "state": "unpaid",
+                                     "total": 22.0, "to_pay": 22.0, "currency": "PLN", "deadline": "2026-11-15",
+                                     "account_number": "PL00 1234"}]
+    assert payments["faculty_accounts"][0]["account_number"] == "PL11"
+
+    surveys = json.loads(box.execute("usos_my_surveys", {}).content)["surveys"]
+    assert surveys[0]["course"] == "Analiza 1" and surveys[0]["lecturer"] == "Ewa Cygan" and surveys[0]["filled_out"] is False
+
+    cards = json.loads(box.execute("usos_my_student_cards", {}).content)
+    # bez numerow i identyfikatorow czipu
+    assert cards == {"cards": [{"type": "student", "status": "valid", "expiration_date": "2027-03-31",
+                                "mcard": {"status": "active"}}]}
+
+    notes = json.loads(box.execute("usos_my_notifications", {}).content)
+    assert notes["notifications"] == [{"type": "crstests_points", "title": "Nowe punkty", "created": "2026-10-27 12:00:00"}]
+
+    documents = json.loads(box.execute("usos_my_documents", {}).content)["documents"]
+    assert documents == [{"name": "Decyzja stypendialna", "type": "decyzja", "status": "doręczony",
+                          "published": "2026-10-20", "delivered": ""}]
+
+    profile = json.loads(box.execute("usos_my_profile", {}).content)
+    assert profile["placement_tests"] == [{"test": "Test z angielskiego", "result": "B2"}]
