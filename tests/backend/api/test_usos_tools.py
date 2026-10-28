@@ -40,7 +40,8 @@ class FakeClient:
         response = self.responses[method]
         if isinstance(response, Exception):
             raise response
-        return response
+        # odpowiedz zalezna od parametrow (np. suma ECTS osobno dla kazdego kierunku)
+        return response(**params) if callable(response) else response
 
 
 @pytest.fixture
@@ -619,3 +620,41 @@ def test_payments_surveys_cards_notifications_documents(session_factory, cipher,
 
     profile = json.loads(box.execute("usos_my_profile", {}).content)
     assert profile["placement_tests"] == [{"test": "Test z angielskiego", "result": "B2"}]
+
+
+def test_averages_from_grades_ects_and_programmes(session_factory, cipher, user_id):
+    grades = {
+        "24/25Z": {"A": {"course_grades": [{"1": {"value_symbol": "2", "counts_into_average": "T"},
+                                            "2": {"value_symbol": "4", "counts_into_average": "T"}}],
+                         "course_units_grades": {"9": [{"1": {"value_symbol": "5", "counts_into_average": "N"}}]}},
+                   "WF": {"course_grades": [{"1": {"value_symbol": "zal", "counts_into_average": "T"}}]}},
+        "25/26Z": {"C": {"course_grades": [{"1": {"value_symbol": "5", "counts_into_average": "T"}}]}},
+    }
+    box, client = _toolbox(session_factory, user_id, cipher, {
+        "services/courses/user_ects_points": {"24/25Z": {"A": "6", "WF": None}, "25/26Z": {"C": "4"}},
+        "services/grades/terms2": grades,
+        "services/courses/courses": {"A": {"name": {"pl": "Analiza"}}, "C": {"name": {"pl": "Całki"}}},
+        "services/progs/student": [
+            {"id": "1", "programme": {"id": "INF", "description": {"pl": "Informatyka"}}, "status": "active",
+             "admission_date": "2024-10-01"},
+            {"id": "2", "programme": {"id": "SI", "description": {"pl": "Sztuczna inteligencja"}}, "status": "active",
+             "admission_date": "2025-10-01"},
+        ],
+        "services/credits/used_sum": lambda students_programme_id: {"1": 60.0, "2": 30.0}[students_programme_id],
+        "services/registrations/courses_cart": [],
+    })
+
+    data = json.loads(box.execute("usos_my_averages", {}).content)
+
+    # niedostateczna z pierwszego terminu sie liczy, ocena z zajec poza srednia i "zal" - nie
+    assert data["overall"] == {"average": 3.67, "weighted_average": 3.5, "grades": 3, "ects": 16}
+    inf = data["by_programme"][0]
+    assert (inf["programme"], inf["average"], inf["ects_used_in_usos"]) == ("Informatyka", 3.0, 60)
+    assert data["unassigned_courses"] == [{"term": "25/26Z", "course_id": "C", "course": "Całki",
+                                           "possible_programmes": ["Informatyka", "Sztuczna inteligencja"]}]
+    terms_call = next(params for _, method, params in client.calls if method == "services/grades/terms2")
+    assert terms_call["term_ids"] == "24/25Z|25/26Z"
+
+    confirmed = json.loads(box.execute("usos_my_averages", {"programme": "informatyka", "include_courses": ["C"]}).content)
+    assert confirmed["overall"]["average"] == 3.67 and confirmed["unassigned_courses"] == []
+    assert box.execute("usos_my_averages", {"academic_year": "zeszły"}).is_error

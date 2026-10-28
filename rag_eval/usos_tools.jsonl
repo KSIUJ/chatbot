@@ -14,7 +14,7 @@
 {"id": "pf-02", "category": "profile", "lang": "pl", "question": "Czy jestem aktywnym studentem w USOS?", "tools": ["usos_my_profile", "usos_my_programmes"], "any": true}
 {"id": "gr-01", "category": "grades", "lang": "pl", "question": "Jakie mam oceny z poprzedniego semestru?", "tools": ["usos_my_grades"]}
 {"id": "gr-02", "category": "grades", "lang": "pl", "question": "Czy mam już jakieś oceny w tym semestrze?", "tools": ["usos_my_grades"]}
-{"id": "gr-03", "category": "grades", "lang": "pl", "question": "Jaka jest moja średnia z ocen z roku 2025/26?", "tools": ["usos_my_grades"]}
+{"id": "gr-03", "category": "grades", "lang": "pl", "question": "Jaka jest moja średnia z ocen z roku 2025/26?", "tools": ["usos_my_averages"], "note": "średnia liczona narzędziem, nie przez model"}
 {"id": "gr-04", "category": "grades", "lang": "pl", "question": "Czy musiałem coś poprawiać w drugim terminie w zeszłym roku?", "tools": ["usos_my_grades", "usos_my_exams"], "any": true}
 {"id": "ex-01", "category": "exams", "lang": "pl", "question": "Z których przedmiotów mam w tym roku egzamin, a z których tylko zaliczenie?", "tools": ["usos_my_exams"]}
 {"id": "ex-02", "category": "exams", "lang": "pl", "question": "Do kiedy są otwarte protokoły z moich egzaminów w zeszłym roku akademickim?", "tools": ["usos_my_exams"]}
@@ -51,3 +51,7 @@
 {"id": "nt-01", "category": "notifications", "lang": "pl", "question": "Jakie mam ostatnie powiadomienia w USOS?", "tools": ["usos_my_notifications"]}
 {"id": "doc-01", "category": "documents", "lang": "pl", "question": "Czy dostałem w USOS jakąś decyzję albo inny dokument?", "tools": ["usos_my_documents"]}
 {"id": "pl-01", "category": "profile", "lang": "pl", "question": "Jaki mam wynik testu poziomującego z języka angielskiego?", "tools": ["usos_my_profile"]}
+{"id": "av-01", "category": "averages", "lang": "pl", "question": "Jaka jest moja średnia ocen?", "tools": ["usos_my_averages"]}
+{"id": "av-02", "category": "averages", "lang": "pl", "question": "Podaj mi moją średnią ocen na kierunku informatyka.", "tools": ["usos_my_averages"], "note": "rozmowa, w której czat policzył średnią ze wszystkich przedmiotów"}
+{"id": "av-03", "category": "averages", "lang": "pl", "question": "Jaką miałem średnią ważoną ECTS na pierwszym roku?", "tools": ["usos_my_averages"]}
+{"id": "av-04", "category": "averages", "lang": "pl", "history": ["Jaka jest moja średnia na informatyce?"], "question": "Dolicz do informatyki wszystkie przedmioty z roku 2025/26 i policz jeszcze raz.", "tools": ["usos_my_averages"]}
