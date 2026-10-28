@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LANGUAGES, translations } from '../preferences/languages';
+import { phaseAfterPageShow } from './useUsos';
 import {
   USOS_ERROR_CODES,
   formatConnectedAt,
@@ -121,5 +122,17 @@ describe('USOS strings', () => {
 
   it('formats the connection date in the interface language', () => {
     expect(formatConnectedAt('2026-10-26T12:00:00Z', 'pl')).toContain('2026');
+  });
+});
+
+describe('phaseAfterPageShow', () => {
+  it('unlocks the connect button when the page comes back from the back-forward cache', () => {
+    expect(phaseAfterPageShow('connecting', true)).toBe('idle');
+  });
+
+  it('leaves other phases and normal page loads alone', () => {
+    expect(phaseAfterPageShow('connecting', false)).toBe('connecting');
+    expect(phaseAfterPageShow('confirmDisconnect', true)).toBe('confirmDisconnect');
+    expect(phaseAfterPageShow('idle', true)).toBe('idle');
   });
 });

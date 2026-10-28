@@ -6,6 +6,13 @@ import { disconnectUsos, fetchUsosStatus, startUsosConnect, withoutLink, type Us
 export type UsosPhase = 'idle' | 'connecting' | 'confirmDisconnect' | 'disconnecting';
 export type UsosActionError = 'connect' | 'disconnect';
 
+// The browser keeps the page in its back-forward cache when it leaves for the
+// USOS consent page; going back restores it as it was - still "connecting",
+// with the button disabled. A restored page goes back to idle.
+export function phaseAfterPageShow(phase: UsosPhase, persisted: boolean): UsosPhase {
+  return persisted && phase === 'connecting' ? 'idle' : phase;
+}
+
 export interface UsosState {
   // null while loading or when the status could not be read (item hidden)
   status: UsosStatus | null;
@@ -24,16 +31,26 @@ export function useUsos(): UsosState {
 
   useEffect(() => {
     let cancelled = false;
-    fetchUsosStatus().then(
-      (next) => {
-        if (!cancelled) setStatus(next);
-      },
-      () => {
-        // an older backend or an outage: no USOS item
-      },
-    );
+    const load = () =>
+      fetchUsosStatus().then(
+        (next) => {
+          if (!cancelled) setStatus(next);
+        },
+        () => {
+          // an older backend or an outage: no USOS item
+        },
+      );
+    load();
+    // back from USOS without finishing: the restored page refreshes the status
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setPhase((current) => phaseAfterPageShow(current, true));
+      load();
+    };
+    window.addEventListener('pageshow', onPageShow);
     return () => {
       cancelled = true;
+      window.removeEventListener('pageshow', onPageShow);
     };
   }, []);
 
