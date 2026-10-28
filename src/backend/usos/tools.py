@@ -1086,8 +1086,10 @@ def build_usos_toolbox(
                     "Średnie ocen użytkownika policzone z USOS (zawsze używaj tego narzędzia, gdy pyta o średnią - "
                     "nie licz jej sam): ogółem, w każdym roku akademickim i na każdym kierunku z podziałem na lata "
                     "studiów; zwykła i ważona ECTS. Przedmioty, których kierunku USOS nie podaje, są w "
-                    "unassigned_courses z możliwymi kierunkami - zapytaj użytkownika, a potem dolicz je "
-                    "(include_courses) albo pomiń (exclude_courses). Wynik to szacunek, oficjalna średnia jest w USOSweb."
+                    "unassigned_courses z możliwymi kierunkami: zapytaj użytkownika, które należą do kierunku, i dopiero "
+                    "po jego odpowiedzi dolicz je (include_courses) albo pomiń (exclude_courses) - nie doliczaj ich sam. "
+                    "counted_courses mówi, skąd wiadomo o kierunku każdego przedmiotu (assigned_by, legenda w wyniku) - "
+                    "przekaż to wiernie, nie pisz, że USOS przypisał przedmiot dodany na prośbę (user_request). Wynik to szacunek, oficjalna średnia jest w USOSweb."
                 ),
                 input_schema={"type": "object", "properties": {
                     "programme": {"type": "string", "description": "Opcjonalnie: fragment nazwy albo kod kierunku."},
