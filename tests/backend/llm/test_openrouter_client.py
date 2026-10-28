@@ -398,3 +398,49 @@ def test_stream_chat_without_tools_sends_no_tool_definitions(monkeypatch):
 
     assert "".join(openrouter_client.stream_chat("s", "hej")) == "Cześć"
     assert "tools" not in fake.payloads[0]
+
+
+# --- myslenie i polityka danych --------------------------------------------------
+
+
+def test_default_payload_has_temperature_and_denies_data_collection(transport, monkeypatch):
+    monkeypatch.delenv("OPENROUTER_REASONING_EFFORT", raising=False)
+    monkeypatch.delenv("OPENROUTER_DATA_COLLECTION", raising=False)
+    transport.response = FakeResponse(payload=_reply("ok"))
+
+    openrouter_client.chat(system="s", user="u")
+
+    assert transport.payload["temperature"] == 0.2
+    assert "reasoning" not in transport.payload and "max_tokens" not in transport.payload
+    assert transport.payload["provider"] == {"data_collection": "deny"}
+
+
+def test_reasoning_effort_replaces_temperature_with_thinking(transport, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_REASONING_EFFORT", "Medium")
+    monkeypatch.setenv("OPENROUTER_DATA_COLLECTION", "allow")
+    transport.response = FakeStreamResponse([_sse(_delta("ok")), b"data: [DONE]"])
+
+    assert "".join(openrouter_client.stream_chat(system="s", user="u")) == "ok"
+
+    assert transport.payload["reasoning"] == {"effort": "medium"}
+    assert transport.payload["max_tokens"] == openrouter_client.DEFAULT_MAX_TOKENS
+    # Anthropic nie przyjmuje temperatury razem z mysleniem
+    assert "temperature" not in transport.payload and "provider" not in transport.payload
+
+
+def test_rewrites_skip_thinking(transport, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_REASONING_EFFORT", "high")
+    transport.response = FakeResponse(payload=_reply("ok"))
+
+    openrouter_client.chat(system="s", user="u", temperature=0.0, reasoning=False)
+
+    assert "reasoning" not in transport.payload and transport.payload["temperature"] == 0.0
+
+
+def test_unknown_effort_is_ignored(transport, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_REASONING_EFFORT", "xhigh")
+    transport.response = FakeResponse(payload=_reply("ok"))
+
+    openrouter_client.chat(system="s", user="u")
+
+    assert "reasoning" not in transport.payload and "temperature" in transport.payload

@@ -10,6 +10,13 @@ Klient uzywa requests (bez SDK openai).
 Narzedzia (llm/tools.py) ida w formacie OpenAI (tools/tool_calls) - petla jak
 w claude_client.py: najwyzej MAX_ROUNDS rund, w ostatniej tool_choice "none".
 Model bez obslugi narzedzi odpowie bledem API (-> llm_failed).
+
+OPENROUTER_REASONING_EFFORT (low/medium/high, puste = bez) wlacza myslenie
+modelu (jak CLAUDE_EFFORT przy Claude): wtedy bez temperature (Anthropic jej
+z mysleniem nie przyjmuje) i z max_tokens OPENROUTER_MAX_TOKENS (myslenie sie
+do niego liczy). OPENROUTER_DATA_COLLECTION (domyslnie deny) - OpenRouter
+kieruje zapytania tylko do dostawcow, ktorzy nie zapisuja ani nie ucza sie na
+danych (w pytaniach bywaja dane osoby z USOS); "allow" zdejmuje ograniczenie.
 """
 
 import json
@@ -23,6 +30,9 @@ from .tools import MAX_ROUNDS, ToolBox
 
 DEFAULT_MODEL = "google/gemini-2.5-flash"
 DEFAULT_TIMEOUT = 300
+# myslenie liczy sie do max_tokens - zapas na nie i na odpowiedz (jak w claude_client.py)
+DEFAULT_MAX_TOKENS = 16000
+REASONING_EFFORTS = ("low", "medium", "high")
 
 _API = BearerApi(
     base_url="https://openrouter.ai/api/v1",
@@ -54,6 +64,20 @@ def _messages(
     return messages
 
 
+def _tuning(temperature: float, reasoning: bool = True) -> dict[str, Any]:
+    """Pola zapytania zalezne od ustawien: temperatura albo myslenie, polityka danych."""
+    fields: dict[str, Any] = {}
+    effort = env_setting("OPENROUTER_REASONING_EFFORT", "").lower() if reasoning else ""
+    if effort in REASONING_EFFORTS:
+        fields["reasoning"] = {"effort": effort}
+        fields["max_tokens"] = int(env_setting("OPENROUTER_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
+    else:
+        fields["temperature"] = temperature
+    if env_setting("OPENROUTER_DATA_COLLECTION", "deny").lower() != "allow":
+        fields["provider"] = {"data_collection": "deny"}
+    return fields
+
+
 def chat(
     system: str,
     user: str,
@@ -62,6 +86,7 @@ def chat(
     temperature: float = 0.2,
     timeout: int = DEFAULT_TIMEOUT,
     images: Sequence[ImageInput] | None = None,
+    reasoning: bool = True,
 ) -> str:
     """Wysyla rozmowe do OpenRouter i zwraca tekst pierwszego wyboru."""
     model = model or env_setting("OPENROUTER_MODEL", DEFAULT_MODEL)
@@ -69,8 +94,8 @@ def chat(
     payload = {
         "model": model,
         "messages": _messages(system, user, history, images),
-        "temperature": temperature,
         "stream": False,
+        **_tuning(temperature, reasoning),
     }
     data = _API.request("POST", "/chat/completions", timeout=timeout, json=payload)
 
@@ -104,8 +129,8 @@ def stream_chat(
     payload: dict[str, Any] = {
         "model": model or env_setting("OPENROUTER_MODEL", DEFAULT_MODEL),
         "messages": messages,
-        "temperature": temperature,
         "stream": True,
+        **_tuning(temperature),
     }
     if tools is not None and tools.tools:
         payload["tools"] = [_tool_definition(definition) for definition in tools.definitions()]

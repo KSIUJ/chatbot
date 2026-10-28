@@ -137,7 +137,7 @@ export const fr: Translation = {
     consentNotes: [
       'Les données sont récupérées en direct et le chatbot ne les enregistre pas. Il ne conserve que ton identifiant USOS, ton nom dans USOS et un jeton d’accès chiffré.',
       'Les questions et réponses (qui peuvent contenir ces données) restent dans l’historique des conversations, comme les autres réponses.',
-      'Pour préparer la réponse, les données sont envoyées au fournisseur du modèle de langage (Anthropic).',
+      'Pour préparer la réponse, les données sont envoyées au fournisseur du modèle de langage (Anthropic, via l’intermédiaire OpenRouter).',
       'L’accès reste valable jusqu’à la déconnexion, même après ta déconnexion d’USOS. Tu peux le révoquer ici ou dans USOS (apps.usos.uj.edu.pl).',
     ],
     connect: 'Se connecter à USOS',
