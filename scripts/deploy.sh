@@ -99,6 +99,8 @@ command -v docker >/dev/null && docker compose version >/dev/null \
 env_value() { sed -n "s/^$1=//p" "$DEST/.env" | tail -1 | sed 's/^["'\'']//; s/["'\'']$//'; }
 
 missing=0
+mode="$(env_value ENV | tr '[:upper:]' '[:lower:]')"
+[[ "$mode" == dev ]] && { echo "BŁĄD: ENV=dev na serwerze (logowanie zmyślonymi kontami, bez Keycloaka) - ustaw ENV=prod" >&2; missing=1; }
 for var in OIDC_ISSUER OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_REDIRECT_URI AUTH_SECRET_KEY; do
   [[ -n "$(env_value "$var")" ]] || { echo "BRAK: $var w $DEST/.env" >&2; missing=1; }
 done
