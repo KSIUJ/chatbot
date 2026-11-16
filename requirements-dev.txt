@@ -1,4 +1,4 @@
-# Lokalny development: zaleznosci backendu + testy + scrapery (pipeline/scrapers).
+# Lokalny development: zaleznosci backendu + testy + scrapery (src/scrapers).
 # Obraz Dockera instaluje tylko requirements.txt.
 -r requirements.txt
 pytest

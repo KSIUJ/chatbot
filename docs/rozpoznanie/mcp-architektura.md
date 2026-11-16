@@ -443,7 +443,7 @@ tymi samymi polami. Dzięki temu:
   zapisu nie wykona akcji; token z innym `aud`, innym `azp` albo
   przeterminowany jest odrzucany; polecenia wstrzyknięte w wyniki narzędzi
   nie zmieniają zachowania czatu.
-- Testy całego przebiegu na wzór `rag_eval/usos_tools.py`. Przy
+- Testy całego przebiegu na wzór `src/rag_eval/usos_tools.py`. Przy
   przenoszeniu USOS na MCP wszystkie dzisiejsze pytania muszą przechodzić
   tak samo jak teraz.
 
@@ -453,7 +453,7 @@ tymi samymi polami. Dzięki temu:
 |---|---|---|
 | 0 | Przegląd i zatwierdzenie tego dokumentu, prośba do admina Keycloaka (sekcja 3) | — |
 | 1 | Fundament: `mcp/common` (weryfikacja i wymiana tokenów, klient HTTP z limitem czasu, format błędów), klient MCP w backendzie z polityką i flagą danych osobowych dla każdego narzędzia. Pierwszy serwer: `mcp-events` z publicznymi wydarzeniami, żeby sprawdzić całą ścieżkę na danych bez osób | etap 0; tokeny z Keycloaka albo plan B |
-| 2 | Równolegle: `mcp-mordor` (odczyt) i `mcp-usos` (przeniesienie narzędzi i tokenów). Stary kod USOS usuwamy dopiero, gdy pytania z `rag_eval/usos_tools.jsonl` przechodzą jak dziś | etap 1; R3 i R5 dla Mordoru |
+| 2 | Równolegle: `mcp-mordor` (odczyt) i `mcp-usos` (przeniesienie narzędzi i tokenów). Stary kod USOS usuwamy dopiero, gdy pytania z `src/rag_eval/usos_tools.jsonl` przechodzą jak dziś | etap 1; R3 i R5 dla Mordoru |
 | 3 | Potwierdzanie akcji (tabela akcji, karta, endpoint, dziennik, wyłącznik) i zapisy na wydarzenia | etap 1; API z tokenem w Events (R9) |
 | 4 | Gutenberg: najpierw odczyt, potem drukowanie z kartą. KSI Pay (tylko stan opłat), gdy powstanie | etap 3; logowanie tokenem w Gutenbergu (R10) |
 

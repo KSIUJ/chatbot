@@ -20,11 +20,11 @@ INCIDENTS_REVISION = "c7e3a9d5f1b2"
 @pytest.fixture
 def alembic_config(tmp_path, monkeypatch: pytest.MonkeyPatch) -> tuple[Config, str]:
     url = f"sqlite:///{(tmp_path / 'migrations.db').as_posix()}"
-    # alembic/env.py czyta src.backend.database.DATABASE_URL przy kazdym uruchomieniu
+    # migrations/env.py czyta src.backend.database.DATABASE_URL przy kazdym uruchomieniu
     monkeypatch.setattr(database, "DATABASE_URL", url)
-    # bez alembic.ini - fileConfig w env.py wylaczylby loggery innych testow
+    # bez pyproject.toml i cmd_opts - env.py nie zmienia wtedy loggerow innych testow
     config = Config()
-    config.set_main_option("script_location", str(REPO_ROOT / "alembic"))
+    config.set_main_option("script_location", str(REPO_ROOT / "src" / "backend" / "migrations"))
     return config, url
 
 

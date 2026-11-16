@@ -31,14 +31,12 @@ RUN pip install -r requirements.txt -c constraints.txt
 RUN useradd --system --uid 10001 --user-group --home-dir /app --no-create-home app
 COPY docker-entrypoint.sh /usr/local/bin/
 
+# backend z migracjami (src/backend/migrations) i notatkami o KSI
+# (src/backend/rag/sources/ksi/content); scrapery (src/scrapers) nie wchodza
+# do obrazu - refresh-usos.sh montuje je z repozytorium
 COPY src/backend ./src/backend
-# ingest do bazy RAG (python -m pipeline.ingest.run_ingest); scrapery
-# uruchamia sie lokalnie, poza obrazem
-COPY pipeline/ingest ./pipeline/ingest
-COPY alembic.ini ./
-COPY alembic ./alembic
-# notatki o KSI pisane recznie (zrodlo ksi RAG-a)
-COPY knowledge ./knowledge
+# konfiguracja alembica ([tool.alembic])
+COPY pyproject.toml ./
 
 EXPOSE 8000
 

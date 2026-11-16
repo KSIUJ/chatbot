@@ -1,7 +1,7 @@
 # Format zbiorów danych RAG-a
 
-Kontrakt między scraperami (`pipeline/scrapers/`) a RAG-iem: co scraper ma
-zapisać w `data/<źródło>/`, żeby ingest (`python -m pipeline.ingest.run_ingest`)
+Kontrakt między scraperami (`src/scrapers/`) a RAG-iem: co scraper ma
+zapisać w `data/<źródło>/`, żeby ingest (`python -m src.backend.rag.index`)
 mógł to zaindeksować. RAG nie zna scraperów — zna tylko ten format.
 Schematy JSON (dla scraperów w dowolnym języku): `docs/datasets/*.schema.json`,
 generowane z modeli (`python -m src.backend.rag.datasets_cli schemas --out docs/datasets`).
@@ -22,7 +22,7 @@ data/<źródło>/
 | `source` | nazwa źródła, taka jak katalog (`uj_pages`, `usos`, `mordor`, `ksi`) |
 | `format_version` | wersja tego formatu — obecnie `1` |
 | `collected_at` | kiedy dane zebrano, ISO 8601 ze strefą (`2026-10-11T08:00:00Z`) |
-| `collector` | kto zebrał: scraper i wersja (np. `pipeline/scrapers/usos@abc1234`) |
+| `collector` | kto zebrał: scraper i wersja (np. `src/scrapers/usos@abc1234`) |
 | `files` | pliki z rekordami, ścieżki względne `.jsonl` wewnątrz katalogu |
 
 Każdy rekord ma tę samą kopertę:
@@ -67,7 +67,7 @@ idą do `ksi` (ten sam format).
 
 ## `usos` — USOS UJ
 
-Zbiera `pipeline/scrapers/usos` (USOS API i strony informacyjne USOSweb).
+Zbiera `src/scrapers/usos` (USOS API i strony informacyjne USOSweb).
 Rodzaje rekordów (`kind`); poza pracownikiem treść jest w `content`
 (Markdown z nagłówkami), a `attributes` mają tylko pola do metadanych:
 
@@ -112,7 +112,7 @@ Pliki leżą w `data/mordor/` w strukturze katalogów Mordoru, rekordy obok nich
 ## `ksi` — informacje o KSI
 
 - strony KSI w `data/ksi/` — format jak `uj_pages`, `category: ksi`
-- notatki pisane ręcznie w repozytorium: `knowledge/ksi/*.md` (opis w `knowledge/ksi/README.md`)
+- notatki pisane ręcznie w repozytorium: `src/backend/rag/sources/ksi/content/*.md` (opis w `src/backend/rag/sources/ksi/content/README.md`)
 
 ## Stare formaty scraperów
 

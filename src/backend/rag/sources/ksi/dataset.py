@@ -1,5 +1,5 @@
 """Format informacji o KSI: strony KSI (data/ksi/, jak uj_pages) i notatki
-pisane recznie (knowledge/ksi/*.md w repo)."""
+pisane recznie (src/backend/rag/sources/ksi/content/*.md w repo)."""
 
 from __future__ import annotations
 

@@ -1,12 +1,12 @@
-"""Ewaluacja RAG-a (rag_eval/): cele, zbior pytan i metryki - bez modeli."""
+"""Ewaluacja RAG-a (src/rag_eval/): cele, zbior pytan i metryki - bez modeli."""
 
 from __future__ import annotations
 
 import pytest
 
-from rag_eval import targets
-from rag_eval.questions import load_questions
-from rag_eval.run import QuestionResult, summarize
+from src.rag_eval import targets
+from src.rag_eval.questions import load_questions
+from src.rag_eval.run import QuestionResult, summarize
 
 
 def test_page_targets_ignore_scheme_slash_and_encoding():

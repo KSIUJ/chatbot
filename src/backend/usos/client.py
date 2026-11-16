@@ -3,7 +3,7 @@
 Podpisy liczy oauthlib (RFC 5849, czysty Python) - ta sama biblioteka, ktorej
 uzywa requests_oauthlib w scraperze, ale bez requests: transport to httpx,
 jak w logowaniu OIDC (w testach httpx.MockTransport). Backend nie importuje
-nic z pipeline/ (nie ma go w obrazie Dockera).
+nic z src/scrapers/ (nie ma go w obrazie Dockera).
 
 Wszystkie podpisane wywolania ida POST-em z parametrami w ciele formularza:
 parametry nie trafiaja do adresow URL (ani do logow dostepu po drodze), a
@@ -34,7 +34,7 @@ for _name in ("oauthlib", "requests_oauthlib", "httpx", "httpcore"):
 
 USER_AGENT = "KSI-chatbot/1.0 (+https://chat.ksi.sh; usos-connect)"
 _FORM = "application/x-www-form-urlencoded"
-# tokeny USOS to znaki alfanumeryczne (jak w pipeline/scrapers/usos/login.py)
+# tokeny USOS to znaki alfanumeryczne (jak w src/scrapers/usos/login.py)
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]{8,128}")
 # oauth_verifier z callbacku USOS (PIN) - tez alfanumeryczny
 VERIFIER_PATTERN = re.compile(r"[A-Za-z0-9]{1,128}")

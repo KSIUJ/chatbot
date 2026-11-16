@@ -35,8 +35,8 @@ logs/
 .DS_Store
 Thumbs.db
 
-# wyniki przebiegow ewaluacji RAG (punkt odniesienia: rag_eval/baseline-current.json)
-rag_eval/results/
+# wyniki przebiegow ewaluacji RAG (punkt odniesienia: src/rag_eval/baseline-current.json)
+src/rag_eval/results/
 
 # wersja wdrozona przez scripts/deploy.sh (tylko na serwerze)
 REVISION

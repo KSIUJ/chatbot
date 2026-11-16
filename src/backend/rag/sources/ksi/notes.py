@@ -1,5 +1,5 @@
 """
-Notatki o KSI pisane recznie: pliki Markdown w knowledge/ksi/ (w repo, wiec
+Notatki o KSI pisane recznie: pliki Markdown w content/ obok tego modulu (w repo, wiec
 tylko informacje publiczne). Kazdy plik zaczyna sie naglowkiem YAML:
 
     ---
@@ -26,7 +26,7 @@ from pydantic import ValidationError
 from ...core.datasets import DatasetError
 from .dataset import NoteAttributes, NoteRecord
 
-KNOWLEDGE_DIR = Path(__file__).resolve().parents[5] / "knowledge" / "ksi"
+KNOWLEDGE_DIR = Path(__file__).resolve().parent / "content"
 FRONT_MATTER = "---"
 _KNOWN_KEYS = {"title", "updated", "tags", "url", "always_include", "draft"}
 
