@@ -39,7 +39,7 @@ w kolejności, w jakiej przyjdą zgody.
   OAuth, token zaszyfrowany i związany z kontem czatu, narzędzia modelu tylko
   do odczytu (`llm/tools.py`, Claude i OpenRouter), znacznik
   `messages.personal_data`, dane osoby nigdy we wspólnym indeksie RAG.
-- **Odświeżanie i nadzór** — `refresh-usos.sh` z crona (co noc, w niedzielę
+- **Odświeżanie i nadzór** — `deploy/refresh-usos.sh` z crona (co noc, w niedzielę
   z pracownikami), ostrzeżenie w panelu admina o nieświeżych danych
   (`MAX_DATA_AGE` w `src/backend/admin/diagnostics.py`).
 - **Ewaluacja** — `src/rag_eval/` (wyszukiwanie, 149 pytań) i
@@ -132,7 +132,7 @@ ustalamy z jego opiekunami. Do ustalenia przed startem:
   może trwać godziny. Opcje: przebieg nocny partiami, OCR na innej maszynie
   (np. laptop) z gotowym wynikiem kopiowanym na serwer, albo model z wizją
   tylko dla skanów bez tekstu (koszt API — oszacować na próbce).
-- **Odświeżanie** — `refresh-mordor.sh` (wzór `refresh-usos.sh`) raz w tygodniu,
+- **Odświeżanie** — `refresh-mordor.sh` (wzór `deploy/refresh-usos.sh`) raz w tygodniu,
   `MAX_DATA_AGE["mordor"] = 8 dni` w ostrzeżeniach panelu.
 
 ### Przebieg (PR-y)
@@ -342,7 +342,7 @@ sprawdzić z zewnątrz; rozstrzyga to próbna rejestracja aplikacji i ekran zgod
 
 - **Połączone konta** (USOS + Microsoft + Pegaz) — jedna tabela, jedno
   szyfrowanie, jeden widok w Ustawieniach, wspólne zasady zgody i rozłączania.
-- **Odświeżanie źródeł** — `refresh-usos.sh` → skrypt dla dowolnego źródła,
+- **Odświeżanie źródeł** — `deploy/refresh-usos.sh` → skrypt dla dowolnego źródła,
   wpisy crona i `MAX_DATA_AGE` dla `uj_pages` i `mordor`.
 - **Prompt** — nowe sekcje kontekstu (np. dane z Pegaza i Teams w sekcji
   danych osoby) wymagają akceptacji; każda integracja dopisuje narzędzia do

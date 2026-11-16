@@ -8,20 +8,20 @@
 # do tego momentu leżą nietknięte na dysku. Uwaga: migracje bazy nowej wersji
 # zostają - przy cofnięciu po migracji przywróć kopię z $DEST/backups/.
 #
-#   scripts/deploy.sh              # z pytaniem o potwierdzenie
-#   scripts/deploy.sh -y           # bez pytania
-#   scripts/deploy.sh --dry-run    # pokaż, co zostałoby skopiowane
+#   deploy/deploy-server.sh              # z pytaniem o potwierdzenie
+#   deploy/deploy-server.sh -y           # bez pytania
+#   deploy/deploy-server.sh --dry-run    # pokaż, co zostałoby skopiowane
 #
 # Zmienne: KSI_HOST (alias SSH), KSI_DEST, KSI_PROJECT
 #
-# ./deploy.sh w katalogu głównym to uruchomienie całości lokalnie w Dockerze.
+# deploy/local-up.sh to uruchomienie całości lokalnie w Dockerze.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 HOST="${KSI_HOST:-ksi-chat}"
 DEST="${KSI_DEST:-/opt/chatbot}"
 # Nazwa projektu Compose = prefiks wolumenów (chatbot_chatbot-db, ...) i obrazów
-# (chatbot-backend, chatbot-frontend); refresh-usos.sh zakłada tę samą.
+# (chatbot-backend, chatbot-frontend); deploy/refresh-usos.sh zakłada tę samą.
 PROJECT="${KSI_PROJECT:-chatbot}"
 ASSUME_YES=0
 DRY_RUN=0
@@ -87,7 +87,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
 fi
 
 # Wdrożenie bez konfiguracji na serwerze podniosłoby backend, który wysypie
-# się na starcie - lepiej dowiedzieć się o tym teraz (jak ./deploy.sh).
+# się na starcie - lepiej dowiedzieć się o tym teraz (jak deploy/local-up.sh).
 echo
 echo "Sprawdzam konfigurację na hoście…"
 ssh "$HOST" bash -s -- "$DEST" <<'PREFLIGHT'
@@ -174,7 +174,7 @@ if [[ -n "$("${COMPOSE[@]}" ps -q --status running backend 2>/dev/null)" ]]; the
     rm -f "$file"; echo "Kopia bazy nie powiodła się - przerywam, nic nie zostało podmienione." >&2; exit 1
   else
     echo "  kopia bazy: $DEST/$file"
-    # ostatnie 10, nie starsze niż 30 dni (jak ./deploy.sh)
+    # ostatnie 10, nie starsze niż 30 dni (jak deploy/local-up.sh)
     ls -1t backups/chatbot-*.db | tail -n +11 | xargs -r rm -f --
     find backups -maxdepth 1 -name 'chatbot-*.db' -mtime +30 -delete
   fi

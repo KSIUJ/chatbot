@@ -1,4 +1,4 @@
-// `pnpm setup:backend`: .venv z Pythonem z .python-version, zaleznosci deweloperskie
+// `pnpm setup:backend`: .venv z Pythonem z .python-version, zaleznosci (grupa dev z pyproject.toml)
 // i migracje bazy. Dziala na Windows (launcher `py`) i Linux/macOS (`python3.X`).
 // Ponowne uruchomienie tylko doinstalowuje zaleznosci i migruje baze.
 import { spawnSync } from 'node:child_process';
@@ -49,5 +49,5 @@ if (existsSync(venvPython)) {
   run(command, [...args, '-m', 'venv', venvDir]);
 }
 
-run(venvPython, ['-m', 'pip', 'install', '-r', 'requirements-dev.txt']);
+run(venvPython, ['-m', 'pip', 'install', '--group', 'dev']);
 run(venvPython, ['-m', 'alembic', 'upgrade', 'head']);

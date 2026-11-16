@@ -1,5 +1,5 @@
 # GPU (NVIDIA) dla Ollamy. Wymaga NVIDIA Container Toolkit na hoscie:
-#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile ollama up -d --build
+#   docker compose -f docker-compose.yml -f deploy/compose.gpu.yml --profile ollama up -d --build
 # Backend zostaje na CPU (obraz ma torch w wersji CPU).
 services:
   ollama:

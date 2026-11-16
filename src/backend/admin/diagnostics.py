@@ -225,7 +225,7 @@ def _timestamp(value: object) -> datetime | None:
         return None
 
 
-# zrodla odswiezane automatycznie (refresh-usos.sh z crona co noc) - dane starsze
+# zrodla odswiezane automatycznie (deploy/refresh-usos.sh z crona co noc) - dane starsze
 # niz tyle znacza, ze odswiezanie nie dziala; panel pokazuje wtedy ostrzezenie
 MAX_DATA_AGE: dict[str, timedelta] = {"usos": timedelta(days=2)}
 

@@ -3,8 +3,8 @@
 # zapisuje zbior prosto do wolumenu danych backendu, a potem sync indeksu RAG
 # podmienia tylko zmienione dokumenty. Do crona (np. co noc), ale mozna recznie.
 #
-#   ./refresh-usos.sh                bez kart pracownikow (zostaja z poprzedniego zbioru)
-#   ./refresh-usos.sh --with-staff   tez pracownicy, z tokenem operatora z .env (adresy e-mail)
+#   deploy/refresh-usos.sh                bez kart pracownikow (zostaja z poprzedniego zbioru)
+#   deploy/refresh-usos.sh --with-staff   tez pracownicy, z tokenem operatora z .env (adresy e-mail)
 #
 # Bez --with-staff scraper dziala samym kluczem aplikacji: token operatora
 # (USOS_ACCESS_TOKEN) bywa niewazny, a bez niego karty pracownikow stracilyby
@@ -15,7 +15,7 @@
 set -euo pipefail
 umask 022
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 APP_UID=10001
 APP_GID=999
@@ -46,7 +46,7 @@ if ! flock -n 9; then
 fi
 
 # obraz backendu z ostatniego deployu + biblioteki scraperow (z cache - zwykle od razu)
-if ! docker build -q -f Dockerfile.scrapers -t "$IMAGE" . >/dev/null; then
+if ! docker build -q -f deploy/Dockerfile.scrapers -t "$IMAGE" . >/dev/null; then
   echo "nie udalo sie zbudowac obrazu $IMAGE"
   exit 1
 fi
