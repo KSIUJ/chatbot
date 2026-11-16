@@ -35,9 +35,29 @@ _TRUE = frozenset({"1", "true", "yes", "on", "tak"})
 _FALSE = frozenset({"0", "false", "no", "off", "nie"})
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
+# Tryb deweloperski (ENV=dev): logowanie zmyslonymi kontami zamiast
+# Keycloaka (auth/dev.py), bez OIDC_* i sekretow w .env. Tylko na wlasnym
+# komputerze - kazdy, kto dosiegnie backendu, moze wejsc jako Zarzad, dlatego
+# backend odpowiada wtedy tylko na zapytania z petli zwrotnej (main.py).
+# Literowka i brak zmiennej znacza normalne logowanie.
+DEV_MODE_ENV = "ENV"
+DEV_WARNING = (
+    "Tryb deweloperski (ENV=dev): logowanie zmyslonymi kontami, bez Keycloaka. "
+    "Nie wystawiaj tego do sieci."
+)
+DEV_REDIRECT_URI = "http://localhost:5173/api/auth/callback"
+# Staly klucz tylko dla trybu dev bez AUTH_SECRET_KEY w .env: sesje przetrwaja
+# restart backendu (uvicorn --reload). Szyfruje wylacznie lokalne dane testowe.
+DEV_SECRET_KEY = "dev-only-key-chatbot-local-never-use-in-production"
+
 DEFAULT_REQUIRED_GROUP = "/Członek"
 # Zarzad KSI przeglada oceny i zgloszenia odpowiedzi (/admin/*)
 DEFAULT_ADMIN_GROUP = "/Zespoły/Zarząd"
+
+
+def is_dev_mode(env: Mapping[str, str]) -> bool:
+    """ENV=dev (bez wzgledu na wielkosc liter i spacje)."""
+    return (env.get(DEV_MODE_ENV) or "").strip().lower() == "dev"
 
 
 class AuthConfigError(RuntimeError):
@@ -66,6 +86,8 @@ class AuthSettings:
     login_state_max_age_seconds: int
     http_timeout_seconds: float
     allowed_origins: tuple[str, ...]
+    # ENV=dev: zmyslone konta zamiast Keycloaka (auth/dev.py)
+    dev_mode: bool = False
 
     @property
     def session_cookie_name(self) -> str:
@@ -149,11 +171,25 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
             errors.append(f"{name} musi byc dodatnie")
         return value
 
-    issuer = required("OIDC_ISSUER").rstrip("/")
-    client_id = required("OIDC_CLIENT_ID")
-    client_secret = required("OIDC_CLIENT_SECRET")
-    redirect_uri = required("OIDC_REDIRECT_URI")
-    secret_key = required("AUTH_SECRET_KEY")
+    dev_mode = is_dev_mode(env)
+    if dev_mode:
+        # Keycloak nie jest uzywany - jego zmienne nie sa potrzebne
+        issuer = get("OIDC_ISSUER", "http://localhost/dev").rstrip("/")
+        client_id = get("OIDC_CLIENT_ID", "chatbot")
+        client_secret = get("OIDC_CLIENT_SECRET", "dev")
+        redirect_uri = get("OIDC_REDIRECT_URI", DEV_REDIRECT_URI)
+        secret_key = get("AUTH_SECRET_KEY", DEV_SECRET_KEY)
+        if urlsplit(redirect_uri).hostname not in _LOCAL_HOSTS:
+            errors.append(
+                f"{DEV_MODE_ENV}=dev dziala tylko lokalnie - OIDC_REDIRECT_URI musi wskazywac localhost, "
+                f"jest {redirect_uri!r}"
+            )
+    else:
+        issuer = required("OIDC_ISSUER").rstrip("/")
+        client_id = required("OIDC_CLIENT_ID")
+        client_secret = required("OIDC_CLIENT_SECRET")
+        redirect_uri = required("OIDC_REDIRECT_URI")
+        secret_key = required("AUTH_SECRET_KEY")
 
     if issuer and not _is_https_or_local(issuer):
         errors.append("OIDC_ISSUER musi byc adresem https:// (http tylko dla localhost)")
@@ -237,6 +273,7 @@ def load_auth_settings(env: Mapping[str, str]) -> AuthSettings:
         login_state_max_age_seconds=LOGIN_STATE_MAX_AGE_SECONDS,
         http_timeout_seconds=http_timeout,
         allowed_origins=allowed_origins,
+        dev_mode=dev_mode,
     )
 
 

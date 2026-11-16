@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-// Backend for `npm run dev`. Like nginx in Docker: /api/* goes to the backend
+// Backend for `pnpm dev`. Like nginx in Docker: /api/* goes to the backend
 // with /api stripped, so the frontend and the API share one origin
 // (http://localhost:5173) and the session cookie works without CORS.
 const backendUrl = process.env.VITE_BACKEND_URL ?? 'http://127.0.0.1:8000';
@@ -14,6 +14,9 @@ export default defineConfig({
       '/api': {
         target: backendUrl,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        // X-Forwarded-For with the browser's address: with ENV=dev the backend
+        // only answers this computer, also when vite runs with --host
+        xfwd: true,
       },
     },
   },

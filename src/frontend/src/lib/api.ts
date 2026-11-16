@@ -1,5 +1,5 @@
 // The frontend always calls the backend through /api on its own origin: nginx
-// proxies it in Docker (nginx.conf), Vite in `npm run dev` (vite.config.ts).
+// proxies it in Docker (nginx.conf), Vite in `pnpm dev` (vite.config.ts).
 // One origin means the session cookie works without CORS.
 export const API_BASE_URL = '/api';
 

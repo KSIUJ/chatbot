@@ -16,7 +16,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session, sessionmaker
 from starlette.concurrency import run_in_threadpool
 
@@ -25,6 +25,7 @@ from .attachments.errors import AttachmentError, attachment_error_handler
 from .attachments.router import router as attachments_router
 from .attachments.service import attachments_by_message, purge_stale_attachments
 from .auth import get_auth_settings, require_member, router as auth_router, verify_origin
+from .auth.settings import DEV_WARNING, is_dev_mode
 from .chat import (
     ChatTurn,
     ConversationNotOwned,
@@ -218,7 +219,8 @@ def start_occasion_task() -> asyncio.Task[None] | None:
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Brak/bledna konfiguracja OIDC, CHAT_HISTORY_*, limitow (CHAT_DAILY_LIMIT,
     # ATTACHMENT_*), OCCASION_* albo USOS_* zatrzymuje start z opisem bledu
-    get_auth_settings()
+    if get_auth_settings().dev_mode:
+        logger.warning("!!! %s Odpowiadam tylko na zapytania z 127.0.0.1/::1. !!!", DEV_WARNING)
     get_history_settings()
     get_default_limits()
     get_occasion_settings()
@@ -250,6 +252,32 @@ app.add_exception_handler(ChatDisabled, chat_disabled_handler)
 app.add_exception_handler(ChatBlocked, chat_blocked_handler)
 # odrzucony plik / zalacznik w pytaniu -> kod w detail.code (attachments/errors.py)
 app.add_exception_handler(AttachmentError, attachment_error_handler)
+
+# ENV=dev wpuszcza kazdego jako dowolne zmyslone konto (takze Zarzad),
+# wiec backend odpowiada wtedy tylko na zapytania z tego komputera: z petli
+# zwrotnej i bez X-Forwarded-For spoza niej (vite dopisuje adres przegladarki,
+# gdy ktos uruchomi go z --host). Za nginxem w Dockerze zapytania przychodza
+# z sieci kontenerow, wiec tam tryb dev po prostu nie dziala.
+_LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _is_loopback(address: str) -> bool:
+    return address.strip().removeprefix("::ffff:") in _LOOPBACK
+
+
+@app.middleware("http")
+async def dev_mode_loopback_only(request: Request, call_next):
+    if not is_dev_mode(os.environ):
+        return await call_next(request)
+    client = request.client.host if request.client else ""
+    forwarded = [a for a in request.headers.get("x-forwarded-for", "").split(",") if a.strip()]
+    if not _is_loopback(client) or not all(_is_loopback(a) for a in forwarded):
+        logger.warning("dev mode: refused request from %s (forwarded: %s)", client, forwarded)
+        return JSONResponse(
+            {"detail": {"code": "dev_mode_local_only", "message": DEV_WARNING}}, status_code=403
+        )
+    return await call_next(request)
+
 
 # CORS potrzebny tylko gdy frontend i API sa na roznych originach (w Dockerze
 # i w vite z proxy jest jeden origin). Z ciasteczkami nie wolno uzyc "*".
