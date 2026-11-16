@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import resource
 import statistics
+import sys
 import time
 from collections import defaultdict
 from dataclasses import asdict, dataclass
@@ -105,6 +105,17 @@ def timing(results: list[QuestionResult]) -> dict[str, float]:
     }
 
 
+def peak_rss_mb() -> int | None:
+    """Szczyt pamieci procesu w MB; None na Windows (brak modulu resource)."""
+    if sys.platform == "win32":
+        return None
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # ru_maxrss: KB na Linuksie, bajty na macOS
+    return round(peak / (1024 * 1024 if sys.platform == "darwin" else 1024))
+
+
 def _cell(value: object) -> str:
     if value is None:
         return "-"
@@ -149,8 +160,7 @@ def main() -> None:
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "startup_s": startup_s,
         "timing": timing(results),
-        # ru_maxrss w KB na Linuksie
-        "peak_rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024),
+        "peak_rss_mb": peak_rss_mb(),
         "summary": summary,
         "questions": [asdict(r) for r in results],
     }
@@ -160,7 +170,7 @@ def main() -> None:
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
 
     print(table(summary))
-    print(f"\nstart {startup_s} s | wyszukiwanie {report['timing']} | pamiec {report['peak_rss_mb']} MB")
+    print(f"\nstart {startup_s} s | wyszukiwanie {report['timing']} | pamiec {report['peak_rss_mb'] or '-'} MB")
     missed = [r.id for r in results if r.answerable and r.rank is None]
     print(f"nie znaleziono ({len(missed)}): {', '.join(missed)}")
     print(f"wyniki: {out}")

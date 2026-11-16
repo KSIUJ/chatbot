@@ -22,7 +22,7 @@ starsze sa usuwane.
 from __future__ import annotations
 
 import argparse
-import fcntl
+import errno
 import json
 import shutil
 import sqlite3
@@ -32,6 +32,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import IO
 
 from .core import chunking
 from .core.datasets import MANIFEST, Manifest
@@ -56,6 +57,39 @@ from .core.index_store import (
 )
 from .core.lexical import LexicalIndex
 from .core.vectorstore import VectorStore, document_hash
+
+if sys.platform == "win32":
+    import msvcrt
+
+    def _try_lock(handle: IO[str]) -> bool:
+        """Blokada pierwszego bajtu pliku; False, gdy trzyma ja inny proces."""
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as error:
+            if error.errno in (errno.EACCES, errno.EDEADLOCK):
+                return False
+            raise
+        return True
+
+    def _unlock(handle: IO[str]) -> None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
+else:
+    import fcntl
+
+    def _try_lock(handle: IO[str]) -> bool:
+        """Wylaczna blokada flock; False, gdy trzyma ja inny proces."""
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        return True
+
+    def _unlock(handle: IO[str]) -> None:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+
 
 DATA_DIR = Path("data")
 BATCH_SIZE = 256
@@ -204,17 +238,16 @@ def sync_source(
 
 @contextmanager
 def _locked(dataset_dir: Path) -> Iterator[None]:
-    """Jeden build/sync naraz (blokada pliku, zwalniana takze po zabiciu procesu)."""
+    """Jeden build/sync naraz (blokada pliku, zwalniana takze po zabiciu procesu:
+    flock na Linuksie/macOS, msvcrt.locking na Windows)."""
     dataset_dir.mkdir(parents=True, exist_ok=True)
     with (dataset_dir / LOCK_FILE).open("a") as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise IndexCommandError("inny build/sync indeksu juz dziala") from None
+        if not _try_lock(handle):
+            raise IndexCommandError("inny build/sync indeksu juz dziala")
         try:
             yield
         finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+            _unlock(handle)
 
 
 def _now() -> datetime:

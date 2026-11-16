@@ -4,6 +4,7 @@ bez psucia reszty pliku i bez wstrzykniecia innych zmiennych."""
 from __future__ import annotations
 
 import stat
+import sys
 
 import pytest
 
@@ -17,8 +18,17 @@ def test_update_env_file_replaces_and_appends(tmp_path):
     login_module.update_env_file(env, {"USOS_ACCESS_TOKEN": "new", "USOS_ACCESS_TOKEN_SECRET": "s"})
 
     assert env.read_text(encoding="utf-8") == "A=1\nUSOS_ACCESS_TOKEN=new\nB=2\nUSOS_ACCESS_TOKEN_SECRET=s\n"
-    assert stat.S_IMODE(env.stat().st_mode) == 0o600
     assert [p.name for p in tmp_path.iterdir()] == [".env"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows nie ma uprawnien POSIX - chmod ustawia tylko read-only")
+def test_update_env_file_is_owner_only(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("A=1\n", encoding="utf-8")
+
+    login_module.update_env_file(env, {"USOS_ACCESS_TOKEN": "new"})
+
+    assert stat.S_IMODE(env.stat().st_mode) == 0o600
 
 
 class _Response:
