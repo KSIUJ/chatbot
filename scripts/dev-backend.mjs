@@ -2,19 +2,9 @@
 // uvicorn z przeladowaniem na 127.0.0.1:8000 - tam, gdzie proxy vite
 // (src/frontend/vite.config.ts) przekazuje /api. Python z .venv (pnpm setup:backend).
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { requireVenv, root, venvPython as python } from './venv.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const python = process.platform === 'win32'
-  ? join(root, '.venv', 'Scripts', 'python.exe')
-  : join(root, '.venv', 'bin', 'python');
-
-if (!existsSync(python)) {
-  console.error('Brak .venv z Pythonem 3.14 - najpierw: pnpm setup:backend');
-  process.exit(1);
-}
+requireVenv();
 
 const migrate = spawnSync(python, ['-m', 'alembic', 'upgrade', 'head'], { cwd: root, stdio: 'inherit' });
 if (migrate.status !== 0) process.exit(migrate.status ?? 1);
