@@ -82,7 +82,9 @@ uvicorn src.backend.main:app --reload               # API na :8000, zawsze jeden
 cd src/frontend && pnpm install && pnpm dev          # http://localhost:5173
 ```
 
-W `.env` ustaw `OIDC_REDIRECT_URI=http://localhost:5173/api/auth/callback` i otwieraj `localhost`, nie `127.0.0.1`.
+Lokalnie najprościej bez Keycloaka: `ENV=dev` w `.env` (wystarczy samo to — `OIDC_*` i `AUTH_SECRET_KEY` niepotrzebne). Logowanie to wtedy wybór zmyślonego konta (`src/backend/auth/dev.py`): Zarząd (panel administratora), dwie osoby z `/Członek` (osobne historie rozmów) i osoba spoza grupy (ekran odmowy). Konta przechodzą tę samą ścieżkę co prawdziwe — sesja w bazie i sprawdzanie grupy przy każdym zapytaniu — tylko „Keycloak” jest atrapą; wylogowanie wraca do wyboru konta. W trybie dev backend odpowiada wyłącznie na zapytania z tego komputera (`127.0.0.1`, także przez proxy vite z `--host`), a `scripts/deploy.sh` nie wdroży serwera z `ENV=dev`.
+
+Z prawdziwym Keycloakiem (`ENV=prod`): `OIDC_REDIRECT_URI=http://localhost:5173/api/auth/callback`, sekret klienta i otwieranie `localhost`, nie `127.0.0.1`.
 
 Testy: `python -m pytest` oraz w `src/frontend`: `pnpm lint && pnpm test && pnpm build`.
 

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import User
 from .crypto import TokenCipher
+from .dev import DevOIDCClient
 from .oidc import OIDCClient, ProviderUnavailableError
 from .service import AuthenticatedMember, AuthFailure, authenticate
 from .settings import AuthSettings, get_auth_settings
@@ -34,6 +35,8 @@ def _cipher_for(settings: AuthSettings) -> TokenCipher:
 
 @lru_cache(maxsize=4)
 def _oidc_client_for(settings: AuthSettings) -> OIDCClient:
+    if settings.dev_mode:
+        return DevOIDCClient(settings)
     http = httpx.Client(timeout=settings.http_timeout_seconds, follow_redirects=False)
     return OIDCClient(settings, http)
 

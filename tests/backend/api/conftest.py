@@ -56,7 +56,8 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
         monkeypatch.setenv(name, value)
     # zalaczniki trafiaja do katalogu testu, nie do ./uploads
     monkeypatch.setenv("ATTACHMENTS_DIR", str(tmp_path / "uploads"))
-    for name in ("AUTH_COOKIE_SECURE", "AUTH_FRONTEND_URL", "OIDC_POST_LOGOUT_REDIRECT_URI", "OIDC_SCOPES",
+    # ENV=dev z lokalnego .env (load_dotenv) wylaczylby Keycloaka we wszystkich testach
+    for name in ("ENV", "AUTH_COOKIE_SECURE", "AUTH_FRONTEND_URL", "OIDC_POST_LOGOUT_REDIRECT_URI", "OIDC_SCOPES",
                  "OIDC_ADMIN_GROUP"):
         monkeypatch.delenv(name, raising=False)
     for name in ("CHAT_HISTORY_MAX_PER_USER", "CHAT_HISTORY_RETENTION_DAYS", "CHAT_HISTORY_PURGE_INTERVAL_HOURS"):

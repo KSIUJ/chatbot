@@ -7,6 +7,7 @@ Za nginxem sa pod /api/auth/* (nginx obcina /api), backend widzi /auth/*.
                             ciasteczko sesji, 303 na frontend
     GET  /auth/me        -> dane zalogowanego czlonka (z is_admin) albo 401/403/503
     POST /auth/logout    -> kasuje sesje, zwraca adres wylogowania z Keycloaka
+    GET  /auth/dev/login -> tylko ENV=dev: wybor zmyslonego konta (auth/dev.py)
 """
 
 from __future__ import annotations
@@ -15,14 +16,15 @@ import hmac
 import logging
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..llm.language import parse_language
 from ..response import LogoutResponse, UserResponse
 from .crypto import DecryptionError, LoginState, TokenCipher
+from .dev import render_login_page
 from .dependencies import get_oidc_client, get_token_cipher, require_member_context
 from .oidc import OIDCClient, OIDCError, ProviderUnavailableError
 from .service import (
@@ -115,6 +117,19 @@ def login(
         settings,
     )
     return response
+
+
+@router.get("/dev/login", include_in_schema=False)
+def dev_login(
+    state: str = "",
+    nonce: str = "",
+    settings: AuthSettings = Depends(get_auth_settings),
+) -> HTMLResponse:
+    """Wybor zmyslonego konta w miejscu formularza Keycloaka (ENV=dev);
+    poza trybem dev nie istnieje."""
+    if not settings.dev_mode:
+        raise HTTPException(status_code=404)
+    return HTMLResponse(render_login_page(settings, state, nonce), headers=_NO_STORE)
 
 
 @router.get("/callback")

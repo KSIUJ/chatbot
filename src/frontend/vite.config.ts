@@ -14,6 +14,9 @@ export default defineConfig({
       '/api': {
         target: backendUrl,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        // X-Forwarded-For with the browser's address: with ENV=dev the backend
+        // only answers this computer, also when vite runs with --host
+        xfwd: true,
       },
     },
   },
