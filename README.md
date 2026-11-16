@@ -72,10 +72,10 @@ docker compose exec -u app backend cp /app/db/chatbot.db /app/db/chatbot.db.bak
 
 ## Praca lokalna
 
-Python 3.12 i Node.js 22+. Polecenia z katalogu głównego repo.
+Python 3.14 (jak w obrazie Dockera, `.python-version`) i Node.js 22+. Polecenia z katalogu głównego repo.
 
 ```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python3.14 -m venv .venv && source .venv/bin/activate   # Windows: py -3.14 -m venv .venv && .venv\Scripts\activate
 pip install -r requirements-dev.txt
 python -m alembic upgrade head                      # tworzy/aktualizuje chatbot.db
 uvicorn src.backend.main:app --reload               # API na :8000, zawsze jeden worker
