@@ -73,5 +73,12 @@ if ! docker run --rm --user "$APP_UID:$APP_GID" \
   exit 1
 fi
 
-docker compose exec -T -u app backend python -m src.backend.rag.index sync --source usos
+sync_index() { docker compose exec -T -u app backend python -m src.backend.rag.index sync --source usos; }
+# sync bywa losowo zabijany (kod 132, nieprawidlowa instrukcja procesora VM) - drugi
+# przebieg dokancza rozpoczety indeks, wiec jedno ponowienie wystarcza
+if ! sync_index; then
+  echo "sync indeksu przerwany - ponawiam raz (dokonczy rozpoczety indeks)"
+  sleep 30
+  sync_index
+fi
 echo "==> $(date -Is) gotowe"
