@@ -31,7 +31,6 @@ Całość jednym poleceniem (Linux, macOS, Git Bash na Windows):
 ```bash
 cp .env.example .env    # uzupełnij OIDC_CLIENT_SECRET, AUTH_SECRET_KEY i klucz wybranego LLM
 ./deploy.sh             # start albo aktualizacja po zmianach w kodzie
-./deploy.sh --pull      # wdrożenie na serwerze: najpierw git pull
 ./deploy.sh --help      # pozostałe opcje (--seed, --gpu, --no-backup, --timeout)
 ```
 
@@ -107,7 +106,7 @@ Scraper USOS (`pipeline/scrapers/usos/`, rodzaje rekordów w `src/backend/rag/DA
 - `python -m pipeline.scrapers.usos call services/fac/faculty fac_id=UJ.WMI` wypisuje odpowiedź jednej metody (do sprawdzania danych).
 - Adresy e-mail pracowników: jednorazowo `python -m pipeline.scrapers.usos login` (token operatora z uprawnieniami `other_emails|offline_access` trafia do `.env`). USOS podaje tak tylko adresy pokazywane jawnie (ok. 15% pracowników); ukryte przed robotami (captcha w USOSweb) zostają w karcie jako link do profilu — wszystkie adresy daje tylko klucz administracyjny USOS. Uwaga: cofnięcie tokenu w USOS (*Rozłącz* w czacie albo `revoke_token`) unieważnia najpewniej wszystkie tokeny tej aplikacji dla danego konta — także token operatora, jeśli operator rozłączy swoje konto w czacie; wtedy trzeba powtórzyć `login`. Komunikaty błędów nie zawierają tokenów.
 - Dane studentów nie są zbierane. USOSownia nie jest zbierana (jej `robots.txt` zabrania robotów) — zamiast niej czat ma krótkie poradniki KSI do USOSweb (`knowledge/ksi/usos-*.md`) z linkami do USOSowni.
-- **Odświeżanie na serwerze** — `./refresh-usos.sh` zbiera wszystko poza pracownikami (zostają z poprzedniego zbioru razem z adresami e-mail) samym kluczem aplikacji, zapisuje zbiór prosto do wolumenu danych backendu i robi `index sync --source usos`; `--with-staff` zbiera też pracowników z tokenem operatora z `.env`. Wszystko jako użytkownik `app` (uid 10001) — pliki indeksu zapisane przez roota backend widzi tylko do odczytu i przestaje odpowiadać. Obraz `chatbot-scrapers` (`Dockerfile.scrapers`: obraz backendu + biblioteki scraperów) skrypt buduje sam. Log w `logs/refresh-usos.log`. Na serwerze cron co noc: `30 4 * * * /home/karol/chatbot/refresh-usos.sh`.
+- **Odświeżanie na serwerze** — `./refresh-usos.sh` zbiera wszystko poza pracownikami (zostają z poprzedniego zbioru razem z adresami e-mail) samym kluczem aplikacji, zapisuje zbiór prosto do wolumenu danych backendu i robi `index sync --source usos`; `--with-staff` zbiera też pracowników z tokenem operatora z `.env`. Wszystko jako użytkownik `app` (uid 10001) — pliki indeksu zapisane przez roota backend widzi tylko do odczytu i przestaje odpowiadać. Obraz `chatbot-scrapers` (`Dockerfile.scrapers`: obraz backendu + biblioteki scraperów) skrypt buduje sam. Log w `logs/refresh-usos.log`. Na serwerze cron co noc (`crontab -e` roota): `30 4 * * * /opt/chatbot/refresh-usos.sh`.
 
 Każdy indeks (wektory Chromy, BM25 w SQLite FTS5, `meta.json`) leży we własnym katalogu `dataset/indexes/<czas UTC>/`, a plik `dataset/CURRENT` wskazuje bieżący. Polecenia nigdy nie zmieniają indeksu, z którego korzysta backend — pracują na nowym katalogu i na końcu atomowo przełączają `CURRENT`; backend zauważa zmianę w ciągu 10 s, bez restartu. W kontenerze: `docker compose exec -u app backend python -m src.backend.rag.index …`.
 
@@ -136,9 +135,20 @@ Klient `chatbot` w realmie `ksi`:
 - Valid post logout redirect URIs: `https://chat.ksi.sh/`.
 - Mapper *Group Membership*: claim `groups`, Full group path i Add to userinfo włączone.
 
-Wdrożenie na `chat.ksi.sh`: ustaw w `.env` na serwerze `OIDC_REDIRECT_URI=https://chat.ksi.sh/api/auth/callback`, `OIDC_CLIENT_SECRET`, nowy `AUTH_SECRET_KEY` i klucz LLM, potem `./deploy.sh --pull` (kopia bazy, `git pull`, przebudowa i start). Reverse proxy z TLS musi przekazywać `/api/*` bez zmian i nie buforować ani nie kompresować odpowiedzi `text/event-stream` (inaczej odpowiedzi nie będą się pojawiać na bieżąco).
+Konfiguracja na serwerze (`/opt/chatbot/.env`): `OIDC_REDIRECT_URI=https://chat.ksi.sh/api/auth/callback`, `OIDC_CLIENT_SECRET`, własny `AUTH_SECRET_KEY` i klucz LLM. Reverse proxy z TLS musi przekazywać `/api/*` bez zmian i nie buforować ani nie kompresować odpowiedzi `text/event-stream` (inaczej odpowiedzi nie będą się pojawiać na bieżąco).
 
 Pozostałe zmienne (historia rozmów, RAG, modele) są opisane w `.env.example`.
+
+## Wdrożenie na serwer
+
+Kod rozwija się lokalnie (*Praca lokalna*); na serwer jedzie z komputera, bez edytowania kodu na serwerze:
+
+```bash
+scripts/deploy.sh --dry-run    # co pojedzie na serwer
+scripts/deploy.sh              # rsync na ksi-chat:/opt/chatbot, kopia bazy, budowanie, podmiana kontenerów
+```
+
+Skrypt sprawdza `.env` na serwerze (wymagane zmienne, `https` w `OIDC_REDIRECT_URI`, klucz wybranego LLM), kopiuje kod przez `rsync --delete` bez `.env`, `data/`, `dataset/`, `backups/`, `uploads/` i `logs/`, robi spójną kopię bazy do `backups/` i buduje nowe obrazy obok działających kontenerów — przerwa to tylko ich restart. Gdy po podmianie `/api/health` albo strona nie odpowiadają przez 3 minuty, kontenery wracają na poprzednie obrazy (migracje bazy zostają — wtedy przywróć kopię z `backups/`). Wdrożona wersja (commit, gałąź, czas) jest w `/opt/chatbot/REVISION`. Zmienne: `KSI_HOST` (alias SSH, domyślnie `ksi-chat`), `KSI_DEST` (`/opt/chatbot`), `KSI_PROJECT` (nazwa projektu Compose, `chatbot` — od niej zależą nazwy wolumenów).
 
 ## Połączenie z USOS
 
