@@ -2,7 +2,7 @@ import os
 
 APP_NAME = "Chatbot WMI UJ - API"
 
-# Frontend z vite (npm run dev) - domyslny origin tylko przy logowaniu po http,
+# Frontend z vite (pnpm dev) - domyslny origin tylko przy logowaniu po http,
 # czyli lokalnie; w produkcji (OIDC_REDIRECT_URI po https) domyslnie zaden.
 DEV_FRONTEND_ORIGINS = "http://localhost:5173"
 
