@@ -3,14 +3,14 @@
 # LLM_PROVIDER=ollama takze Ollama): sprawdza Dockera i .env, robi kopie bazy
 # kont i rozmow, buduje obrazy, startuje kontenery i czeka, az strona odpowie.
 #
-#   ./deploy.sh            start albo aktualizacja po zmianach w kodzie
-#   ./deploy.sh --pull     najpierw git pull (wdrozenie na serwerze)
-#   ./deploy.sh --help     wszystkie opcje
+#   deploy/local-up.sh            start albo aktualizacja po zmianach w kodzie
+#   deploy/local-up.sh --pull     najpierw git pull (wdrozenie na serwerze)
+#   deploy/local-up.sh --help     wszystkie opcje
 set -euo pipefail
 # kopie bazy (konta, rozmowy) i nowy .env tylko dla wlasciciela
 umask 077
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 # Git Bash na Windows przerabia argumenty zaczynajace sie od "/" na sciezki Windows
 export MSYS_NO_PATHCONV=1
 
@@ -23,13 +23,13 @@ BACKUPS_MAX_AGE_DAYS=30
 
 usage() {
   cat <<'EOF'
-Uzycie: ./deploy.sh [opcje]
+Uzycie: deploy/local-up.sh [opcje]
 
   --pull         przed startem git pull --ff-only (wymaga czystego drzewa)
   --seed         skopiuj lokalne data/ i dataset/ (dane RAG) do kontenera
   --ollama       wymus lokalna Ollame (domyslnie: gdy LLM_PROVIDER=ollama)
   --no-ollama    bez Ollamy, nawet przy LLM_PROVIDER=ollama
-  --gpu          Ollama na GPU NVIDIA (docker-compose.gpu.yml, wlacza --ollama)
+  --gpu          Ollama na GPU NVIDIA (deploy/compose.gpu.yml, wlacza --ollama)
   --no-backup    bez kopii bazy przed startem
   --timeout S    ile sekund czekac, az strona odpowie (domyslnie 600)
   -h, --help     ta pomoc
@@ -135,7 +135,7 @@ port=${port:-8080}
 URL="http://127.0.0.1:$port"
 
 COMPOSE=(docker compose -f docker-compose.yml)
-[ "$GPU" = 1 ] && COMPOSE+=(-f docker-compose.gpu.yml)
+[ "$GPU" = 1 ] && COMPOSE+=(-f deploy/compose.gpu.yml)
 [ "$OLLAMA" = 1 ] && COMPOSE+=(--profile ollama)
 
 # --- kopia bazy ----------------------------------------------------------
@@ -230,7 +230,7 @@ fi
 
 # shellcheck disable=SC2016  # $(...) ma sie wykonac w kontenerze, nie tutaj
 if ! "${COMPOSE[@]}" exec -T backend sh -c '[ -n "$(ls -A /app/dataset 2>/dev/null)" ]'; then
-  warn "baza RAG jest pusta - bot nie zna danych wydzialu. Skopiuj je: ./deploy.sh --seed"
+  warn "baza RAG jest pusta - bot nie zna danych wydzialu. Skopiuj je: deploy/local-up.sh --seed"
   warn "albo zbuduj indeks: docker compose exec -u app backend python -m src.backend.rag.index build"
   warn "(pozniej aktualizacja: ... index sync, stan: ... index status, powrot: ... index rollback)"
 fi
