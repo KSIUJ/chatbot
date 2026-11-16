@@ -70,6 +70,12 @@ EXCLUDES=(
   --exclude=.DS_Store
 )
 
+# -rlptD to -a bez -o/-g: rsync po stronie serwera działa jako root, więc pliki
+# kodu należą do roota, a nie do użytkownika z laptopa zmapowanego po nazwie
+# (cron roota uruchamia deploy/refresh-usos.sh). openrsync z macOS nie ma
+# --chown ani --no-owner.
+RSYNC=(rsync -rlptDz --delete "${EXCLUDES[@]}")
+
 commit="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
 branch="$(git branch --show-current 2>/dev/null || echo '?')"
 echo "Cel:    $HOST:$DEST (projekt Compose: $PROJECT)"
@@ -82,7 +88,7 @@ echo "Zostaje nietknięte: .env, data/, dataset/, backups/, uploads/, logs/ i wo
 if [[ $DRY_RUN -eq 1 ]]; then
   echo
   echo "--- rsync --dry-run ---"
-  rsync -az --delete --dry-run --itemize-changes "${EXCLUDES[@]}" ./ "$HOST:$DEST/"
+  "${RSYNC[@]}" --dry-run --itemize-changes ./ "$HOST:$DEST/"
   exit 0
 fi
 
@@ -132,13 +138,17 @@ fi
 
 echo
 echo "Kopiuję kod…"
-rsync -az --delete --stats "${EXCLUDES[@]}" ./ "$HOST:$DEST/" | tail -12
+"${RSYNC[@]}" --stats ./ "$HOST:$DEST/" | tail -12
 # Serwer nie ma repo - zapisujemy, która wersja na nim stoi.
 printf '%s %s %s\n' "$commit" "$branch" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" | ssh "$HOST" "cat > '$DEST/REVISION'"
 
 echo
 echo "Kopia bazy, budowanie nowych obrazów (stare kontenery działają dalej)…"
+# Skrypt idzie do bash przez stdin. Całość jest w { }, więc bash wczytuje ją
+# przed uruchomieniem czegokolwiek: polecenie czytające stdin (docker compose
+# exec) nie zje reszty skryptu, a ucięty transfer to błąd składni, nie exit 0.
 ssh "$HOST" bash -s -- "$DEST" "$PROJECT" <<'REMOTE'
+{
 set -euo pipefail
 DEST="$1"; PROJECT="$2"
 cd "$DEST"
@@ -167,7 +177,7 @@ if [[ -n "$("${COMPOSE[@]}" ps -q --status running backend 2>/dev/null)" ]]; the
   mkdir -p backups && chmod 700 backups
   file="backups/chatbot-$(date +%Y%m%d-%H%M%S).db"
   status=0
-  "${COMPOSE[@]}" exec -T backend python -c "$BACKUP_PY" > "$file" || status=$?
+  "${COMPOSE[@]}" exec -T backend python -c "$BACKUP_PY" </dev/null > "$file" || status=$?
   if [[ $status -eq 3 ]]; then
     rm -f "$file"; echo "  baza jeszcze nie istnieje - bez kopii"
   elif [[ $status -ne 0 || "$(head -c 15 "$file")" != "SQLite format 3" ]]; then
@@ -239,6 +249,7 @@ else
 fi
 echo "Logi: cd $DEST && docker compose logs --tail=100 backend" >&2
 exit 1
+}
 REMOTE
 
 echo
