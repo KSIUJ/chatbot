@@ -44,7 +44,11 @@ STDERR_FD = 2
 
 
 def _limit_resources(memory_mb: int, budget_seconds: float) -> None:
-    """Limity procesu na Linuksie; na Windows modul resource nie istnieje."""
+    """Limity procesu na Linuksie; na Windows modul resource nie istnieje,
+    a macOS (praca lokalna) nie pozwala obnizyc RLIMIT_AS ponizej biezacej
+    pamieci wirtualnej procesu - tam tylko twardy timeout z extract.py."""
+    if sys.platform == "darwin":
+        return
     try:
         import resource
     except ImportError:
