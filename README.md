@@ -72,7 +72,7 @@ docker compose exec -u app backend cp /app/db/chatbot.db /app/db/chatbot.db.bak
 
 ## Praca lokalna
 
-Python 3.12 i Node.js 22+. Polecenia z katalogu głównego repo.
+Python 3.12, Node.js 22+ i pnpm (wersja w `packageManager` w `src/frontend/package.json`). Polecenia z katalogu głównego repo.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -80,12 +80,12 @@ pip install -r requirements-dev.txt
 python -m alembic upgrade head                      # tworzy/aktualizuje chatbot.db
 uvicorn src.backend.main:app --reload               # API na :8000, zawsze jeden worker
 
-cd src/frontend && npm ci && npm run dev            # http://localhost:5173
+cd src/frontend && pnpm install && pnpm dev          # http://localhost:5173
 ```
 
 W `.env` ustaw `OIDC_REDIRECT_URI=http://localhost:5173/api/auth/callback` i otwieraj `localhost`, nie `127.0.0.1`.
 
-Testy: `python -m pytest` oraz w `src/frontend`: `npm run lint && npm test && npm run build`.
+Testy: `python -m pytest` oraz w `src/frontend`: `pnpm lint && pnpm test && pnpm build`.
 
 Migracje: po zmianie `src/backend/models.py` wygeneruj plik `python -m alembic revision --autogenerate -m "opis"`, sprawdź go i zastosuj `python -m alembic upgrade head`.
 
