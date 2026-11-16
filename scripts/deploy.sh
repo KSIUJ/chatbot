@@ -61,6 +61,7 @@ EXCLUDES=(
   --exclude=coverage/
   "--exclude=*.tsbuildinfo"
   --exclude=.eslintcache
+  # bez / na początku: chroni też stare rag_eval/results/ sprzed przeniesienia do src/
   --exclude=rag_eval/results/
   --exclude=.vscode/
   --exclude=.idea/

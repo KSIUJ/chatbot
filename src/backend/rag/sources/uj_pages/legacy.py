@@ -1,5 +1,5 @@
 """
-Adapter starego wyjscia crawlera stron (pipeline/scrapers/strony/scraper.py)
+Adapter starego wyjscia crawlera stron (src/scrapers/strony/scraper.py)
 do formatu uj_pages - do czasu przebudowy scrapera.
 
 Stary crawler zapisuje wszystkie strony, pliki (pdf/docx/txt) i Wikipedie do

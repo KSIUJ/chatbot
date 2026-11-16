@@ -1,4 +1,11 @@
 [tool.pytest.ini_options]
-# Testy importuja z katalogu glownego repo ("src.backend.*", "pipeline.*").
+# Testy importuja z katalogu glownego repo ("src.backend.*", "src.scrapers.*").
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.alembic]
+# Migracje bazy aplikacji (python -m alembic upgrade head z katalogu glownego).
+# Adres bazy i logi ustawia src/backend/migrations/env.py (DATABASE_URL backendu).
+script_location = "%(here)s/src/backend/migrations"
+# katalog glowny repo na sys.path - env.py importuje src.backend.*
+prepend_sys_path = ["."]

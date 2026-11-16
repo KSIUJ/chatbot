@@ -1,9 +1,9 @@
-"""Ewaluacja narzedzi USOS (rag_eval/usos_tools.py): zbior pytan i sprawdzenia
+"""Ewaluacja narzedzi USOS (src/rag_eval/usos_tools.py): zbior pytan i sprawdzenia
 odpowiedzi - bez modelu i bez USOS."""
 
 from __future__ import annotations
 
-from rag_eval.usos_tools import ToolQuestion, check, facts, grounded, load_questions
+from src.rag_eval.usos_tools import ToolQuestion, check, facts, grounded, load_questions
 
 TIMETABLE = '{"activities":[{"course":"Analiza matematyczna 1","type":"Wykład","room":"0004"}]}'
 

@@ -22,8 +22,8 @@ anthropic==1.13.0
 # dostawca LLM, wlaczany przez LLM_PROVIDER=cursor. Uzywa biblioteki requests
 # (juz wyzej), wiec nie dodaje nowej zaleznosci.
 
-# RAG retrieval (src/backend/rag/) i ingest (pipeline/ingest/, uruchamiany
-# takze w kontenerze backendu)
+# RAG retrieval i indeks (src/backend/rag/, CLI indeksu uruchamiane takze
+# w kontenerze backendu)
 sentence-transformers==6.1.0
 chromadb==1.5.9
 langchain-text-splitters==1.1.3

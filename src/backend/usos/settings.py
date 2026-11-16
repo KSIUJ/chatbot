@@ -1,7 +1,7 @@
 """Konfiguracja polaczenia kont z USOS (OAuth 1.0a, USOS API UJ) z env.
 
 USOS_CONNECT          on/off - wlacznik funkcji (domyslnie off). Klucz aplikacji
-                      jest wspolny ze scraperem (pipeline/scrapers/usos), wiec
+                      jest wspolny ze scraperem (src/scrapers/usos), wiec
                       sam klucz w .env nie moze jej wlaczac.
 USOS_CONSUMER_KEY     klucz aplikacji USOS API; pusty = funkcja niedostepna
 USOS_CONSUMER_SECRET  sekret aplikacji (wymagany razem z kluczem)

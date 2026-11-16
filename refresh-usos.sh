@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Odswiezenie danych USOS na dzialajacym czacie: scraper (pipeline/scrapers/usos)
+# Odswiezenie danych USOS na dzialajacym czacie: scraper (src/scrapers/usos)
 # zapisuje zbior prosto do wolumenu danych backendu, a potem sync indeksu RAG
 # podmienia tylko zmienione dokumenty. Do crona (np. co noc), ale mozna recznie.
 #
@@ -68,7 +68,7 @@ if ! docker run --rm --user "$APP_UID:$APP_GID" \
     -v "$PWD:/app:ro" -v /dev/null:/app/.env:ro -v "$DATA_VOLUME:/data" -w /app \
     -e HOME=/tmp -e PYTHONPATH=/app -e PYTHONDONTWRITEBYTECODE=1 \
     "${no_token[@]}" --env-file <(grep -E "$keys" .env) \
-    "$IMAGE" python -m pipeline.scrapers.usos scrape "${only[@]}" --out /data/usos; then
+    "$IMAGE" python -m src.scrapers.usos scrape "${only[@]}" --out /data/usos; then
   echo "scraper nie zapisal zbioru - indeks bez zmian"
   exit 1
 fi

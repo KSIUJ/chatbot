@@ -1,6 +1,6 @@
 # Obraz do uruchamiania scraperow na serwerze (refresh-usos.sh): obraz backendu
 # z deployu + biblioteki scraperow z requirements-dev.txt (bs4, lxml, OAuth1).
-# Kod jest montowany z repozytorium, wiec obraz nie zawiera pipeline/scrapers.
+# Kod jest montowany z repozytorium, wiec obraz nie zawiera src/scrapers.
 #
 #   docker build -f Dockerfile.scrapers -t chatbot-scrapers .
 ARG BASE=chatbot-backend
