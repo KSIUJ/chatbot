@@ -1,0 +1,13 @@
+{
+  "name": "chatbot",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
+  "scripts": {
+    "dev": "pnpm run --parallel \"/^dev:(backend|frontend)$/\"",
+    "dev:backend": "node scripts/dev-backend.mjs",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "setup:backend": "python3.14 -m venv .venv && .venv/bin/python -m pip install -r requirements-dev.txt && .venv/bin/python -m alembic upgrade head",
+    "test": "pnpm run test:backend && pnpm --filter frontend lint && pnpm --filter frontend test && pnpm --filter frontend build",
+    "test:backend": ".venv/bin/python -m pytest -q"
+  }
+}

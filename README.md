@@ -71,22 +71,22 @@ docker compose exec -u app backend cp /app/db/chatbot.db /app/db/chatbot.db.bak
 
 ## Praca lokalna
 
-Python 3.14 (jak w obrazie Dockera, `.python-version`), Node.js 22+ i pnpm (wersja w `packageManager` w `src/frontend/package.json`). Polecenia z katalogu głównego repo.
+Python 3.14 (jak w obrazie Dockera, `.python-version`), Node.js 22+ i pnpm (wersja w `packageManager`). Polecenia z katalogu głównego repo.
 
 ```bash
-python3.14 -m venv .venv && source .venv/bin/activate   # Windows: py -3.14 -m venv .venv && .venv\Scripts\activate
-pip install -r requirements-dev.txt
-python -m alembic upgrade head                      # tworzy/aktualizuje chatbot.db
-uvicorn src.backend.main:app --reload               # API na :8000, zawsze jeden worker
-
-cd src/frontend && pnpm install && pnpm dev          # http://localhost:5173
+pnpm install              # frontend (workspace: src/frontend)
+pnpm setup:backend        # raz: .venv z Pythonem 3.14, zależności, baza chatbot.db
+cp .env.example .env      # i ENV=dev - patrz niżej
+pnpm dev                  # backend (:8000) i frontend razem -> http://localhost:5173
 ```
+
+`pnpm dev` stosuje migracje bazy i uruchamia uvicorn z przeładowaniem (tylko `src/`, na `127.0.0.1:8000`, jeden worker) oraz vite; Ctrl+C zatrzymuje oba. Osobno: `pnpm dev:backend`, `pnpm dev:frontend`. `.env` backend czyta tylko przy starcie — po jego zmianie uruchom `pnpm dev` ponownie.
 
 Lokalnie najprościej bez Keycloaka: `ENV=dev` w `.env` (wystarczy samo to — `OIDC_*` i `AUTH_SECRET_KEY` niepotrzebne). Logowanie to wtedy wybór zmyślonego konta (`src/backend/auth/dev.py`): Zarząd (panel administratora), dwie osoby z `/Członek` (osobne historie rozmów) i osoba spoza grupy (ekran odmowy). Konta przechodzą tę samą ścieżkę co prawdziwe — sesja w bazie i sprawdzanie grupy przy każdym zapytaniu — tylko „Keycloak” jest atrapą; wylogowanie wraca do wyboru konta. W trybie dev backend odpowiada wyłącznie na zapytania z tego komputera (`127.0.0.1`, także przez proxy vite z `--host`), a `scripts/deploy.sh` nie wdroży serwera z `ENV=dev`.
 
 Z prawdziwym Keycloakiem (`ENV=prod`): `OIDC_REDIRECT_URI=http://localhost:5173/api/auth/callback`, sekret klienta i otwieranie `localhost`, nie `127.0.0.1`.
 
-Testy: `python -m pytest` oraz w `src/frontend`: `pnpm lint && pnpm test && pnpm build`.
+Testy: `pnpm test` (pytest, lint, testy i build frontendu); osobno `pnpm test:backend`.
 
 Migracje: po zmianie `src/backend/models.py` wygeneruj plik `python -m alembic revision --autogenerate -m "opis"`, sprawdź go i zastosuj `python -m alembic upgrade head`.
 

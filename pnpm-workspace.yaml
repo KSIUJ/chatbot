@@ -1,0 +1,5 @@
+packages:
+  - src/frontend
+# Frontend ma wlasny pnpm-lock.yaml: jego obraz Dockera (src/frontend/Dockerfile)
+# buduje sie z samego src/frontend, bez katalogu glownego.
+sharedWorkspaceLockfile: false
