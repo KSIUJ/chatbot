@@ -82,7 +82,8 @@ if [ "$PULL" = 1 ]; then
   log "git pull --ff-only"
   git pull --ff-only
   # skrypt mogl sie zmienic: dalej dziala juz nowa wersja
-  exec "./$(basename "$0")" "${ARGS_WITHOUT_PULL[@]+"${ARGS_WITHOUT_PULL[@]}"}"
+  # po cd jestesmy w katalogu glownym repo, skrypt lezy w deploy/
+  exec "deploy/$(basename "$0")" "${ARGS_WITHOUT_PULL[@]+"${ARGS_WITHOUT_PULL[@]}"}"
 fi
 
 # --- konfiguracja (.env) -------------------------------------------------

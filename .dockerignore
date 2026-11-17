@@ -16,3 +16,8 @@ backups
 
 tests
 src/frontend
+
+# lokalne artefakty, ktore nie wchodza do obrazu (mniejszy kontekst budowania)
+node_modules
+logs
+src/rag_eval/results
