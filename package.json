@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@12.18.0",
   "scripts": {
-    "dev": "pnpm run --parallel \"/^dev:(backend|frontend)$/\"",
+    "dev": "pnpm run \"/^dev:(backend|frontend)$/\"",
     "dev:backend": "node scripts/dev-backend.mjs",
     "dev:frontend": "pnpm --filter frontend dev",
     "setup:backend": "node scripts/setup-backend.mjs",

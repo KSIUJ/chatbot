@@ -84,7 +84,7 @@ def search_users(
         .limit(limit)
         .offset(offset)
     )
-    items = [_item(user, used, override, global_limit) for user, used, override in db.execute(page).tuples()]
+    items = [_item(user, used, override, global_limit) for user, used, override in db.execute(page)]
     return items, int(total)
 
 

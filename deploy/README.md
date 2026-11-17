@@ -15,6 +15,9 @@ budują się z niego jako kontekstu. Opis wdrożenia jest w głównym `README.md
 | `compose.gpu.yml` | Ollama na GPU: `docker compose -f docker-compose.yml -f deploy/compose.gpu.yml --profile ollama up -d` |
 | `constraints.txt` | `pip freeze` obrazu backendu: przypina zależności pośrednie |
 
+Obraz frontendu ma własny `src/frontend/Dockerfile` (z `nginx.conf`): buduje się
+z samego `src/frontend` jako kontekstu, z jego własnym `pnpm-lock.yaml`.
+
 `docker-compose.yml` zostaje w katalogu głównym: Compose bierze nazwę projektu
 (`chatbot`) z katalogu pliku, a od niej zależą nazwy wolumenów z danymi
 produkcji (`chatbot_chatbot-db` itd.).
