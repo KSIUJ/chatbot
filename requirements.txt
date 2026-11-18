@@ -34,12 +34,12 @@ pymupdf4llm==1.28.2
 # Logowanie OIDC przez Keycloak KSI (src/backend/auth/) - klient HTTP,
 # walidacja podpisanych ID tokenow (JWKS) i szyfrowanie tokenow w bazie
 httpx==0.28.1
-joserfc==1.7.5
+joserfc==1.7.7
 cryptography==50.0.2
 
 # Polaczenie kont z USOS (src/backend/usos/) - podpisy OAuth 1.0a HMAC-SHA1
 # (czysty Python; wczesniej tylko posrednio przez requests-oauthlib)
-oauthlib==4.0.0
+oauthlib==4.0.1
 
 # Naglowki notatek o KSI (src/backend/rag/sources/ksi/notes.py)
 pyyaml==6.0.3
