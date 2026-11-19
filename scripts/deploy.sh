@@ -137,7 +137,12 @@ printf '%s %s %s\n' "$commit" "$branch" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" | ssh "
 
 echo
 echo "Kopia bazy, budowanie nowych obrazów (stare kontenery działają dalej)…"
+# Skrypt jedzie przez stdin (bash -s), a polecenia w nim też mogą czytać stdin
+# (docker compose exec przekazuje go do kontenera) i zjadłyby resztę skryptu -
+# bash skończyłby wtedy po cichu z kodem 0. Klamry każą bashowi wczytać całość
+# przed uruchomieniem czegokolwiek.
 ssh "$HOST" bash -s -- "$DEST" "$PROJECT" <<'REMOTE'
+{
 set -euo pipefail
 DEST="$1"; PROJECT="$2"
 cd "$DEST"
@@ -166,7 +171,7 @@ if [[ -n "$("${COMPOSE[@]}" ps -q --status running backend 2>/dev/null)" ]]; the
   mkdir -p backups && chmod 700 backups
   file="backups/chatbot-$(date +%Y%m%d-%H%M%S).db"
   status=0
-  "${COMPOSE[@]}" exec -T backend python -c "$BACKUP_PY" > "$file" || status=$?
+  "${COMPOSE[@]}" exec -T backend python -c "$BACKUP_PY" < /dev/null > "$file" || status=$?
   if [[ $status -eq 3 ]]; then
     rm -f "$file"; echo "  baza jeszcze nie istnieje - bez kopii"
   elif [[ $status -ne 0 || "$(head -c 15 "$file")" != "SQLite format 3" ]]; then
@@ -238,6 +243,7 @@ else
 fi
 echo "Logi: cd $DEST && docker compose logs --tail=100 backend" >&2
 exit 1
+}
 REMOTE
 
 echo
