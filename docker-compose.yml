@@ -38,11 +38,13 @@ services:
       - "ollama pull ${OLLAMA_MODEL:-qwen2.5:14b}"
 
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
     restart: unless-stopped
     logging: *logging
     # Entrypoint jako root tylko poprawia wlasciciela wolumenow i przechodzi na
-    # uzytkownika "app" (docker-entrypoint.sh) - wiecej uprawnien nie trzeba.
+    # uzytkownika "app" (deploy/docker-entrypoint.sh) - wiecej uprawnien nie trzeba.
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
     security_opt:

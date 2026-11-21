@@ -32,18 +32,18 @@ w kolejności, w jakiej przyjdą zgody.
   `ksi`), wersjonowany indeks z `index sync` (atomowe przełączenie, backend
   podchwytuje nowy indeks sam). Źródło `mordor` i jego format (`MaterialRecord`
   z tekstem strona po stronie i flagą OCR) już istnieją — brakuje danych.
-- **Wzorzec scrapera** — `pipeline/scrapers/usos/`: kolektory, zapis tylko
+- **Wzorzec scrapera** — `src/scrapers/usos/`: kolektory, zapis tylko
   tego, co zebrano, strażnik spadku liczby rekordów, rekordy niepobrane
   zostają z poprzedniego zbioru, ponowienia z backoffem, uczciwy User-Agent.
 - **Wzorzec integracji z danymi osoby** — `src/backend/usos/` (PR #53–#61):
   OAuth, token zaszyfrowany i związany z kontem czatu, narzędzia modelu tylko
   do odczytu (`llm/tools.py`, Claude i OpenRouter), znacznik
   `messages.personal_data`, dane osoby nigdy we wspólnym indeksie RAG.
-- **Odświeżanie i nadzór** — `refresh-usos.sh` z crona (co noc, w niedzielę
+- **Odświeżanie i nadzór** — `deploy/refresh-usos.sh` z crona (co noc, w niedzielę
   z pracownikami), ostrzeżenie w panelu admina o nieświeżych danych
   (`MAX_DATA_AGE` w `src/backend/admin/diagnostics.py`).
-- **Ewaluacja** — `rag_eval/` (wyszukiwanie, 149 pytań) i
-  `rag_eval/usos_tools.py` (od pytania do odpowiedzi z narzędziami, 39 pytań,
+- **Ewaluacja** — `src/rag_eval/` (wyszukiwanie, 149 pytań) i
+  `src/rag_eval/usos_tools.py` (od pytania do odpowiedzi z narzędziami, 39 pytań,
   39/39).
 
 ### Wyniki wyszukiwania dziś (kopia indeksu produkcji, 2026-10-27)
@@ -76,7 +76,7 @@ ksi-04/05/07 i wszystkie pytania `mordor`. To punkt odniesienia dla gałęzi 1 i
 3. **Sekrety** — tokeny zaszyfrowane (jak `usos/crypto.py`), nigdy w logach.
 4. **Zmiany promptu** (nowe sekcje, zasady) — tylko po akceptacji właściciela
    repo.
-5. **Ewaluacja przed wdrożeniem** — każda gałąź dokłada pytania do `rag_eval/`
+5. **Ewaluacja przed wdrożeniem** — każda gałąź dokłada pytania do `src/rag_eval/`
    (dane wspólne) albo zestaw jak `usos_tools.jsonl` (dane osoby) i nie może
    pogorszyć pozostałych kategorii.
 6. **Serwer** — VM 4 CPU bez AVX2, 8 GB RAM, bez GPU. Wszystko w kontenerach
@@ -90,7 +90,7 @@ ksi-04/05/07 i wszystkie pytania `mordor`. To punkt odniesienia dla gałęzi 1 i
   rozwiązania). Adres `mordor.ksi.ii.uj.edu.pl` przekierowuje na
   **`https://mordor.ksi.sh/`**; zasoby wymagają logowania (`/file` →
   403 „Unauthorized”), `robots.txt` zabrania robotów (`Disallow: /`).
-- Stary pobieracz `pipeline/scrapers/mordor/files_downloader.py` chodzi po
+- Stary pobieracz `src/scrapers/mordor/files_downloader.py` chodzi po
   HTML-u starego adresu z ciasteczkiem sesji (`MORDOR_COOKIE`) i pobiera pliki
   (pomija folder „książki”). Po zmianie adresu i logowania nie działa.
 - Zbiór `data/mordor/` na produkcji jest **pusty** (0 rekordów), w ewaluacji
@@ -119,7 +119,7 @@ ustalamy z jego opiekunami. Do ustalenia przed startem:
 
 ### Architektura
 
-- `pipeline/scrapers/mordor/` od nowa, na wzór USOS: lista plików z API →
+- `src/scrapers/mordor/` od nowa, na wzór USOS: lista plików z API →
   pobieranie przyrostowe (tylko nowe i zmienione, po hashu) → ekstrakcja tekstu
   (`pypdf`, `python-docx`, txt) → **OCR skanów** (Tesseract `pol+eng` na CPU,
   wynik w pamięci podręcznej po hashu pliku, żeby każdy skan rozpoznawać raz)
@@ -132,7 +132,7 @@ ustalamy z jego opiekunami. Do ustalenia przed startem:
   może trwać godziny. Opcje: przebieg nocny partiami, OCR na innej maszynie
   (np. laptop) z gotowym wynikiem kopiowanym na serwer, albo model z wizją
   tylko dla skanów bez tekstu (koszt API — oszacować na próbce).
-- **Odświeżanie** — `refresh-mordor.sh` (wzór `refresh-usos.sh`) raz w tygodniu,
+- **Odświeżanie** — `refresh-mordor.sh` (wzór `deploy/refresh-usos.sh`) raz w tygodniu,
   `MAX_DATA_AGE["mordor"] = 8 dni` w ostrzeżeniach panelu.
 
 ### Przebieg (PR-y)
@@ -167,7 +167,7 @@ ustalamy z jego opiekunami. Do ustalenia przed startem:
   kmsuj.matinf.uj.edu.pl 15, nkr.si 4, knmf.im.uj.edu.pl 1, Wikipedia 1;
   161 stron i 66 dokumentów, 1085 fragmentów w indeksie. Nie ma
   automatycznego odświeżania.
-- Crawler `pipeline/scrapers/strony/scraper.py` **nie czyta `robots.txt`**
+- Crawler `src/scrapers/strony/scraper.py` **nie czyta `robots.txt`**
   (wykluczenia są wpisywane ręcznie), przedstawia się jako przeglądarka Chrome
   i zapisuje stary format tekstowy, który potem jest konwertowany.
 
@@ -187,7 +187,7 @@ Bez zależności zewnętrznych; wzorzec scrapera USOS przenosi się prawie wpros
 
 ### Architektura
 
-- `pipeline/scrapers/uj_pages/` (zamiast `strony/`): kolektor na serwis
+- `src/scrapers/uj_pages/` (zamiast `strony/`): kolektor na serwis
   (matinf, tcs, studia, samorząd, koła naukowe, Wikipedia przez API),
   wspólny `run.py` z zasadami jak w USOS (podmiana tylko tego, co zebrano,
   strażnik spadku, przeniesienie niepobranych).
@@ -284,7 +284,7 @@ sprawdzić z zewnątrz; rozstrzyga to próbna rejestracja aplikacji i ekran zgod
 3. Pliki zespołów.
 4. Streszczenia kanałów (tylko po zgodzie IOD).
 5. Zadania.
-6. Ewaluacja od pytania do odpowiedzi (wzór `rag_eval/usos_tools.py`).
+6. Ewaluacja od pytania do odpowiedzi (wzór `src/rag_eval/usos_tools.py`).
 
 ### Ryzyka
 
@@ -342,7 +342,7 @@ sprawdzić z zewnątrz; rozstrzyga to próbna rejestracja aplikacji i ekran zgod
 
 - **Połączone konta** (USOS + Microsoft + Pegaz) — jedna tabela, jedno
   szyfrowanie, jeden widok w Ustawieniach, wspólne zasady zgody i rozłączania.
-- **Odświeżanie źródeł** — `refresh-usos.sh` → skrypt dla dowolnego źródła,
+- **Odświeżanie źródeł** — `deploy/refresh-usos.sh` → skrypt dla dowolnego źródła,
   wpisy crona i `MAX_DATA_AGE` dla `uj_pages` i `mordor`.
 - **Prompt** — nowe sekcje kontekstu (np. dane z Pegaza i Teams w sekcji
   danych osoby) wymagają akceptacji; każda integracja dopisuje narzędzia do

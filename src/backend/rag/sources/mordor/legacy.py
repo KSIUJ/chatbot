@@ -1,5 +1,5 @@
 """
-Adapter plikow pobranych starym skryptem (pipeline/scrapers/mordor/
+Adapter plikow pobranych starym skryptem (src/scrapers/mordor/
 files_downloader.py) do formatu mordor - do czasu przebudowy scrapera.
 
 Pliki leza w data/mordor/ w strukturze katalogow Mordoru; rekordy sa

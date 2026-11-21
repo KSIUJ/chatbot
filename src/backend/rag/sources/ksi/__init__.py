@@ -1,5 +1,5 @@
 """Informacje o KSI: strony KSI (data/ksi/, format jak uj_pages) i notatki
-pisane recznie (knowledge/ksi/, notes.py)."""
+pisane recznie (src/backend/rag/sources/ksi/content/, notes.py)."""
 
 from __future__ import annotations
 

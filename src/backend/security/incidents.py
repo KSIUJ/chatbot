@@ -119,7 +119,7 @@ def list_incidents(
         .limit(limit)
         .offset(offset)
     )
-    return [(row, user) for row, user in db.execute(page).tuples()], int(total)
+    return [(row, user) for row, user in db.execute(page)], int(total)
 
 
 def review_incident(

@@ -26,7 +26,7 @@ if DATABASE_URL.startswith("sqlite"):
     @event.listens_for(engine, "connect")
     def _secure_delete(dbapi_connection: Any, _connection_record: Any) -> None:
         """Skasowane wiersze (rozmowy, zalaczniki, oceny) sa nadpisywane zerami,
-        zamiast zostac w wolnych stronach pliku bazy - i w kopiach z deploy.sh."""
+        zamiast zostac w wolnych stronach pliku bazy - i w kopiach z deploy/local-up.sh i deploy/deploy-server.sh."""
         dbapi_connection.execute("PRAGMA secure_delete=ON")
 
 

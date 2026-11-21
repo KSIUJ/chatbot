@@ -28,7 +28,7 @@ _DST_SWITCH_HOUR_UTC = 1
 
 @lru_cache(maxsize=1)
 def _warsaw_zone() -> tzinfo | None:
-    """Strefa z bazy IANA (pakiet tzdata z requirements.txt); None tylko gdy
+    """Strefa z bazy IANA (pakiet tzdata z pyproject.toml); None tylko gdy
     bazy brak mimo to - wtedy warsaw_now liczy czas wg regul UE."""
     try:
         return ZoneInfo(WARSAW_TZ_NAME)

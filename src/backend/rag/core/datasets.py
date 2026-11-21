@@ -36,7 +36,7 @@ class Manifest(BaseModel):
     format_version: int
     # kiedy dane zostaly zebrane (czas UTC ze strefa)
     collected_at: datetime
-    # kto je zebral: scraper i jego wersja, np. "pipeline/scrapers/usos@abc123"
+    # kto je zebral: scraper i jego wersja, np. "src/scrapers/usos@abc123"
     collector: str = ""
     # pliki JSONL z rekordami, wzgledem katalogu zbioru
     files: list[str] = Field(min_length=1)

@@ -10,9 +10,14 @@ dataset
 **/*.db
 **/*.db.bak*
 uploads
-# kopie bazy z deploy.sh i wszystkie warianty .env (sekrety)
+# kopie bazy z deploy/local-up.sh i wszystkie warianty .env (sekrety)
 backups
 **/.env*
 
 tests
 src/frontend
+
+# lokalne artefakty, ktore nie wchodza do obrazu (mniejszy kontekst budowania)
+node_modules
+logs
+src/rag_eval/results

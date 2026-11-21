@@ -8,7 +8,7 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 - **Backend** (FastAPI + SQLite) — dla każdego pytania szuka kontekstu (RAG: wyszukiwanie wektorowe w Chroma + pełnotekstowe SQLite FTS5 + wyszukiwanie pracowników) i przekazuje go do modelu językowego: lokalnej Ollamy (domyślnie `qwen2.5:14b`) albo API Claude (domyślnie Claude Haiku 5.5, `CLAUDE_MODEL`, `CLAUDE_EFFORT`) / OpenRouter (`OPENROUTER_MODEL`, np. `anthropic/claude-haiku-5.5`; myślenie `OPENROUTER_REASONING_EFFORT`, domyślnie tylko dostawcy, którzy nie zapisują danych — `OPENROUTER_DATA_COLLECTION`) / Cursor (`LLM_PROVIDER`). Ekran zgody USOS w Ustawieniach nazywa dostawcę modelu (Anthropic przez OpenRouter) — przy zmianie dostawcy trzeba zmienić też ten tekst.
 - Odpowiedź pojawia się na bieżąco (strumieniowo, `POST /chat/stream`), w języku interfejsu (te same języki co logowanie KSI: polski, angielski, niemiecki, hiszpański, francuski, włoski, ukraiński; domyślnie język przeglądarki), z listą źródeł: strony wydziału, profile pracowników w USOS, pliki z Mordoru.
 - Odświeżenie strony albo zamknięcie karty nie przerywa odpowiedzi: serwer pisze ją do końca i zapisuje, a po powrocie strona otwiera tę rozmowę z dotychczasowym tekstem i czeka na koniec (`GET /chat/pending`). Przerywa tylko przycisk Stop (`POST /chat/stop`) — pytanie i dotychczasowy tekst zostają zapisane. Restart backendu (np. wdrożenie) przerywa odpowiedzi w toku.
-- **Dane** pochodzą ze stron wydziału, USOS (pracownicy, przedmioty z planem zajęć, kierunki, kalendarz akademicki, rejestracje, aktualności, budynki i sale, strony informacyjne USOSweb) i Mordoru (materiały studenckie). Scrapery i ingest do bazy RAG są w `pipeline/`.
+- **Dane** pochodzą ze stron wydziału, USOS (pracownicy, przedmioty z planem zajęć, kierunki, kalendarz akademicki, rejestracje, aktualności, budynki i sale, strony informacyjne USOSweb) i Mordoru (materiały studenckie). Scrapery są w `src/scrapers/`, indeks RAG buduje `python -m src.backend.rag.index`.
 - Wchodzą tylko osoby z grupy `/Członek` w Keycloaku KSI; członkostwo jest sprawdzane przy każdym zapytaniu.
 - Odpowiedzi można oceniać (kciuk w górę / w dół) i zgłaszać (błąd, nieaktualne, nieodpowiednie, inne); oceny z kopią pytania i odpowiedzi przegląda zarząd — grupa `OIDC_ADMIN_GROUP` (domyślnie `/Zespoły/Zarząd`) — przez `/api/admin/feedback` (lista, obsługa zgłoszeń, eksport CSV). Kopie są anonimizowane, gdy rozmowa znika; usunięcie rozmowy przez użytkownika kasuje też jego same oceny (zostają tylko zgłoszenia), a wszystko bez zmian od roku znika w tle.
 - Prompt systemowy zawiera dzisiejszą datę i rok akademicki; próby obejścia jego zasad (heurystyka backendu i znacznik od modelu) są zapisywane jako incydenty dla zarządu (`/Zespoły/Zarząd`) — `/api/admin/incidents`, z danymi osoby, kasowane po 90 dniach.
@@ -17,11 +17,11 @@ Chatbot odpowiadający na pytania o Wydział Matematyki i Informatyki UJ — stu
 - Do pytania można dołączyć pliki (PDF, DOCX, TXT, obrazy) — szczegóły w sekcji *Załączniki*.
 
 ```
-src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie: sources/ — źródła danych, core/ — indeksy i retrieval, registry.py), limits/, admin/, attachments/, history.py
+src/backend/     API: auth/ (OIDC), llm/ (dostawcy modeli), rag/ (wyszukiwanie: sources/ — źródła danych, core/ — indeksy i retrieval, registry.py), limits/, admin/, attachments/, history.py, migrations/ (Alembic)
 src/frontend/    aplikacja React (+ nginx w obrazie Dockera)
-pipeline/        scrapers/ (mordor, strony, usos) i ingest/ (ładowanie danych źródeł z rejestru RAG do bazy)
-alembic/         migracje bazy aplikacji
-tests/           testy backendu (pytest)
+src/scrapers/    scrapery źródeł danych (mordor, strony, usos)
+src/rag_eval/    ewaluacja wyszukiwania RAG i narzędzi USOS
+tests/           testy pytest (backend/, scrapers/, rag_eval/ — jak w src/)
 ```
 
 ## Uruchomienie (Docker)
@@ -29,12 +29,12 @@ tests/           testy backendu (pytest)
 Całość jednym poleceniem (Linux, macOS, Git Bash na Windows):
 
 ```bash
-cp .env.example .env    # uzupełnij OIDC_CLIENT_SECRET, AUTH_SECRET_KEY i klucz wybranego LLM
-./deploy.sh             # start albo aktualizacja po zmianach w kodzie
-./deploy.sh --help      # pozostałe opcje (--seed, --gpu, --no-backup, --timeout)
+cp .env.example .env        # uzupełnij OIDC_CLIENT_SECRET, AUTH_SECRET_KEY i klucz wybranego LLM
+deploy/local-up.sh          # start albo aktualizacja po zmianach w kodzie
+deploy/local-up.sh --help   # pozostałe opcje (--seed, --gpu, --no-backup, --timeout)
 ```
 
-`deploy.sh` sprawdza Dockera i wymagane zmienne w `.env` (nie wypisuje ich wartości), robi spójną kopię bazy kont i rozmów do `backups/` (ostatnie 10, nie starsze niż 30 dni, tylko dla właściciela pliku), buduje obrazy, startuje kontenery i czeka, aż strona odpowie pod `http://127.0.0.1:FRONTEND_PORT`. Przy `LLM_PROVIDER=ollama` sam włącza profil z Ollamą; `--seed` kopiuje lokalne `data/` i `dataset/` do kontenera. Gdy coś nie wstanie, pokazuje stan kontenerów i logi backendu. Zatrzymanie: `docker compose down`.
+`deploy/local-up.sh` sprawdza Dockera i wymagane zmienne w `.env` (nie wypisuje ich wartości), robi spójną kopię bazy kont i rozmów do `backups/` (ostatnie 10, nie starsze niż 30 dni, tylko dla właściciela pliku), buduje obrazy, startuje kontenery i czeka, aż strona odpowie pod `http://127.0.0.1:FRONTEND_PORT`. Przy `LLM_PROVIDER=ollama` sam włącza profil z Ollamą; `--seed` kopiuje lokalne `data/` i `dataset/` do kontenera. Gdy coś nie wstanie, pokazuje stan kontenerów i logi backendu. Zatrzymanie: `docker compose down`.
 
 To samo ręcznie:
 
@@ -45,7 +45,7 @@ docker compose --profile ollama up -d --build    # z lokalną Ollamą (LLM_PROVI
 
 - Aplikacja: http://localhost:8080 (`FRONTEND_PORT`). Nginx przekazuje `/api/*` do backendu.
 - Backend przy starcie wykonuje migracje (`alembic upgrade head`).
-- GPU dla Ollamy: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile ollama up -d --build`.
+- GPU dla Ollamy: `docker compose -f docker-compose.yml -f deploy/compose.gpu.yml --profile ollama up -d --build`.
 - Backend w Dockerze łączy się z Ollamą z kontenera (`OLLAMA_HOST=http://ollama:11434` w `docker-compose.yml`).
 - Po zmianie `.env`: `docker compose up -d`. Logi: `docker compose logs -f backend`.
 
@@ -82,7 +82,7 @@ pnpm dev                  # backend (:8000) i frontend razem -> http://localhost
 
 `pnpm dev` stosuje migracje bazy i uruchamia uvicorn z przeładowaniem (tylko `src/`, na `127.0.0.1:8000`, jeden worker) oraz vite; Ctrl+C zatrzymuje oba. Osobno: `pnpm dev:backend`, `pnpm dev:frontend`. `.env` backend czyta tylko przy starcie — po jego zmianie uruchom `pnpm dev` ponownie.
 
-Lokalnie najprościej bez Keycloaka: `ENV=dev` w `.env` (wystarczy samo to — `OIDC_*` i `AUTH_SECRET_KEY` niepotrzebne). Logowanie to wtedy wybór zmyślonego konta (`src/backend/auth/dev.py`): Zarząd (panel administratora), dwie osoby z `/Członek` (osobne historie rozmów) i osoba spoza grupy (ekran odmowy). Konta przechodzą tę samą ścieżkę co prawdziwe — sesja w bazie i sprawdzanie grupy przy każdym zapytaniu — tylko „Keycloak” jest atrapą; wylogowanie wraca do wyboru konta. W trybie dev backend odpowiada wyłącznie na zapytania z tego komputera (`127.0.0.1`, także przez proxy vite z `--host`), a `scripts/deploy.sh` nie wdroży serwera z `ENV=dev`.
+Lokalnie najprościej bez Keycloaka: `ENV=dev` w `.env` (wystarczy samo to — `OIDC_*` i `AUTH_SECRET_KEY` niepotrzebne). Logowanie to wtedy wybór zmyślonego konta (`src/backend/auth/dev.py`): Zarząd (panel administratora), dwie osoby z `/Członek` (osobne historie rozmów) i osoba spoza grupy (ekran odmowy). Konta przechodzą tę samą ścieżkę co prawdziwe — sesja w bazie i sprawdzanie grupy przy każdym zapytaniu — tylko „Keycloak” jest atrapą; wylogowanie wraca do wyboru konta. W trybie dev backend odpowiada wyłącznie na zapytania z tego komputera (`127.0.0.1`, także przez proxy vite z `--host`), a `deploy/deploy-server.sh` nie wdroży serwera z `ENV=dev`.
 
 Z prawdziwym Keycloakiem (`ENV=prod`): `OIDC_REDIRECT_URI=http://localhost:5173/api/auth/callback`, sekret klienta i otwieranie `localhost`, nie `127.0.0.1`.
 
@@ -95,20 +95,20 @@ Migracje: po zmianie `src/backend/models.py` wygeneruj plik `python -m alembic r
 Scrapery zapisują do `data/<źródło>/`, CLI indeksu buduje z tych zbiorów indeks RAG w `dataset/`:
 
 ```bash
-python pipeline/scrapers/strony/scraper.py         # strony wydziału
-python -m pipeline.scrapers.usos                    # USOS (USOS_CONSUMER_KEY/SECRET)
-python pipeline/scrapers/mordor/files_downloader.py  # Mordor (MORDOR_COOKIE)
+python src/scrapers/strony/scraper.py         # strony wydziału
+python -m src.scrapers.usos                    # USOS (USOS_CONSUMER_KEY/SECRET)
+python src/scrapers/mordor/files_downloader.py  # Mordor (MORDOR_COOKIE)
 python -m src.backend.rag.index sync               # nowe, zmienione i usunięte dokumenty
 ```
 
-Scraper USOS (`pipeline/scrapers/usos/`, rodzaje rekordów w `src/backend/rag/DATASETS.md`):
+Scraper USOS (`src/scrapers/usos/`, rodzaje rekordów w `src/backend/rag/DATASETS.md`):
 
 - Zbiór jest podmieniany tylko tym, co się udało zebrać — inaczej `sync` usunąłby z indeksu resztę danych. Błąd albo pominięcie kolektora (np. brak klucza aplikacji — bez niego są tylko cykle, jednostki, kierunki, budynki i strony USOSweb) wstrzymuje zapis; `--partial` zapisuje mimo to, a rekordy tego kolektora zostają z poprzedniego zbioru. `--only news,calendar` zbiera wybrane kolektory (z ich zależnościami, np. przedmioty potrzebują pracowników i kalendarza) i podmienia tylko ich rekordy. Spadek liczby rekordów jakiegoś rodzaju o ponad połowę wstrzymuje zapis (`--force` zapisuje mimo to).
 - Pełny przebieg to ok. 2 tys. zapytań co najmniej 0,3 s (`--delay`), ok. 10 minut; wynik w `data/usos/` (`--out`). Po kilku kolejnych błędach chwilowych (USOS niedostępny) przebieg się przerywa.
-- `python -m pipeline.scrapers.usos call services/fac/faculty fac_id=UJ.WMI` wypisuje odpowiedź jednej metody (do sprawdzania danych).
-- Adresy e-mail pracowników: jednorazowo `python -m pipeline.scrapers.usos login` (token operatora z uprawnieniami `other_emails|offline_access` trafia do `.env`). USOS podaje tak tylko adresy pokazywane jawnie (ok. 15% pracowników); ukryte przed robotami (captcha w USOSweb) zostają w karcie jako link do profilu — wszystkie adresy daje tylko klucz administracyjny USOS. Uwaga: cofnięcie tokenu w USOS (*Rozłącz* w czacie albo `revoke_token`) unieważnia najpewniej wszystkie tokeny tej aplikacji dla danego konta — także token operatora, jeśli operator rozłączy swoje konto w czacie; wtedy trzeba powtórzyć `login`. Komunikaty błędów nie zawierają tokenów.
-- Dane studentów nie są zbierane. USOSownia nie jest zbierana (jej `robots.txt` zabrania robotów) — zamiast niej czat ma krótkie poradniki KSI do USOSweb (`knowledge/ksi/usos-*.md`) z linkami do USOSowni.
-- **Odświeżanie na serwerze** — `./refresh-usos.sh` zbiera wszystko poza pracownikami (zostają z poprzedniego zbioru razem z adresami e-mail) samym kluczem aplikacji, zapisuje zbiór prosto do wolumenu danych backendu i robi `index sync --source usos`; `--with-staff` zbiera też pracowników z tokenem operatora z `.env`. Wszystko jako użytkownik `app` (uid 10001) — pliki indeksu zapisane przez roota backend widzi tylko do odczytu i przestaje odpowiadać. Obraz `chatbot-scrapers` (`Dockerfile.scrapers`: obraz backendu + biblioteki scraperów) skrypt buduje sam. Log w `logs/refresh-usos.log`. Na serwerze cron co noc (`crontab -e` roota): `30 4 * * * /opt/chatbot/refresh-usos.sh`.
+- `python -m src.scrapers.usos call services/fac/faculty fac_id=UJ.WMI` wypisuje odpowiedź jednej metody (do sprawdzania danych).
+- Adresy e-mail pracowników: jednorazowo `python -m src.scrapers.usos login` (token operatora z uprawnieniami `other_emails|offline_access` trafia do `.env`). USOS podaje tak tylko adresy pokazywane jawnie (ok. 15% pracowników); ukryte przed robotami (captcha w USOSweb) zostają w karcie jako link do profilu — wszystkie adresy daje tylko klucz administracyjny USOS. Uwaga: cofnięcie tokenu w USOS (*Rozłącz* w czacie albo `revoke_token`) unieważnia najpewniej wszystkie tokeny tej aplikacji dla danego konta — także token operatora, jeśli operator rozłączy swoje konto w czacie; wtedy trzeba powtórzyć `login`. Komunikaty błędów nie zawierają tokenów.
+- Dane studentów nie są zbierane. USOSownia nie jest zbierana (jej `robots.txt` zabrania robotów) — zamiast niej czat ma krótkie poradniki KSI do USOSweb (`src/backend/rag/sources/ksi/content/usos-*.md`) z linkami do USOSowni.
+- **Odświeżanie na serwerze** — `deploy/refresh-usos.sh` zbiera wszystko poza pracownikami (zostają z poprzedniego zbioru razem z adresami e-mail) samym kluczem aplikacji, zapisuje zbiór prosto do wolumenu danych backendu i robi `index sync --source usos`; `--with-staff` zbiera też pracowników z tokenem operatora z `.env`. Wszystko jako użytkownik `app` (uid 10001) — pliki indeksu zapisane przez roota backend widzi tylko do odczytu i przestaje odpowiadać. Obraz `chatbot-scrapers` (`deploy/Dockerfile.scrapers`: obraz backendu + biblioteki scraperów) skrypt buduje sam. Log w `logs/refresh-usos.log`. Na serwerze cron co noc (`crontab -e` roota): `30 4 * * * /opt/chatbot/deploy/refresh-usos.sh`.
 
 Każdy indeks (wektory Chromy, BM25 w SQLite FTS5, `meta.json`) leży we własnym katalogu `dataset/indexes/<czas UTC>/`, a plik `dataset/CURRENT` wskazuje bieżący. Polecenia nigdy nie zmieniają indeksu, z którego korzysta backend — pracują na nowym katalogu i na końcu atomowo przełączają `CURRENT`; backend zauważa zmianę w ciągu 10 s, bez restartu. W kontenerze: `docker compose exec -u app backend python -m src.backend.rag.index …`.
 
@@ -125,7 +125,6 @@ Każdy indeks (wektory Chromy, BM25 w SQLite FTS5, `meta.json`) leży we własny
 - Przerwany `build`/`sync` (np. restart maszyny) wystarczy uruchomić ponownie tym samym poleceniem: zapisane partie zostają, embedowane jest tylko to, czego brakuje. Do tego czasu backend korzysta z poprzedniego indeksu.
 - Zostają 2 poprzednie indeksy (do `rollback`), starsze są usuwane. Ręczny powrót: zapisz w `dataset/CURRENT` np. `indexes/20261011T120000Z`. Usunięcie `CURRENT` wraca do starego układu (`dataset/vectorstore` + `dataset/lexical.db`), który można skasować po pierwszym udanym `build`.
 - Wyszukiwanie wektorowe jest dokładne (odległość do każdego wektora wybranych źródeł), więc wynik zależy tylko od zawartości indeksu.
-- Stare polecenie `python -m pipeline.ingest.run_ingest` nadal działa i przekierowuje na `sync` (z `--purge` na `build`).
 
 ## Logowanie (Keycloak KSI)
 
@@ -146,11 +145,11 @@ Pozostałe zmienne (historia rozmów, RAG, modele) są opisane w `.env.example`.
 Kod rozwija się lokalnie (*Praca lokalna*); na serwer jedzie z komputera, bez edytowania kodu na serwerze:
 
 ```bash
-scripts/deploy.sh --dry-run    # co pojedzie na serwer
-scripts/deploy.sh              # rsync na ksi-chat:/opt/chatbot, kopia bazy, budowanie, podmiana kontenerów
+deploy/deploy-server.sh --dry-run    # co pojedzie na serwer
+deploy/deploy-server.sh              # rsync na ksi-chat:/opt/chatbot, kopia bazy, budowanie, podmiana kontenerów
 ```
 
-Skrypt sprawdza `.env` na serwerze (wymagane zmienne, `https` w `OIDC_REDIRECT_URI`, klucz wybranego LLM), kopiuje kod przez `rsync --delete` bez `.env`, `data/`, `dataset/`, `backups/`, `uploads/` i `logs/`, robi spójną kopię bazy do `backups/` i buduje nowe obrazy obok działających kontenerów — przerwa to tylko ich restart. Gdy po podmianie `/api/health` albo strona nie odpowiadają przez 3 minuty, kontenery wracają na poprzednie obrazy (migracje bazy zostają — wtedy przywróć kopię z `backups/`). Wdrożona wersja (commit, gałąź, czas) jest w `/opt/chatbot/REVISION`. Zmienne: `KSI_HOST` (alias SSH, domyślnie `ksi-chat`), `KSI_DEST` (`/opt/chatbot`), `KSI_PROJECT` (nazwa projektu Compose, `chatbot` — od niej zależą nazwy wolumenów).
+Skrypt sprawdza `.env` na serwerze (wymagane zmienne, `https` w `OIDC_REDIRECT_URI`, klucz wybranego LLM), kopiuje kod przez `rsync --delete` bez `.env`, `data/`, `dataset/`, `backups/`, `uploads/` i `logs/`, robi spójną kopię bazy do `backups/` i buduje nowe obrazy obok działających kontenerów — przerwa to tylko ich restart. Gdy po podmianie `/api/health` albo strona nie odpowiadają przez 3 minuty, kontenery wracają na poprzednie obrazy (migracje bazy zostają — wtedy przywróć kopię z `backups/`). Alias SSH loguje się jako `root` (`.env` na serwerze to `root 600`); pliki kodu na serwerze należą do roota. Wdrożona wersja (commit, gałąź, czas) jest w `/opt/chatbot/REVISION`. Zmienne: `KSI_HOST` (alias SSH, domyślnie `ksi-chat`), `KSI_DEST` (`/opt/chatbot`), `KSI_PROJECT` (nazwa projektu Compose, `chatbot` — od niej zależą nazwy wolumenów).
 
 ## Połączenie z USOS
 

@@ -1,0 +1,12 @@
+# Obraz do uruchamiania scraperow na serwerze (deploy/refresh-usos.sh): obraz
+# backendu z deployu + grupa "dev" z pyproject.toml (bs4, lxml, OAuth1, pytest).
+# Kod jest montowany z repozytorium, wiec obraz nie zawiera src/scrapers.
+#
+#   docker build -f deploy/Dockerfile.scrapers -t chatbot-scrapers .
+ARG BASE=chatbot-backend
+FROM ${BASE}
+USER root
+COPY pyproject.toml /tmp/requirements/
+RUN pip install --no-cache-dir --group /tmp/requirements/pyproject.toml:dev && rm -rf /tmp/requirements
+USER app
+ENTRYPOINT []
