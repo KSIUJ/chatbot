@@ -41,10 +41,10 @@ app = [
     # Logowanie OIDC przez Keycloak KSI (src/backend/auth/) - klient HTTP,
     # walidacja podpisanych ID tokenow (JWKS) i szyfrowanie tokenow w bazie
     "httpx==0.28.1",
-    "joserfc==1.7.5",
+    "joserfc==1.7.7",
     "cryptography==50.0.2",
     # Polaczenie kont z USOS (src/backend/usos/) - podpisy OAuth 1.0a HMAC-SHA1
-    "oauthlib==4.0.0",
+    "oauthlib==4.0.1",
     # Naglowki notatek o KSI (src/backend/rag/sources/ksi/notes.py)
     "pyyaml==6.0.3",
 ]
@@ -53,7 +53,7 @@ dev = [
     "pytest==9.2.0",
     # scrapery (src/scrapers): HTML z sieci parsuje lxml, OAuth1 do USOS API
     "beautifulsoup4==4.15.0",
-    "soupsieve==3.0.1",
+    "soupsieve==3.0.2",
     "lxml==6.1.3",
     "requests-oauthlib==2.0.0",
     "pypdf==7.1.0",
