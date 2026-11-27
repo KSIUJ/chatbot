@@ -18,6 +18,8 @@ uploads/
 __pycache__/
 *.pyc
 .pytest_cache/
+# wynik pytest --cov
+.coverage
 .ruff_cache/
 
 # frontend
