@@ -48,6 +48,10 @@ class User(Base):
     # Lokalny wylacznik konta, niezalezny od Keycloaka.
     is_active: Mapped[bool] = mapped_column(default=True)
 
+    # Gosc wersji testowej bez konta (guest/): oidc_sub "guest:<losowe>", sesja
+    # bez tokenow Keycloaka, konto kasowane po GUEST_SESSION_HOURS.
+    is_guest: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
     # Blokada czatu po WARNING_LIMIT ostrzezeniach za proby obejscia promptu
     # (security/blocks.py); NULL = brak blokady. Zdejmuje ja tylko zarzad.
     chat_blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -336,7 +340,8 @@ class Attachment(Base):
 
 
 class UserSession(Base):
-    """Sesja aplikacji po zalogowaniu przez Keycloak.
+    """Sesja aplikacji po zalogowaniu przez Keycloak (albo sesja goscia
+    wersji testowej - wtedy bez tokenow).
 
     Przegladarka dostaje tylko losowy token w ciasteczku HttpOnly; w bazie jest
     jego SHA-256 (wyciek bazy nie daje dzialajacych ciasteczek). Tokeny z
@@ -354,8 +359,9 @@ class UserSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    access_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
-    access_token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # NULL tylko w sesji goscia (bez Keycloaka, guest/)
+    access_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    access_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     # id_token potrzebny tylko jako id_token_hint przy wylogowaniu z Keycloaka
     id_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)

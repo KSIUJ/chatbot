@@ -15,6 +15,7 @@ from src.backend.auth import dependencies as auth_dependencies
 from src.backend.auth.oidc import OIDCClient
 from src.backend.auth.settings import get_auth_settings
 from src.backend.database import get_db, get_session_factory
+from src.backend.guest.settings import get_guest_settings
 from src.backend.history import get_history_settings
 from src.backend.limits.settings import ATTACHMENT_ENV_VARS, get_default_limits
 from src.backend.llm.generate import AnswerStream
@@ -64,6 +65,10 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
     for name in (*ATTACHMENT_ENV_VARS, "OCCASION_SOURCE_URL", "OCCASION_REFRESH_SECONDS", "OCCASION_API_TOKEN"):
         monkeypatch.delenv(name, raising=False)
+    # wersja testowa z domyslnymi limitami, chyba ze test ustawi wlasne (test_guest_mode.py)
+    for name in ("GUEST_MODE", "GUEST_QUESTION_LIMIT", "GUEST_SESSION_HOURS", "GUEST_SESSIONS_PER_IP_PER_DAY",
+                 "GUEST_DAILY_TOTAL_LIMIT", "GUEST_ATTACHMENT_LIMIT"):
+        monkeypatch.delenv(name, raising=False)
     # polaczenie z USOS wylaczone, chyba ze test wlaczy je sam (test_usos.py)
     for name in ("USOS_CONNECT", "USOS_CONSUMER_KEY", "USOS_CONSUMER_SECRET", "USOS_SCOPES", "USOS_CALLBACK_URL",
                  "USOS_HTTP_TIMEOUT"):
@@ -73,6 +78,7 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
     get_default_limits.cache_clear()
     get_occasion_settings.cache_clear()
     get_usos_settings.cache_clear()
+    get_guest_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
     yield
@@ -81,6 +87,7 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
     get_default_limits.cache_clear()
     get_occasion_settings.cache_clear()
     get_usos_settings.cache_clear()
+    get_guest_settings.cache_clear()
     auth_dependencies._cipher_for.cache_clear()
     auth_dependencies._oidc_client_for.cache_clear()
 
@@ -161,8 +168,8 @@ def client(auth_env, keycloak: FakeKeycloak, session_factory, monkeypatch: pytes
 
 @pytest.fixture
 def member_override(session_factory):
-    """Podmienia require_member na stalego czlonka - do testow, ktore nie
-    dotycza samego logowania (np. /chat)."""
+    """Podmienia require_member i require_ksi_member na stalego czlonka - do
+    testow, ktore nie dotycza samego logowania (np. /chat)."""
     db = session_factory()
     user = User(oidc_sub="test-member", email="member@student.uj.edu.pl", name="Test Member")
     db.add(user)
@@ -176,4 +183,6 @@ def member_override(session_factory):
         return member
 
     main_module.app.dependency_overrides[auth_dependencies.require_member] = fake_member
+    # staly czlonek ma konto KSI - tez endpointy bez gosci (/stats, /usos/*)
+    main_module.app.dependency_overrides[auth_dependencies.require_ksi_member] = fake_member
     return user_id

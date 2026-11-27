@@ -11,6 +11,13 @@ pytania - model mogl juz zostac wywolany.
 Ten sam licznik (osobna tabela daily_attachment_usage) liczy wyslane pliki
 dla limitu attachments.max_per_day: plik zuzywa jedno miejsce przed zapisem
 na dysk, a odrzucony (typ, rozmiar, nieczytelny) je oddaje.
+
+Gosc wersji testowej (guest/) ma GUEST_QUESTION_LIMIT pytan na cala sesje:
+jego pytania i pliki ida na licznik dnia, w ktorym konto powstalo, wiec
+polnoc ich nie odnawia. Do tego wszyscy goscie razem maja dzienny limit
+GUEST_DAILY_TOTAL_LIMIT (wiersz guest_questions:<dzien> w usage_counters).
+Ten wspolny licznik nie jest zwracany po bledzie modelu - nieudane wywolanie
+tez kosztuje, a zwrot pozwalalby wywolywac model bez konca.
 """
 
 from __future__ import annotations
@@ -24,8 +31,9 @@ from sqlalchemy import delete, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..guest.settings import GuestSettings
 from ..llm.dates import warsaw_midnight, warsaw_now
-from ..models import DailyAttachmentUsage, DailyUsage, UserLimit, utcnow
+from ..models import DailyAttachmentUsage, DailyUsage, UsageCounter, User, UserLimit, utcnow
 from .settings import get_daily_question_limit
 
 logger = logging.getLogger(__name__)
@@ -62,6 +70,39 @@ class LimitExceeded(Exception):
 class AttachmentLimitExceeded(LimitExceeded):
     """Dzienny limit wyslanych plikow wyczerpany - API odpowiada 429
     attachments_limited (osobny handler, nie rate_limited)."""
+
+
+class GuestQuestionsUnavailable(Exception):
+    """Gosc nie moze juz pytac - API odpowiada 429 z kodem `code`."""
+
+    code = "guest_unavailable"
+
+    def __init__(self, limit: int, message: str) -> None:
+        super().__init__(message)
+        self.limit = limit
+        self.message = message
+
+
+class GuestLimitExceeded(GuestQuestionsUnavailable):
+    """Gosc zuzyl GUEST_QUESTION_LIMIT pytan swojej sesji."""
+
+    code = "guest_limit_reached"
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(
+            limit, f"Wykorzystano {limit} pytania wersji testowej. Zaloguj się kontem KSI, żeby pytać dalej."
+        )
+
+
+class GuestCapacityExceeded(GuestQuestionsUnavailable):
+    """Goscie razem zuzyli dzisiejszy GUEST_DAILY_TOTAL_LIMIT."""
+
+    code = "guest_capacity"
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(
+            limit, "Wersja testowa wyczerpała dziś swój limit pytań. Zaloguj się kontem KSI albo wróć jutro."
+        )
 
 
 @dataclass(frozen=True)
@@ -201,6 +242,115 @@ def refund_question(db: Session, reservation: Reservation) -> None:
     _refund(db, DailyUsage, reservation)
 
 
+# --- goscie wersji testowej --------------------------------------------------------------
+
+GUEST_COUNTER_PREFIX = "guest_questions:"
+# nowe sesje gosci z jednego adresu danego dnia: guest_ip:<dzien>:<HMAC adresu>
+GUEST_ADDRESS_PREFIX = "guest_ip:"
+# z HMAC (hex) zostaje 96 bitow - klucz usage_counters ma najwyzej 50 znakow
+GUEST_ADDRESS_HASH_CHARS = 24
+
+
+def guest_address_key(day: date, address_hash: str) -> str:
+    """Licznik sesji gosci z jednego adresu (HMAC, nigdy sam adres) danego dnia."""
+    return f"{GUEST_ADDRESS_PREFIX}{day.isoformat()}:{address_hash[:GUEST_ADDRESS_HASH_CHARS]}"
+
+
+def guest_counter_key(day: date) -> str:
+    """Wiersz usage_counters z liczba pytan wszystkich gosci danego dnia."""
+    return f"{GUEST_COUNTER_PREFIX}{day.isoformat()}"
+
+
+def guest_usage_day(user: User) -> date:
+    """Dzien licznika goscia: dzien zalozenia konta - polnoc go nie odnawia."""
+    return usage_day(user.created_at)
+
+
+def _increment_counter(db: Session, key: str, limit: int) -> bool:
+    stmt = (
+        update(UsageCounter)
+        .where(UsageCounter.key == key, UsageCounter.value < limit)
+        .values(value=UsageCounter.value + 1)
+        .execution_options(synchronize_session=False)
+    )
+    return bool(db.execute(stmt).rowcount)
+
+
+def consume_counter(db: Session, key: str, limit: int) -> bool:
+    """value + 1 w usage_counters, jesli miesci sie w limicie - atomowo, takze
+    przy rownoleglych zapytaniach; commituje. False (po rollbacku) = limit
+    wyczerpany."""
+    try:
+        consumed = _increment_counter(db, key, limit)
+        if not consumed and db.get(UsageCounter, key) is None:
+            try:
+                with db.begin_nested():
+                    db.execute(insert(UsageCounter).values(key=key, value=1))
+                consumed = True
+            except IntegrityError:
+                consumed = _increment_counter(db, key, limit)
+    except Exception:
+        db.rollback()
+        raise
+    if not consumed:
+        db.rollback()
+        return False
+    db.commit()
+    return True
+
+
+def consume_guest_question(db: Session, user: User, now: datetime, settings: GuestSettings) -> Reservation:
+    """Zuzywa pytanie goscia: z limitu jego sesji i z dziennego limitu
+    wszystkich gosci. Commituje.
+
+    Raises:
+        GuestLimitExceeded: gosc zuzyl swoje pytania.
+        GuestCapacityExceeded: goscie zuzyli dzisiejszy limit (pytanie goscia
+            wraca do jego puli).
+    """
+    day = guest_usage_day(user)
+    if not _consume(db, DailyUsage, user.id, day, settings.question_limit):
+        raise GuestLimitExceeded(settings.question_limit)
+    if not consume_counter(db, guest_counter_key(usage_day(now)), settings.daily_total_limit):
+        _refund(db, DailyUsage, Reservation(user_id=user.id, day=day))
+        raise GuestCapacityExceeded(settings.daily_total_limit)
+    return Reservation(user_id=user.id, day=day)
+
+
+def guest_expires_at(user: User, settings: GuestSettings) -> datetime:
+    """Kiedy konczy sie sesja goscia (i znika jego konto)."""
+    created = user.created_at if user.created_at.tzinfo is not None else user.created_at.replace(tzinfo=timezone.utc)
+    return created + timedelta(hours=settings.session_hours)
+
+
+def guest_capacity_reached(db: Session, now: datetime, settings: GuestSettings) -> bool:
+    """Czy goscie razem zuzyli juz dzisiejszy GUEST_DAILY_TOTAL_LIMIT."""
+    row = db.get(UsageCounter, guest_counter_key(usage_day(now)), populate_existing=True)
+    return row is not None and row.value >= settings.daily_total_limit
+
+
+def consume_question_for(db: Session, user: User, now: datetime, guest: GuestSettings) -> Reservation:
+    """Pytanie osoby: dzienny limit czlonka KSI albo limit goscia."""
+    if user.is_guest:
+        return consume_guest_question(db, user, now, guest)
+    return consume_question(db, user.id, now)
+
+
+def guest_questions_used(db: Session, user: User) -> int:
+    """Ile pytan gosc juz zuzyl w swojej sesji."""
+    return _used(db, user.id, guest_usage_day(user))
+
+
+def ensure_guest_can_ask(db: Session, user: User, settings: GuestSettings) -> None:
+    """Dla gosci: czy zostalo jakies pytanie (np. przed wyslaniem pliku).
+
+    Raises:
+        GuestLimitExceeded: gosc zuzyl swoje pytania.
+    """
+    if user.is_guest and guest_questions_used(db, user) >= settings.question_limit:
+        raise GuestLimitExceeded(settings.question_limit)
+
+
 def refund_in_new_session(session_factory: Callable[[], Session], reservation: Reservation) -> None:
     """refund_question we wlasnej sesji; blad jest logowany, nie przerywa tury
     (najwyzej osoba straci jedno pytanie do polnocy)."""
@@ -214,13 +364,16 @@ def refund_in_new_session(session_factory: Callable[[], Session], reservation: R
         db.close()
 
 
-def consume_attachment(db: Session, user_id: str, now: datetime, limit: int) -> Reservation:
+def consume_attachment(
+    db: Session, user_id: str, now: datetime, limit: int, day: date | None = None
+) -> Reservation:
     """Zuzywa jedno miejsce z dziennego limitu wyslanych plikow i commituje.
+    `day` = dzien licznika (gosc: dzien zalozenia konta), domyslnie dzisiaj.
 
     Raises:
         AttachmentLimitExceeded: limit na dzis wyczerpany.
     """
-    day = usage_day(now)
+    day = day if day is not None else usage_day(now)
     if not _consume(db, DailyAttachmentUsage, user_id, day, limit):
         raise AttachmentLimitExceeded(
             limit, _used(db, user_id, day, DailyAttachmentUsage), next_reset(now), now
@@ -233,9 +386,10 @@ def refund_attachment(db: Session, reservation: Reservation) -> None:
     _refund(db, DailyAttachmentUsage, reservation)
 
 
-def attachments_used(db: Session, user_id: str, now: datetime) -> int:
-    """Ile plikow osoba wyslala dzisiaj (doba wg czasu polskiego)."""
-    return _used(db, user_id, usage_day(now), DailyAttachmentUsage)
+def attachments_used(db: Session, user_id: str, now: datetime, day: date | None = None) -> int:
+    """Ile plikow osoba wyslala dzisiaj (doba wg czasu polskiego) albo
+    danego dnia licznika (`day`, gosc)."""
+    return _used(db, user_id, day if day is not None else usage_day(now), DailyAttachmentUsage)
 
 
 def usage_status(db: Session, user_id: str, now: datetime) -> UsageStatus:
@@ -281,6 +435,16 @@ def purge_old_usage(db: Session, retention_days: int = USAGE_RETENTION_DAYS, now
     deleted = 0
     for table in (DailyUsage, DailyAttachmentUsage):
         result = db.execute(delete(table).where(table.day < cutoff))
+        deleted += int(result.rowcount or 0)
+    # dzienne liczniki gosci (pytania i sesje z adresu): klucz zaczyna sie od
+    # daty ISO, wiec porownanie napisow wystarcza
+    for prefix in (GUEST_COUNTER_PREFIX, GUEST_ADDRESS_PREFIX):
+        result = db.execute(
+            delete(UsageCounter).where(
+                UsageCounter.key.startswith(prefix),
+                UsageCounter.key < f"{prefix}{cutoff.isoformat()}",
+            )
+        )
         deleted += int(result.rowcount or 0)
     db.commit()
     return deleted

@@ -34,3 +34,8 @@ class UsageResponse(BaseModel):
     # o kontakt z zarzadem zamiast pola pytania
     chat_blocked: bool = False
     attachments: AttachmentUsage | None = None
+    # gosc wersji testowej: used/limit to pytania calej sesji, a reset_at -
+    # koniec sesji (limit sie nie odnawia)
+    guest: bool = False
+    # goscie razem zuzyli dzisiejszy GUEST_DAILY_TOTAL_LIMIT (tylko u gosci)
+    guest_capacity_reached: bool = False

@@ -98,10 +98,12 @@ def is_admin(claims: JSONObject, settings: AuthSettings) -> bool:
 @dataclass(frozen=True)
 class AuthenticatedMember:
     """Czlonek KSI po sprawdzeniu sesji i biezacego userinfo z Keycloaka.
-    is_admin pochodzi z tego samego userinfo - bez dodatkowego zapytania."""
+    is_admin pochodzi z tego samego userinfo - bez dodatkowego zapytania.
+    is_guest = gosc wersji testowej (guest/): bez Keycloaka i nigdy admin."""
 
     user: User
     is_admin: bool
+    is_guest: bool = False
 
 
 # --- uzytkownicy -----------------------------------------------------------
@@ -152,15 +154,9 @@ def _store_tokens(session: UserSession, tokens: TokenSet, cipher: TokenCipher) -
         session.id_token_enc = cipher.encrypt(tokens.id_token)
 
 
-def create_session(
-    db: Session,
-    user: User,
-    tokens: TokenSet,
-    cipher: TokenCipher,
-    settings: AuthSettings,
-) -> str:
-    """Zaklada sesje i zwraca surowy token do ciasteczka (w bazie jest tylko hash).
-    Zawsze nowy token - brak session fixation."""
+def _new_session(user: User, max_age_seconds: int) -> tuple[str, UserSession]:
+    """Nowy losowy token (zawsze nowy - brak session fixation) i wiersz sesji
+    z jego hashem."""
     raw_token = new_session_token()
     now = utcnow()
     session = UserSession(
@@ -168,9 +164,30 @@ def create_session(
         user_id=user.id,
         created_at=now,
         last_seen_at=now,
-        expires_at=now + timedelta(seconds=settings.session_max_age_seconds),
+        expires_at=now + timedelta(seconds=max_age_seconds),
     )
+    return raw_token, session
+
+
+def create_session(
+    db: Session,
+    user: User,
+    tokens: TokenSet,
+    cipher: TokenCipher,
+    settings: AuthSettings,
+) -> str:
+    """Zaklada sesje i zwraca surowy token do ciasteczka (w bazie jest tylko hash)."""
+    raw_token, session = _new_session(user, settings.session_max_age_seconds)
     _store_tokens(session, tokens, cipher)
+    db.add(session)
+    db.commit()
+    return raw_token
+
+
+def create_guest_session(db: Session, user: User, max_age_seconds: int) -> str:
+    """Sesja goscia wersji testowej: bez tokenow Keycloaka. Zwraca surowy
+    token do ciasteczka."""
+    raw_token, session = _new_session(user, max_age_seconds)
     db.add(session)
     db.commit()
     return raw_token
@@ -246,12 +263,27 @@ def _current_access_token(
     oidc: OIDCClient,
     cipher: TokenCipher,
 ) -> str:
-    if _as_utc(session.access_token_expires_at) - ACCESS_TOKEN_REFRESH_MARGIN <= utcnow():
+    expires_at = session.access_token_expires_at
+    if session.access_token_enc is None or expires_at is None:
+        return _refresh_tokens(db, session, oidc, cipher)
+    if _as_utc(expires_at) - ACCESS_TOKEN_REFRESH_MARGIN <= utcnow():
         return _refresh_tokens(db, session, oidc, cipher)
     try:
         return cipher.decrypt(session.access_token_enc)
     except DecryptionError:
         return _refresh_tokens(db, session, oidc, cipher)
+
+
+def _authenticate_guest(db: Session, session: UserSession, guests_enabled: bool) -> AuthenticatedMember:
+    """Sesja goscia wersji testowej - bez Keycloaka. Wylaczenie trybu goscia
+    (GUEST_MODE=off) konczy wszystkie sesje gosci."""
+    user = session.user
+    if not guests_enabled or not user.is_active:
+        delete_session(db, session)
+        raise _session_expired()
+    session.last_seen_at = utcnow()
+    db.commit()
+    return AuthenticatedMember(user=user, is_admin=False, is_guest=True)
 
 
 def authenticate(
@@ -260,9 +292,11 @@ def authenticate(
     oidc: OIDCClient,
     cipher: TokenCipher,
     settings: AuthSettings,
+    guests_enabled: bool = False,
 ) -> AuthenticatedMember:
     """Sprawdza sesje z ciasteczka i - przy kazdym zapytaniu - aktualne
     czlonkostwo w grupie (i w grupie adminow) przez userinfo Keycloaka.
+    Sesja goscia (guest/) jest przyjmowana tylko przy guests_enabled.
 
     Usuniecie z grupy, zablokowanie konta albo wylogowanie w Keycloaku odbiera
     dostep przy najblizszym zapytaniu, bez czekania na wygasniecie sesji.
@@ -277,6 +311,8 @@ def authenticate(
     session = find_session(db, raw_token)
     if session is None:
         raise _session_expired()
+    if session.user.is_guest:
+        return _authenticate_guest(db, session, guests_enabled)
 
     with _lock_for(session.id):
         # Inne zapytanie moglo w miedzyczasie odswiezyc tokeny albo skasowac sesje.

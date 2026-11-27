@@ -35,6 +35,7 @@ from typing import Final
 from urllib.parse import unquote
 
 import anyio
+from dataclasses import replace
 from anyio import to_thread
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import FileResponse
@@ -44,13 +45,16 @@ from starlette.requests import ClientDisconnect
 
 from ..auth.dependencies import require_member
 from ..database import get_db
+from ..guest.settings import GUEST_MAX_FILE_MB, get_guest_settings
 from ..limits.settings import MAX_IMAGE_MB, AttachmentLimits, ensure_chat_enabled, get_attachment_limits
 from ..limits.usage import (
     AttachmentLimitExceeded,
     Clock,
     Reservation,
     consume_attachment,
+    ensure_guest_can_ask,
     get_clock,
+    guest_usage_day,
     refund_attachment,
 )
 from ..models import User
@@ -151,12 +155,23 @@ def _check_free_space() -> None:
 def _start_upload(
     db: Session, user: User, now_clock: Clock, declared: int | None
 ) -> tuple[AttachmentLimits, Reservation]:
-    """Sprawdzenia przed odczytem ciala i zuzycie miejsca w dziennym limicie."""
+    """Sprawdzenia przed odczytem ciala i zuzycie miejsca w dziennym limicie.
+    Gosc wersji testowej: najwyzej GUEST_ATTACHMENT_LIMIT plikow na sesje i nic
+    po wyczerpaniu pytan (429 guest_limit_reached)."""
     ensure_chat_enabled(db)
     ensure_not_blocked(user)
     user_id = user.id
     limits = get_attachment_limits(db)
-    if limits.max_per_day <= 0:
+    max_per_day = limits.max_per_day
+    counter_day = None
+    if user.is_guest:
+        guest = get_guest_settings()
+        ensure_guest_can_ask(db, user, guest)
+        max_per_day = min(max_per_day, guest.attachment_limit)
+        counter_day = guest_usage_day(user)
+        # mniejsze pliki: mniej miejsca i czasu na odczyt PDF/OCR dla anonimowych osob
+        limits = replace(limits, max_file_mb=min(limits.max_file_mb, GUEST_MAX_FILE_MB))
+    if max_per_day <= 0:
         raise AttachmentError(403, ATTACHMENTS_DISABLED, "Załączniki są wyłączone przez zarząd KSI.")
     max_bytes = limits.max_file_mb * MB
     if declared is not None and declared > max_bytes:
@@ -166,7 +181,7 @@ def _start_upload(
     if pending >= unsent_cap(limits) or (declared is not None and pending + declared > unsent_cap(limits)):
         raise _storage_full()
     try:
-        reservation = consume_attachment(db, user_id, now_clock(), limits.max_per_day)
+        reservation = consume_attachment(db, user_id, now_clock(), max_per_day, day=counter_day)
     except AttachmentLimitExceeded as exc:
         raise _limited(exc) from None
     return limits, reservation

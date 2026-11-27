@@ -12,7 +12,7 @@ export default function App() {
   const preferences = usePreferences(occasion);
   const loginFacade = facadeUrl(preferences.occasion, preferences.lang.htmlLang, preferences.theme);
   // the session lives in an HttpOnly cookie - the backend is the only source of truth
-  const { state, login, logout } = useAuth(preferences.lang.htmlLang);
+  const { state, login, logout, startGuest, loginFromGuest } = useAuth(preferences.lang.htmlLang);
 
   // checking the session with the backend, or already redirecting to KSI login
   if (state.status === 'loading') {
@@ -24,10 +24,26 @@ export default function App() {
     );
   }
 
-  // only reached on login errors - no session alone redirects straight to KSI
+  // no session with the guest trial on, or a login error
   if (state.status === 'unauthenticated') {
-    return <LoginScreen lang={preferences.lang} error={state.error} onLogin={login} facadeSrc={loginFacade} />;
+    return (
+      <LoginScreen
+        lang={preferences.lang}
+        error={state.error}
+        onLogin={login}
+        guest={state.guest}
+        onGuest={startGuest}
+        facadeSrc={loginFacade}
+      />
+    );
   }
 
-  return <ChatScreen user={state.user} preferences={preferences} onLogout={() => void logout()} />;
+  return (
+    <ChatScreen
+      user={state.user}
+      preferences={preferences}
+      onLogout={() => void logout()}
+      onGuestLogin={() => void loginFromGuest()}
+    />
+  );
 }

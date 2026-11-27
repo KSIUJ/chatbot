@@ -5,8 +5,10 @@ Za nginxem sa pod /api/auth/* (nginx obcina /api), backend widzi /auth/*.
     GET  /auth/login     -> 303 do Keycloaka (state, nonce, PKCE S256)
     GET  /auth/callback  -> wymiana kodu, walidacja, sprawdzenie grupy,
                             ciasteczko sesji, 303 na frontend
-    GET  /auth/me        -> dane zalogowanego czlonka (z is_admin) albo 401/403/503
+    GET  /auth/me        -> dane zalogowanego czlonka (z is_admin, is_guest) albo 401/403/503
     POST /auth/logout    -> kasuje sesje, zwraca adres wylogowania z Keycloaka
+    GET  /auth/guest     -> czy jest wersja testowa bez konta i ile ma pytan
+    POST /auth/guest     -> sesja goscia wersji testowej (guest/), bez Keycloaka
     GET  /auth/dev/login -> tylko ENV=dev: wybor zmyslonego konta (auth/dev.py)
 """
 
@@ -16,19 +18,29 @@ import hmac
 import logging
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..guest.service import GuestQuotaExceeded, client_address, client_hash, create_guest, delete_guest
+from ..guest.settings import GuestSettings, get_guest_settings
 from ..llm.language import parse_language
-from ..response import LogoutResponse, UserResponse
+from ..models import utcnow
+from ..response import GuestModeResponse, GuestStartResponse, LogoutResponse, UserResponse
 from .crypto import DecryptionError, LoginState, TokenCipher
 from .dev import render_login_page
-from .dependencies import get_oidc_client, get_token_cipher, require_member_context
+from .dependencies import (
+    auth_error,
+    get_oidc_client,
+    get_token_cipher,
+    require_member_context,
+    verify_origin,
+)
 from .oidc import OIDCClient, OIDCError, ProviderUnavailableError
 from .service import (
     AuthenticatedMember,
+    create_guest_session,
     create_session,
     decrypt_id_token,
     delete_session,
@@ -210,8 +222,68 @@ def me(member: AuthenticatedMember = Depends(require_member_context)) -> UserRes
     pozwala pokazac panel adminow (dostep i tak sprawdza /admin/*)."""
     user = member.user
     return UserResponse(
-        id=user.id, email=user.email, username=user.username, name=user.name, is_admin=member.is_admin
+        id=user.id,
+        email=user.email,
+        username=user.username,
+        name=user.name,
+        is_admin=member.is_admin,
+        is_guest=member.is_guest,
     )
+
+
+@router.get("/guest", response_model=GuestModeResponse)
+def guest_mode(response: Response, guest: GuestSettings = Depends(get_guest_settings)) -> GuestModeResponse:
+    """Publiczne: czy ekran logowania pokazuje wersje testowa bez konta."""
+    response.headers["Cache-Control"] = "no-store"
+    return GuestModeResponse(enabled=guest.enabled, question_limit=guest.question_limit)
+
+
+def _has_valid_session(request: Request, db: Session, settings: AuthSettings) -> bool:
+    raw_token = request.cookies.get(settings.session_cookie_name)
+    return bool(raw_token) and find_session(db, raw_token) is not None
+
+
+@router.post("/guest", response_model=GuestStartResponse, dependencies=[Depends(verify_origin)])
+def start_guest(
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: AuthSettings = Depends(get_auth_settings),
+    guest: GuestSettings = Depends(get_guest_settings),
+) -> JSONResponse:
+    """"Kontynuuj bez konta": konto goscia i ciasteczko sesji (bez Keycloaka).
+    Przegladarka z wazna sesja (gosc albo czlonek) zostaje przy niej - kolejne
+    klikniecie nie daje nowych pytan.
+
+    Raises:
+        HTTPException: 400 bad_client_address (naglowek adresu to nie adres),
+            403 guest_disabled (GUEST_MODE=off), 403 forbidden_origin,
+            429 guest_quota (za duzo sesji gosci z tego adresu dzisiaj).
+    """
+    if not guest.enabled:
+        raise auth_error(403, "guest_disabled", "Wersja testowa jest wylaczona.")
+    body = GuestStartResponse(question_limit=guest.question_limit).model_dump()
+    if _has_valid_session(request, db, settings):
+        return JSONResponse(body, headers=_NO_STORE)
+
+    peer = request.client.host if request.client else None
+    address = client_address(request.headers.get("x-client-ip"), peer)
+    if address is None:
+        logger.warning("guest session refused: X-Client-IP is not an address")
+        raise auth_error(400, "bad_client_address", "Nie udalo sie rozpoznac adresu. Odswiez strone.")
+    try:
+        user = create_guest(db, client_hash(address, settings.secret_key), guest, utcnow())
+    except GuestQuotaExceeded:
+        db.rollback()
+        logger.info("guest session refused: per-address quota reached")
+        raise auth_error(
+            429, "guest_quota", "Z tej sieci rozpoczeto dzis za duzo sesji testowych. Zaloguj sie kontem KSI."
+        ) from None
+    raw_token = create_guest_session(db, user, guest.session_seconds)
+    logger.info("guest session started for %s", user.id)
+
+    response = JSONResponse(body, headers=_NO_STORE)
+    _set_cookie(response, settings.session_cookie_name, raw_token, guest.session_seconds, settings)
+    return response
 
 
 @router.post("/logout", response_model=LogoutResponse)
@@ -225,18 +297,24 @@ def logout(
     """Konczy sesje aplikacji. Zwraca adres, pod ktory frontend przekierowuje,
     zeby zakonczyc tez sesje w Keycloaku. Idempotentne."""
     id_token_hint: str | None = None
+    guest_ended = False
     raw_token = request.cookies.get(settings.session_cookie_name)
     if raw_token:
         session = find_session(db, raw_token)
-        if session is not None:
+        if session is not None and session.user.is_guest:
+            # gosc nie ma sesji w Keycloaku; jego konto i rozmowy znikaja od razu
+            delete_guest(db, session.user_id)
+            guest_ended = True
+        elif session is not None:
             id_token_hint = decrypt_id_token(session, cipher)
             delete_session(db, session)
 
-    try:
-        logout_url = oidc.build_logout_url(id_token_hint)
-    except ProviderUnavailableError as exc:
-        logger.warning("cannot build identity provider logout URL: %s", exc)
-        logout_url = None
+    logout_url: str | None = None
+    if not guest_ended:
+        try:
+            logout_url = oidc.build_logout_url(id_token_hint)
+        except ProviderUnavailableError as exc:
+            logger.warning("cannot build identity provider logout URL: %s", exc)
 
     response = JSONResponse(LogoutResponse(logout_url=logout_url).model_dump(), headers=_NO_STORE)
     _clear_cookie(response, settings.session_cookie_name, settings)

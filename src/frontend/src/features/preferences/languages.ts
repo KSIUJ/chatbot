@@ -191,6 +191,24 @@ export interface AttachmentTranslation {
 
 // Strings of the USOS link (settings submenu and the notice shown after
 // coming back from the USOS consent page).
+// Guest trial without an account (login screen, sidebar, banner instead of the input)
+export interface GuestTranslation {
+  // login screen button and the note under it
+  continue: string;
+  note: (limit: number) => string;
+  starting: string;
+  // sidebar
+  badge: string;
+  questions: (used: number, limit: number) => string;
+  logIn: string;
+  end: string;
+  // banner instead of the input
+  exhaustedTitle: string;
+  exhaustedText: (limit: number) => string;
+  capacityTitle: string;
+  capacityText: string;
+}
+
 export interface UsosTranslation {
   // settings menu item and submenu title
   title: string;
@@ -297,6 +315,7 @@ export interface Translation {
   chatBlockedTitle: string;
   chatBlocked: string;
   attachments: AttachmentTranslation;
+  guest: GuestTranslation;
   usos: UsosTranslation;
   admin: AdminTranslation;
 }

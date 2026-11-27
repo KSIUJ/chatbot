@@ -19,6 +19,8 @@ interface ChatScreenProps {
   user: AuthUser;
   preferences: Preferences;
   onLogout: () => void;
+  // guest trial: end it and log in with KSI
+  onGuestLogin: () => void;
 }
 
 const USOS_NOTICE_MS = 8000;
@@ -28,7 +30,7 @@ function hasFiles(event: DragEvent<HTMLElement>): boolean {
   return Array.from(event.dataTransfer.types).includes('Files');
 }
 
-export default function ChatScreen({ user, preferences, onLogout }: ChatScreenProps) {
+export default function ChatScreen({ user, preferences, onLogout, onGuestLogin }: ChatScreenProps) {
   const { lang } = preferences;
   const chat = useChat(lang.htmlLang);
   const { refreshUsage } = chat;
@@ -65,11 +67,20 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
 
   // banner over the input while this person is blocked after warnings or the
   // admins have the chat switched off
+  const guestLogin = { label: lang.guest.logIn, onClick: onGuestLogin };
   const offNotice: OffNotice | null = chat.chatBlocked
     ? { title: lang.chatBlockedTitle, text: lang.chatBlocked }
     : chat.chatDisabled
       ? { title: lang.chatOffTitle, text: chat.usage?.chatDisabledMessage ?? lang.chatOffDefault }
-      : null;
+      : chat.guestBlock === 'guest_limit_reached'
+        ? {
+            title: lang.guest.exhaustedTitle,
+            text: lang.guest.exhaustedText(chat.usage?.limit ?? 0),
+            action: guestLogin,
+          }
+        : chat.guestBlock === 'guest_capacity'
+          ? { title: lang.guest.capacityTitle, text: lang.guest.capacityText, action: guestLogin }
+          : null;
   const canDrop = attachments.limits !== null && offNotice === null;
   // a new conversation shows the occasion facade in full colour, a running one dims it
   const isNewChat = chat.messages.length === 0 && !chat.isWaiting && !chat.isLoadingConversation;
@@ -147,6 +158,7 @@ export default function ChatScreen({ user, preferences, onLogout }: ChatScreenPr
           onOpen={handleOpen}
           onDelete={(id) => void chat.removeChat(id)}
           onLogout={onLogout}
+          onGuestLogin={onGuestLogin}
           drawerId={drawerId}
           isDrawerOpen={isDrawerOpen}
           closeButtonRef={closeButtonRef}

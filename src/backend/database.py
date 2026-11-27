@@ -58,8 +58,9 @@ def get_user_by_oidc_sub(db: Session, oidc_sub: str) -> User | None:
 
 
 def count_users(db: Session) -> int:
-    """Liczba kont - kazde powstaje przy pierwszym udanym logowaniu przez KSI."""
-    return db.execute(select(func.count()).select_from(User)).scalar_one()
+    """Liczba kont - kazde powstaje przy pierwszym udanym logowaniu przez KSI
+    (bez gosci wersji testowej)."""
+    return db.execute(select(func.count()).select_from(User).where(User.is_guest.is_(False))).scalar_one()
 
 
 # CONVERSATIONS

@@ -52,7 +52,10 @@ from .database import (
     get_session_factory,
     vacuum_free_pages,
 )
+from .auth.dependencies import require_ksi_member
 from .auth.service import purge_expired_sessions
+from .guest.service import purge_expired_guests
+from .guest.settings import GuestSettings, get_guest_settings
 from .limits import (
     ChatDisabled,
     LimitExceeded,
@@ -61,11 +64,13 @@ from .limits import (
     limit_exceeded_handler,
     router as limits_router,
 )
+from .limits.router import guest_unavailable_handler
 from .limits.settings import get_default_limits
 from .limits.usage import (
     Clock,
+    GuestQuestionsUnavailable,
     Reservation,
-    consume_question,
+    consume_question_for,
     get_clock,
     purge_old_usage,
     refund_in_new_session,
@@ -166,6 +171,8 @@ def cleanup_jobs(settings: HistorySettings) -> dict[str, CleanupJob]:
     return {
         "conversations": lambda db: purge_expired_conversations(db, settings.retention_days),
         "sessions": purge_expired_sessions,
+        # konta gosci wersji testowej po GUEST_SESSION_HOURS, z rozmowami i plikami
+        "guests": purge_expired_guests,
         "incidents": purge_old_incidents,
         "feedback": purge_old_feedback,
         "daily_usage": purge_old_usage,
@@ -246,6 +253,8 @@ app = FastAPI(
 )
 # wyczerpany dzienny limit pytan -> 429 z kodem rate_limited (przed strumieniem)
 app.add_exception_handler(LimitExceeded, limit_exceeded_handler)
+# 429 gosci wersji testowej (guest_limit_reached, guest_capacity)
+app.add_exception_handler(GuestQuestionsUnavailable, guest_unavailable_handler)
 # czat wylaczony przez zarzad -> 503 chat_disabled (przed limitem i modelem)
 app.add_exception_handler(ChatDisabled, chat_disabled_handler)
 # osoba zablokowana po ostrzezeniach -> 403 chat_blocked (po wylaczniku, przed limitem)
@@ -391,6 +400,7 @@ def chat(
     history_settings: HistorySettings = Depends(get_history_settings),
     session_factory: sessionmaker[Session] = Depends(get_session_factory),
     clock: Clock = Depends(get_clock),
+    guest: GuestSettings = Depends(get_guest_settings),
 ) -> ChatResponse:
     """Pytanie do czatu, odpowiedz w calosci (JSON). Wiodacy znacznik
     [[NARUSZENIE]] jest zdejmowany przed zapisem i zglaszany jako incydent.
@@ -411,7 +421,7 @@ def chat(
         # AttachmentError (404/422) - przed limitem i modelem
         turn = with_attachments(db, turn, payload.attachment_ids)
         # LimitExceeded -> 429; pytanie odrzucone limitem nie jest incydentem
-        reservation = consume_question(db, user.id, clock())
+        reservation = consume_question_for(db, user, clock(), guest)
         try:
             # najpierw odpowiedz: blad LLM zostawia rozmowe bez zmian, nie kasuje
             # najstarszej rozmowy i nie zostawia pustej
@@ -434,7 +444,12 @@ def chat(
 
 
 def _prepare_stream_turn(
-    db: Session, payload: ChatRequest, user: User, history_settings: HistorySettings, clock: Clock
+    db: Session,
+    payload: ChatRequest,
+    user: User,
+    history_settings: HistorySettings,
+    clock: Clock,
+    guest: GuestSettings,
 ) -> tuple[ChatTurn, Reservation]:
     """Tura dla strumienia; wylaczony czat -> 503 (ChatDisabled, przed
     czymkolwiek), zablokowana osoba -> 403 (ChatBlocked), cudza rozmowa ->
@@ -450,7 +465,7 @@ def _prepare_stream_turn(
             raise HTTPException(status_code=404, detail="conversation not found")
         # zalaczniki (404/422) przed limitem - odrzucone pytanie nic nie kosztuje
         turn = with_attachments(db, turn, payload.attachment_ids)
-        return turn, consume_question(db, user.id, clock())
+        return turn, consume_question_for(db, user, clock(), guest)
     finally:
         db.close()
 
@@ -468,6 +483,7 @@ async def chat_stream(
     history_settings: HistorySettings = Depends(get_history_settings),
     session_factory: sessionmaker[Session] = Depends(get_session_factory),
     clock: Clock = Depends(get_clock),
+    guest: GuestSettings = Depends(get_guest_settings),
     usos_settings: UsosSettings = Depends(get_usos_settings),
     usos_client: UsosClient = Depends(get_usos_client),
     usos_cipher: UsosTokenCipher = Depends(get_usos_token_cipher),
@@ -477,7 +493,9 @@ async def chat_stream(
     (usos/tools.py) - plan, przedmioty, oceny.
     Bledy logowania, originu, walidacji, 503 (czat wylaczony), 403 (blokada), 404 i 429 (dzienny limit) wracaja
     jako zwykle odpowiedzi HTTP, zanim zacznie sie strumien."""
-    turn, reservation = await run_in_threadpool(_prepare_stream_turn, db, payload, user, history_settings, clock)
+    turn, reservation = await run_in_threadpool(
+        _prepare_stream_turn, db, payload, user, history_settings, clock, guest
+    )
     refund = partial(refund_in_new_session, session_factory, reservation)
     tools = await run_in_threadpool(
         build_usos_toolbox, session_factory, turn.user_id, usos_settings, usos_client, usos_cipher,
@@ -511,7 +529,7 @@ def chat_pending(response: Response, user: User = Depends(require_member)) -> Pe
     return PendingAnswers(items=items)
 
 
-@app.get("/stats", response_model=StatsResponse, dependencies=[Depends(require_member)])
+@app.get("/stats", response_model=StatsResponse, dependencies=[Depends(require_ksi_member)])
 def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
     """Zbiorcze statystyki uzycia (tylko dla zalogowanych czlonkow KSI)."""
     return StatsResponse(

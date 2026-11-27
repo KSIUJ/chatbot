@@ -11,6 +11,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..guest.settings import GuestSettings, get_guest_settings
 from ..models import User
 from .crypto import TokenCipher
 from .dev import DevOIDCClient
@@ -55,9 +56,11 @@ def require_member_context(
     settings: AuthSettings = Depends(get_auth_settings),
     oidc: OIDCClient = Depends(get_oidc_client),
     cipher: TokenCipher = Depends(get_token_cipher),
+    guest: GuestSettings = Depends(get_guest_settings),
 ) -> AuthenticatedMember:
     """Zalogowany uzytkownik, ktory w tej chwili jest w wymaganej grupie,
-    razem z flaga admina. FastAPI liczy to raz na zapytanie, nawet gdy endpoint
+    razem z flaga admina - albo gosc wersji testowej (is_guest, gdy
+    GUEST_MODE wlaczony). FastAPI liczy to raz na zapytanie, nawet gdy endpoint
     potrzebuje i require_member, i require_admin.
 
     Raises:
@@ -66,7 +69,7 @@ def require_member_context(
     """
     raw_token = request.cookies.get(settings.session_cookie_name)
     try:
-        return authenticate(db, raw_token, oidc, cipher, settings)
+        return authenticate(db, raw_token, oidc, cipher, settings, guests_enabled=guest.enabled)
     except AuthFailure as failure:
         raise auth_error(failure.status_code, failure.code, failure.message) from None
     except ProviderUnavailableError as exc:
@@ -77,7 +80,19 @@ def require_member_context(
 
 
 def require_member(member: AuthenticatedMember = Depends(require_member_context)) -> User:
-    """Zalogowany czlonek KSI (patrz require_member_context)."""
+    """Zalogowany czlonek KSI albo gosc wersji testowej (patrz
+    require_member_context) - czat, historia, zalaczniki, oceny, limit."""
+    return member.user
+
+
+def require_ksi_member(member: AuthenticatedMember = Depends(require_member_context)) -> User:
+    """Tylko czlonek KSI z kontem - bez gosci (USOS, statystyki).
+
+    Raises:
+        HTTPException: jak require_member_context, a do tego 403 "guest_not_allowed".
+    """
+    if member.is_guest:
+        raise auth_error(403, "guest_not_allowed", "Dostepne tylko po zalogowaniu kontem KSI.")
     return member.user
 
 
