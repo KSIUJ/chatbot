@@ -4,7 +4,10 @@ Za nginxem jest pod /api/* (nginx obcina /api).
 
     GET /usage -> {used, limit (null = bez limitu), reset_at, chat_enabled,
                    chat_disabled_message, chat_blocked, attachments: {limity plikow,
-                   used_today, images_supported}}
+                   used_today, images_supported}, guest}
+
+Gosc wersji testowej dostaje pytania i pliki calej sesji (guest=true), a po
+ich wyczerpaniu 429 guest_limit_reached / guest_capacity.
 """
 
 from __future__ import annotations
@@ -17,12 +20,25 @@ from sqlalchemy.orm import Session
 
 from ..auth.dependencies import require_member
 from ..database import get_db
+from ..guest.settings import GUEST_MAX_FILE_MB, GuestSettings, get_guest_settings
 from ..llm.provider import provider_supports_images
 from ..models import User
 from ..security.blocks import is_blocked
 from .schemas import AttachmentUsage, UsageResponse
 from .settings import MAX_IMAGE_MB, ChatDisabled, get_attachment_limits, get_chat_availability
-from .usage import Clock, LimitExceeded, attachments_used, get_clock, usage_status
+from .usage import (
+    Clock,
+    GuestQuestionsUnavailable,
+    LimitExceeded,
+    UsageStatus,
+    attachments_used,
+    get_clock,
+    guest_capacity_reached,
+    guest_expires_at,
+    guest_questions_used,
+    guest_usage_day,
+    usage_status,
+)
 
 RATE_LIMITED = "rate_limited"
 CHAT_DISABLED = "chat_disabled"
@@ -36,14 +52,31 @@ def get_usage(
     db: Session = Depends(get_db),
     user: User = Depends(require_member),
     clock: Clock = Depends(get_clock),
+    guest: GuestSettings = Depends(get_guest_settings),
 ) -> UsageResponse:
     """Dzienny limit pytan biezacego uzytkownika (podpowiedz w sidebarze) i stan
-    wylacznika czatu i blokady osoby (baner nad polem pytania)."""
+    wylacznika czatu i blokady osoby (baner nad polem pytania). Gosc dostaje
+    limit swojej sesji i jej koniec."""
     response.headers["Cache-Control"] = "no-store"
     now = clock()
-    status = usage_status(db, user.id, now)
     availability = get_chat_availability(db)
     attachments = get_attachment_limits(db)
+    if user.is_guest:
+        status = UsageStatus(
+            used=guest_questions_used(db, user),
+            limit=guest.question_limit,
+            reset_at=guest_expires_at(user, guest),
+        )
+        max_files = min(attachments.max_per_day, guest.attachment_limit)
+        files_used = attachments_used(db, user.id, now, day=guest_usage_day(user))
+        max_file_mb = min(attachments.max_file_mb, GUEST_MAX_FILE_MB)
+        capacity_reached = guest_capacity_reached(db, now, guest)
+    else:
+        status = usage_status(db, user.id, now)
+        max_files = attachments.max_per_day
+        files_used = attachments_used(db, user.id, now)
+        max_file_mb = attachments.max_file_mb
+        capacity_reached = False
     return UsageResponse(
         used=status.used,
         limit=status.limit,
@@ -52,14 +85,16 @@ def get_usage(
         chat_disabled_message=availability.message,
         chat_blocked=is_blocked(user),
         attachments=AttachmentUsage(
-            max_file_mb=attachments.max_file_mb,
-            max_image_mb=min(MAX_IMAGE_MB, attachments.max_file_mb),
+            max_file_mb=max_file_mb,
+            max_image_mb=min(MAX_IMAGE_MB, max_file_mb),
             max_files_per_message=attachments.max_files_per_message,
-            max_per_day=attachments.max_per_day,
-            used_today=attachments_used(db, user.id, now),
+            max_per_day=max_files,
+            used_today=files_used,
             allowed_types=list(attachments.allowed_types),
             images_supported=provider_supports_images(),
         ),
+        guest=user.is_guest,
+        guest_capacity_reached=capacity_reached,
     )
 
 
@@ -97,6 +132,23 @@ async def chat_disabled_handler(_request: Request, exc: Exception) -> JSONRespon
     if not isinstance(exc, ChatDisabled):
         raise exc
     return chat_disabled_response(exc)
+
+
+def guest_unavailable_response(exc: GuestQuestionsUnavailable) -> JSONResponse:
+    """429 gosci: guest_limit_reached (pytania sesji) albo guest_capacity
+    (dzienny limit wszystkich gosci); bez Retry-After - pomaga tylko logowanie."""
+    return JSONResponse(
+        status_code=429,
+        content={"detail": {"code": exc.code, "message": exc.message, "limit": exc.limit}},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def guest_unavailable_handler(_request: Request, exc: Exception) -> JSONResponse:
+    """Handler wyjatkow GuestQuestionsUnavailable (/chat, /chat/stream, /attachments)."""
+    if not isinstance(exc, GuestQuestionsUnavailable):
+        raise exc
+    return guest_unavailable_response(exc)
 
 
 async def limit_exceeded_handler(_request: Request, exc: Exception) -> JSONResponse:

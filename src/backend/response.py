@@ -102,6 +102,20 @@ class UserResponse(BaseModel):
     name: str | None
     # w grupie OIDC_ADMIN_GROUP - moze przegladac oceny i zgloszenia
     is_admin: bool = False
+    # gosc wersji testowej bez konta (guest/) - bez USOS, z limitem pytan sesji
+    is_guest: bool = False
+
+
+class GuestModeResponse(BaseModel):
+    """GET /auth/guest - czy ekran logowania pokazuje "Kontynuuj bez konta"."""
+    enabled: bool
+    # pytania na sesje goscia
+    question_limit: int
+
+
+class GuestStartResponse(BaseModel):
+    """POST /auth/guest - sesja goscia zalozona (albo juz byla)."""
+    question_limit: int
 
 
 class LogoutResponse(BaseModel):

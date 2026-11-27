@@ -34,7 +34,7 @@ from ..auth.dependencies import (
     auth_error,
     get_oidc_client,
     get_token_cipher,
-    require_member,
+    require_ksi_member,
     require_member_context,
     verify_origin,
 )
@@ -44,6 +44,7 @@ from ..database import get_db
 from ..models import User
 from .client import VERIFIER_PATTERN, UsosClient, UsosError, UsosUnauthorizedError
 from .crypto import ConnectState, UserToken, UsosTokenCipher
+from ..guest.settings import get_guest_settings
 from .dependencies import get_usos_client, get_usos_token_cipher, require_usos_available
 from .schemas import UsosConnectResponse, UsosStatusResponse
 from .service import as_utc, get_link, revoke_quietly, save_link, unlink
@@ -102,7 +103,7 @@ def _identity(info: Any) -> tuple[str, str | None] | None:
 
 @router.get("/status", response_model=UsosStatusResponse)
 def status(
-    user: User = Depends(require_member),
+    user: User = Depends(require_ksi_member),
     settings: UsosSettings = Depends(get_usos_settings),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
@@ -122,7 +123,7 @@ def status(
 
 @router.post("/connect", response_model=UsosConnectResponse, dependencies=[Depends(verify_origin)])
 def connect(
-    user: User = Depends(require_member),
+    user: User = Depends(require_ksi_member),
     settings: UsosSettings = Depends(require_usos_available),
     auth: AuthSettings = Depends(get_auth_settings),
     cipher: TokenCipher = Depends(get_token_cipher),
@@ -177,9 +178,13 @@ def callback(
         return _back(auth, error="unavailable")
     # Sesja jak w require_member, ale bez JSON-owego 401 - to nawigacja przegladarki
     try:
-        user = require_member_context(request, db, auth, oidc, cipher).user
+        member = require_member_context(request, db, auth, oidc, cipher, get_guest_settings())
     except HTTPException:
         return _back(auth, error="session")
+    if member.is_guest:
+        # gosc nie moze zaczac laczenia (POST /connect), wiec nie ma tu czego konczyc
+        return _back(auth, error="session")
+    user = member.user
 
     if not oauth_verifier:
         # odmowa w USOS: powrot bez verifiera
@@ -238,7 +243,7 @@ def callback(
 
 @router.delete("/link", status_code=204, dependencies=[Depends(verify_origin)])
 def delete_link(
-    user: User = Depends(require_member),
+    user: User = Depends(require_ksi_member),
     db: Session = Depends(get_db),
     settings: UsosSettings = Depends(get_usos_settings),
     client: UsosClient = Depends(get_usos_client),

@@ -25,7 +25,8 @@ def _like_pattern(query: str) -> str:
 
 
 def _filtered(query: str | None) -> Select[tuple[User]]:
-    stmt = select(User)
+    # goscie wersji testowej nie maja wyjatkow limitu - nie ma ich na liscie
+    stmt = select(User).where(User.is_guest.is_(False))
     text = (query or "").strip()
     if text:
         pattern = _like_pattern(text)
