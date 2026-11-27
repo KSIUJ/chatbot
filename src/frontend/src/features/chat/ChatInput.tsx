@@ -13,6 +13,8 @@ const MAX_INPUT_HEIGHT_PX = 200;
 export interface OffNotice {
   title: string;
   text: string;
+  // a way out under the text, e.g. KSI login after the guest trial
+  action?: { label: string; onClick: () => void };
 }
 
 interface ChatInputProps {
@@ -97,6 +99,11 @@ export default function ChatInput({
           <div>
             <p className="font-semibold text-danger-text">{offNotice.title}</p>
             <p className="text-fg break-words">{offNotice.text}</p>
+            {offNotice.action !== undefined && (
+              <button type="button" onClick={offNotice.action.onClick} className="ksi-btn ksi-btn-primary mt-2.5">
+                {offNotice.action.label}
+              </button>
+            )}
           </div>
         </div>
       )}

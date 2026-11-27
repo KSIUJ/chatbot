@@ -7,8 +7,9 @@ import type { AuthErrorCode } from '../../lib/api';
 // browser straight back, so redirecting on them would loop forever.
 
 // Backend codes plus one frontend-only case: an automatic redirect already
-// happened moments ago and still produced no session (e.g. blocked cookies).
-export type LoginError = AuthErrorCode | 'login_incomplete';
+// happened moments ago and still produced no session (e.g. blocked cookies),
+// and the errors of starting a guest session (guest.ts).
+export type LoginError = AuthErrorCode | 'login_incomplete' | 'guest_quota' | 'guest_disabled' | 'guest_failed';
 
 export const AUTO_REDIRECT_GUARD_KEY = 'authAutoRedirectAt';
 

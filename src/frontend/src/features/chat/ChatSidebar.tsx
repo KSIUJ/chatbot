@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { LogOut, Plus, Trash2, X } from 'lucide-react';
+import { LogIn, LogOut, Plus, Trash2, X } from 'lucide-react';
 import type { AuthUser } from '../auth/useAuth';
 import type { Preferences } from '../preferences/usePreferences';
 import type { ConversationSummary } from './conversations';
@@ -22,6 +22,8 @@ interface ChatSidebarProps {
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onLogout: () => void;
+  // guest trial: end it and log in with KSI
+  onGuestLogin: () => void;
   // below md the sidebar is an off-canvas drawer
   drawerId: string;
   isDrawerOpen: boolean;
@@ -42,6 +44,7 @@ export default function ChatSidebar({
   onOpen,
   onDelete,
   onLogout,
+  onGuestLogin,
   drawerId,
   isDrawerOpen,
   closeButtonRef,
@@ -53,7 +56,7 @@ export default function ChatSidebar({
     if (window.confirm(lang.deleteConfirm)) onDelete(id);
   };
 
-  const displayName = user.name || user.username || user.email || '';
+  const displayName = user.is_guest ? lang.guest.badge : user.name || user.username || user.email || '';
 
   return (
     // mobile: fixed drawer, slid out and invisible (hidden from focus and
@@ -170,9 +173,22 @@ export default function ChatSidebar({
             </p>
           )}
           {usage !== null && usage.limit !== null && (
-            <p className="text-[11px] text-muted tabular-nums">{lang.usageToday(usage.used, usage.limit)}</p>
+            <p className="text-[11px] text-muted tabular-nums">
+              {usage.guest ? lang.guest.questions(usage.used, usage.limit) : lang.usageToday(usage.used, usage.limit)}
+            </p>
           )}
         </div>
+
+        {user.is_guest && (
+          <button
+            type="button"
+            onClick={onGuestLogin}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-control transition-colors text-xs font-medium text-fg hover:bg-surface-hover"
+          >
+            <LogIn size={15} aria-hidden="true" />
+            {lang.guest.logIn}
+          </button>
+        )}
 
         <button
           type="button"
@@ -180,7 +196,7 @@ export default function ChatSidebar({
           className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-control transition-colors text-xs font-medium text-danger hover:bg-danger/10"
         >
           <LogOut size={15} aria-hidden="true" />
-          {lang.logout}
+          {user.is_guest ? lang.guest.end : lang.logout}
         </button>
       </div>
     </div>

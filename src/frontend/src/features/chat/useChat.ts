@@ -30,8 +30,11 @@ import {
   exhaustedUsage,
   fetchUsage,
   isChatBlocked,
+  isGuestExhausted,
   parseChatDisabled,
+  parseGuestBlock,
   parseRateLimit,
+  type GuestBlock,
   type RateLimitInfo,
   type UsageStatus,
 } from './usage';
@@ -156,6 +159,13 @@ export function useChat(language: HtmlLang) {
   // no questions; poll until it is back on (or a board member lifts the block)
   const chatBlocked = usage?.chatBlocked === true;
   const chatDisabled = usage?.chatEnabled === false || chatBlocked;
+  // guest trial: all questions of the session used, or the daily limit of all
+  // guests reached - the banner offers KSI login
+  const guestBlock: GuestBlock | null = isGuestExhausted(usage)
+    ? 'guest_limit_reached'
+    : usage?.guest === true && usage.guestCapacityReached
+      ? 'guest_capacity'
+      : null;
   useEffect(() => {
     if (!chatDisabled) return;
     const timer = window.setInterval(() => void refreshUsage(), CHAT_SWITCH_POLL_MS);
@@ -404,6 +414,17 @@ export function useChat(language: HtmlLang) {
         void refreshUsage();
         return;
       }
+      // guest trial over: the banner above the input explains it and offers
+      // KSI login, instead of an error bubble
+      const guestRefusal = parseGuestBlock(error);
+      if (guestRefusal !== null) {
+        setMessages((prev) => dropUnsentQuestion(prev, question));
+        if (guestRefusal === 'guest_capacity') {
+          setUsage((prev) => (prev === null ? prev : { ...prev, guestCapacityReached: true }));
+        }
+        void refreshUsage();
+        return;
+      }
       const rateLimit = parseRateLimit(error);
       if (rateLimit !== null) {
         replaceStream(rateLimitMarker(localId(), rateLimit));
@@ -569,6 +590,7 @@ export function useChat(language: HtmlLang) {
     usage,
     chatDisabled,
     chatBlocked,
+    guestBlock,
     refreshUsage,
     openConversation,
     startNewChat,

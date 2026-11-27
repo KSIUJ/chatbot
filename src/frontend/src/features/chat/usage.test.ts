@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ApiRequestError } from '../../lib/api';
-import { exhaustedUsage, formatResetTime, isChatBlocked, parseChatDisabled, parseRateLimit, parseUsage } from './usage';
+import {
+  exhaustedUsage,
+  formatResetTime,
+  isChatBlocked,
+  isGuestExhausted,
+  parseChatDisabled,
+  parseGuestBlock,
+  parseRateLimit,
+  parseUsage,
+} from './usage';
 
 const RESET = '2026-10-02T22:00:00+00:00';
 
@@ -59,6 +68,8 @@ describe('exhaustedUsage', () => {
       chatEnabled: true,
       chatDisabledMessage: null,
       chatBlocked: false,
+      guest: false,
+      guestCapacityReached: false,
     });
   });
 });
@@ -128,5 +139,42 @@ describe('block after warnings', () => {
     expect(isChatBlocked(new ApiRequestError(403, 'not_member', { code: 'not_member' }, null))).toBe(false);
     expect(isChatBlocked(new ApiRequestError(500, null, { code: 'chat_blocked' }, null))).toBe(false);
     expect(isChatBlocked(new TypeError('Failed to fetch'))).toBe(false);
+  });
+});
+
+describe('guest usage', () => {
+  it('reads the guest flag of /usage', () => {
+    expect(parseUsage({ used: 1, limit: 2, reset_at: RESET, guest: true })).toMatchObject({ guest: true });
+    expect(parseUsage({ used: 1, limit: 2, reset_at: RESET })).toMatchObject({ guest: false });
+  });
+
+  it('reads the daily limit of all guests', () => {
+    const body = { used: 0, limit: 2, reset_at: RESET, guest: true, guest_capacity_reached: true };
+    expect(parseUsage(body)).toMatchObject({ guestCapacityReached: true });
+    expect(parseUsage({ used: 0, limit: 2, reset_at: RESET, guest: true })).toMatchObject({
+      guestCapacityReached: false,
+    });
+  });
+
+  it('knows when a guest has no questions left', () => {
+    const usage = parseUsage({ used: 2, limit: 2, reset_at: RESET, guest: true });
+    const member = parseUsage({ used: 2, limit: 2, reset_at: RESET });
+    expect(isGuestExhausted(usage)).toBe(true);
+    expect(isGuestExhausted(parseUsage({ used: 1, limit: 2, reset_at: RESET, guest: true }))).toBe(false);
+    expect(isGuestExhausted(member)).toBe(false);
+    expect(isGuestExhausted(null)).toBe(false);
+  });
+
+  it('recognises the guest 429 answers', () => {
+    const reached = new ApiRequestError(429, null, { code: 'guest_limit_reached', limit: 2 });
+    const capacity = new ApiRequestError(429, null, { code: 'guest_capacity', limit: 300 });
+    expect(parseGuestBlock(reached)).toBe('guest_limit_reached');
+    expect(parseGuestBlock(capacity)).toBe('guest_capacity');
+    expect(parseGuestBlock(new ApiRequestError(429, null, { code: 'rate_limited', limit: 10 }))).toBeNull();
+    expect(parseGuestBlock(new ApiRequestError(403, null, { code: 'guest_limit_reached' }))).toBeNull();
+  });
+
+  it('exhausted member usage is never a guest', () => {
+    expect(exhaustedUsage({ limit: 10, resetAt: RESET }).guest).toBe(false);
   });
 });

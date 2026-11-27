@@ -21,7 +21,15 @@ export interface UsageStatus {
   chatBlocked: boolean;
   // attachment limits for the input (missing = older backend, no paperclip)
   attachments?: AttachmentLimits;
+  // guest trial: used/limit are the questions of the whole session and they
+  // do not come back at midnight
+  guest: boolean;
+  // guest trial: all guests together used today's limit
+  guestCapacityReached: boolean;
 }
+
+// Why a guest cannot ask any more (429 of POST /chat/stream).
+export type GuestBlock = 'guest_limit_reached' | 'guest_capacity';
 
 // What a 503 chat_disabled tells: the admins' message, if they wrote one.
 export interface ChatDisabledInfo {
@@ -67,7 +75,22 @@ export function parseUsage(value: unknown): UsageStatus | null {
     chatDisabledMessage: typeof message === 'string' && message !== '' ? message : null,
     chatBlocked: value.chat_blocked === true,
     ...(attachments !== null ? { attachments } : {}),
+    guest: value.guest === true,
+    guestCapacityReached: value.guest_capacity_reached === true,
   };
+}
+
+// A guest who has used all questions of the session.
+export function isGuestExhausted(usage: UsageStatus | null): boolean {
+  return usage !== null && usage.guest && usage.limit !== null && usage.used >= usage.limit;
+}
+
+// The guest block of a 429 answer, or null for any other error.
+export function parseGuestBlock(error: unknown): GuestBlock | null {
+  if (!(error instanceof ApiRequestError) || error.status !== 429) return null;
+  const { detail } = error;
+  if (!isRecord(detail)) return null;
+  return detail.code === 'guest_limit_reached' || detail.code === 'guest_capacity' ? detail.code : null;
 }
 
 // The chat switch info of a 503 chat_disabled error, or null for any other error
@@ -116,6 +139,8 @@ export function exhaustedUsage(info: RateLimitInfo, attachments?: AttachmentLimi
     chatDisabledMessage: null,
     chatBlocked: false,
     ...(attachments !== undefined ? { attachments } : {}),
+    guest: false,
+    guestCapacityReached: false,
   };
 }
 

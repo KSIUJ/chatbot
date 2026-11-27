@@ -2,23 +2,28 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import OccasionFacade from '../occasion/OccasionFacade';
 import type { Translation } from '../preferences/languages';
+import type { GuestMode } from './guest';
 import type { LoginError, LoginOptions } from './redirect';
 
 // Shown under the title like on auth.ksi.sh - a proper name, not translated.
 const KSI_NAME = 'Koło Studentów Informatyki UJ';
 
-// Shown only when an automatic redirect to KSI login would not help (errors,
-// loop guard) - a visitor without a session goes straight to Keycloak.
+// Shown to visitors without a session while the guest trial is on (the
+// choice: KSI login or the trial), and otherwise only when an automatic
+// redirect to KSI login would not help (errors, loop guard).
 // Built to look exactly like the KSI Keycloak login card.
 interface LoginScreenProps {
   lang: Translation;
   error: LoginError | null;
   onLogin: (options?: LoginOptions) => void;
+  // the guest trial; null = not offered
+  guest: GuestMode | null;
+  onGuest: () => Promise<void>;
   // facade of the current ksi.sh occasion; null = the usual building silhouette
   facadeSrc: string | null;
 }
 
-type PendingAction = 'login' | 'another-account' | null;
+type PendingAction = 'login' | 'another-account' | 'guest' | null;
 
 // Keycloak's danger icon: a filled circle with the exclamation mark cut out.
 function DangerIcon() {
@@ -40,16 +45,25 @@ function Redirecting({ label }: { label: string }) {
   );
 }
 
-export default function LoginScreen({ lang, error, onLogin, facadeSrc }: LoginScreenProps) {
-  // the page navigates away to Keycloak, so this never has to be reset
+export default function LoginScreen({ lang, error, onLogin, guest, onGuest, facadeSrc }: LoginScreenProps) {
+  // the page navigates away to Keycloak, so login never has to reset this;
+  // a failed trial start does
   const [pending, setPending] = useState<PendingAction>(null);
   // logged in to KSI, but not in the member group: SSO would bring back the
   // same account, so offer the Keycloak login form for a different one
   const canSwitchAccount = error === 'not_member';
+  const showGuest = guest !== null && guest.enabled;
 
-  const start = (action: Exclude<PendingAction, null>) => {
+  const start = (action: Exclude<PendingAction, 'guest' | null>) => {
     setPending(action);
     onLogin({ forceLogin: action === 'another-account' });
+  };
+
+  const startGuest = async () => {
+    setPending('guest');
+    await onGuest();
+    // still here = the trial did not start; the error is shown above
+    setPending(null);
   };
 
   return (
@@ -94,6 +108,20 @@ export default function LoginScreen({ lang, error, onLogin, facadeSrc }: LoginSc
               >
                 {pending === 'another-account' ? <Redirecting label={lang.redirecting} /> : lang.logInAnotherAccount}
               </button>
+            )}
+
+            {showGuest && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void startGuest()}
+                  disabled={pending !== null}
+                  className="ksi-btn ksi-btn-secondary w-full"
+                >
+                  {pending === 'guest' ? <Redirecting label={lang.guest.starting} /> : lang.guest.continue}
+                </button>
+                <p className="text-center text-xs leading-snug text-muted">{lang.guest.note(guest.questionLimit)}</p>
+              </>
             )}
           </div>
         </div>
